@@ -20,9 +20,9 @@ export default defineConfig({
       strategies: 'generateSW',
       includeAssets: ['icons/icon.svg'],
       manifest: {
-        name: '새문안 중국어 성경반',
+        name: '새문안교회 중국어 성경반(중급)',
         short_name: 'SMCB 中文',
-        description: '새문안교회 중국어 중급 성경반 학습 PWA',
+        description: '새문안교회 중국어 성경반(중급) 학습 PWA',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#FAFAFA',

@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Mail,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import {
   awaitVoices,
@@ -38,6 +40,7 @@ export default function Help(): JSX.Element {
 
       <TTSDiagnostic />
       <InstallGuide />
+      <UpdateUninstallGuide />
       <FAQSection />
       <ContactSection />
     </div>
@@ -216,28 +219,51 @@ function IOSUpdateGuide({
 
 function IOSVolumeGuide(): JSX.Element {
   return (
-    <div className="text-sm">
-      <p className="font-bold text-fg mb-2">🔉 iPhone 볼륨이 조절 안 돼요</p>
-      <p className="text-muted mb-2">
-        iPhone은 음성(TTS)을 <b>"벨소리·알림 볼륨"</b>으로 재생합니다.
-        그래서 측면 볼륨 버튼을 눌러도 평소처럼 <b>미디어 볼륨 슬라이더가 안 뜨는</b> 경우가 있어요.
+    <div className="text-sm space-y-3">
+      <p className="font-bold text-fg">🔉 iPhone 음성이 작거나 안 들릴 때 점검표</p>
+      <p className="text-muted">
+        iPhone은 음성(TTS)을 <b>미디어가 아닌 "벨소리·알림 볼륨"</b>으로 재생합니다.
+        아래를 순서대로 확인해 주세요.
       </p>
-      <ol className="list-decimal pl-5 space-y-1.5 text-fg">
-        <li>
-          왼쪽 옆면 <b>무음 스위치(주황색)</b>가 켜져 있는지 확인 → 꺼 주세요.
-        </li>
-        <li>
-          <b>설정</b> → <b>사운드 및 햅틱</b> → <b>벨소리와 알림 볼륨</b> 슬라이더를 올립니다.
-        </li>
-        <li>
-          또는 측면 볼륨 버튼으로 직접 올리세요. <b>"벨소리" 슬라이더</b>가 화면에 나타나면 정상입니다.
-        </li>
-        <li>
-          그래도 안 들리면: <b>설정 → 사운드 및 햅틱 → 버튼으로 변경</b>을 켜고 볼륨 버튼으로 조절.
-        </li>
-      </ol>
-      <p className="text-xs text-muted mt-3">
-        💡 음악 앱(Apple Music·YouTube)을 잠깐 재생한 뒤 다시 시도하면 미디어 카테고리가 활성화되어 정상 작동하기도 합니다.
+
+      <div className="rounded-lg border border-divider p-3">
+        <p className="font-semibold text-fg mb-1.5">① 무음 모드 확인</p>
+        <ul className="list-disc pl-5 space-y-1 text-fg/90">
+          <li>왼쪽 옆면 <b>무음 스위치(주황색이 보이면 ON)</b> → 꺼 주세요.</li>
+          <li>iPhone 15 Pro 이상은 <b>액션 버튼</b>이 무음으로 설정되어 있을 수 있어요. <b>설정 → 액션 버튼</b>에서 확인.</li>
+          <li>화면 우상단을 아래로 쓸어 <b>제어 센터</b> → 종 모양 아이콘이 빨간색이면 무음 → 탭하여 해제.</li>
+        </ul>
+      </div>
+
+      <div className="rounded-lg border border-divider p-3">
+        <p className="font-semibold text-fg mb-1.5">② 미디어 음량 올리기</p>
+        <ul className="list-disc pl-5 space-y-1 text-fg/90">
+          <li>YouTube·Apple Music 등으로 <b>음악을 잠깐 재생</b>한 뒤 측면 볼륨 버튼을 끝까지 올리세요.</li>
+          <li>음악 재생 중 슬라이더가 <b>"미디어"</b>로 표시되면 미디어 카테고리가 활성화된 상태입니다.</li>
+          <li>그 상태에서 이 앱으로 돌아와 다시 재생해 보세요. iOS 음성이 깨어납니다.</li>
+        </ul>
+      </div>
+
+      <div className="rounded-lg border border-divider p-3">
+        <p className="font-semibold text-fg mb-1.5">③ 벨소리·알림 볼륨 올리기</p>
+        <ul className="list-disc pl-5 space-y-1 text-fg/90">
+          <li><b>설정 → 사운드 및 햅틱 → 벨소리와 알림 볼륨</b> 슬라이더를 끝까지 올립니다.</li>
+          <li><b>"버튼으로 변경"</b>을 켜면 측면 버튼만으로 벨소리 볼륨을 바로 조절할 수 있어요.</li>
+        </ul>
+      </div>
+
+      <div className="rounded-lg border border-divider p-3">
+        <p className="font-semibold text-fg mb-1.5">④ Bluetooth 연결 확인</p>
+        <ul className="list-disc pl-5 space-y-1 text-fg/90">
+          <li>AirPods·Bluetooth 스피커가 연결되어 있으면 소리가 <b>그쪽으로만 출력</b>됩니다.</li>
+          <li><b>제어 센터</b> → 음악 카드 우상단 <b>📡 AirPlay 아이콘</b> → <b>"iPhone"</b>으로 변경.</li>
+          <li>또는 <b>설정 → Bluetooth</b>에서 연결된 기기 옆 ⓘ → <b>"이 기기에서 연결 해제"</b>.</li>
+        </ul>
+      </div>
+
+      <p className="text-xs text-muted">
+        💡 위 네 가지를 모두 확인해도 안 들리면 중국어 음성팩이 설치되지 않았을 가능성이 큽니다.
+        위쪽의 <b>"음성팩 설치"</b> 안내를 따라주세요.
       </p>
     </div>
   );
@@ -453,7 +479,211 @@ function MacInstallSteps(): JSX.Element {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3) FAQ 아코디언
+// 3) 업데이트 / 삭제 가이드 (OS별 탭)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function UpdateUninstallGuide(): JSX.Element {
+  const initial: Platform = isIOS()
+    ? 'ios'
+    : /Android/i.test(navigator.userAgent)
+      ? 'android'
+      : /Mac/i.test(navigator.userAgent)
+        ? 'mac'
+        : 'windows';
+  const [tab, setTab] = useState<Platform>(initial);
+
+  return (
+    <section>
+      <SectionHeader
+        title="🔄 업데이트 / 🗑️ 삭제"
+        subtitle="새 버전 적용 또는 앱·데이터 제거 방법"
+      />
+      <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+        <div role="tablist" className="flex flex-wrap gap-2">
+          <TabBtn cur={tab} v="ios" onClick={setTab} icon={<Apple size={14} />}>
+            iPhone
+          </TabBtn>
+          <TabBtn cur={tab} v="android" onClick={setTab} icon={<Smartphone size={14} />}>
+            Android
+          </TabBtn>
+          <TabBtn cur={tab} v="windows" onClick={setTab} icon={<Monitor size={14} />}>
+            Windows
+          </TabBtn>
+          <TabBtn cur={tab} v="mac" onClick={setTab} icon={<Monitor size={14} />}>
+            Mac
+          </TabBtn>
+        </div>
+
+        <div className="pt-2 text-sm text-fg space-y-4">
+          <div>
+            <p className="font-semibold text-fg mb-1.5 inline-flex items-center gap-1.5">
+              <RefreshCw size={14} aria-hidden /> 업데이트
+            </p>
+            {tab === 'ios' && <IOSUpdateSteps />}
+            {tab === 'android' && <AndroidUpdateSteps />}
+            {tab === 'windows' && <WindowsUpdateSteps />}
+            {tab === 'mac' && <MacUpdateSteps />}
+          </div>
+          <div className="pt-3 border-t border-divider">
+            <p className="font-semibold text-fg mb-1.5 inline-flex items-center gap-1.5">
+              <Trash2 size={14} aria-hidden /> 앱 삭제
+            </p>
+            {tab === 'ios' && <IOSUninstallSteps />}
+            {tab === 'android' && <AndroidUninstallSteps />}
+            {tab === 'windows' && <WindowsUninstallSteps />}
+            {tab === 'mac' && <MacUninstallSteps />}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function IOSUpdateSteps(): JSX.Element {
+  return (
+    <>
+      <p className="text-xs text-muted mb-2">
+        앱은 열릴 때 백그라운드에서 자동으로 업데이트됩니다.
+      </p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>
+          홈 화면 앱 종료: 화면 아래에서 위로 천천히 쓸어 올린 뒤 카드를 위로 밀어 종료.
+        </li>
+        <li>다시 홈 화면에서 SMCB 앱 아이콘을 탭하세요.</li>
+        <li>
+          그래도 옛 버전이 보이면 <b>Safari</b>에서 이 페이지를 직접 열어 <b>당겨서 새로고침</b> →
+          홈 화면 앱을 다시 여세요.
+        </li>
+      </ol>
+    </>
+  );
+}
+
+function IOSUninstallSteps(): JSX.Element {
+  return (
+    <>
+      <p className="text-xs text-muted mb-2">
+        홈 화면 아이콘 삭제 + 저장된 학습 데이터 삭제는 별도로 진행해야 합니다.
+      </p>
+      <p className="font-semibold text-fg mt-1 mb-1">앱 아이콘 삭제</p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>홈 화면에서 SMCB 아이콘을 <b>길게 누름</b>.</li>
+        <li>
+          메뉴에서 <b>"북마크 제거"</b> 또는 <b>"앱 제거"</b> → <b>"홈 화면에서 제거"</b>.
+        </li>
+      </ol>
+      <p className="font-semibold text-fg mt-3 mb-1">학습 데이터(진도·즐겨찾기)까지 완전 삭제</p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>
+          <b>설정 → Safari → 고급 → 웹사이트 데이터</b>
+        </li>
+        <li>검색창에 <b>"SMCB"</b> 또는 사이트 주소 입력.</li>
+        <li>
+          해당 항목을 왼쪽으로 쓸어 <b>삭제</b>.
+        </li>
+      </ol>
+    </>
+  );
+}
+
+function AndroidUpdateSteps(): JSX.Element {
+  return (
+    <>
+      <p className="text-xs text-muted mb-2">
+        앱은 열릴 때 자동으로 새 버전을 받아옵니다.
+      </p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>최근 앱 화면에서 SMCB를 위로 밀어 완전 종료 → 다시 열기.</li>
+        <li>
+          그래도 옛 버전이 보이면 <b>Chrome</b>에서 이 페이지를 열어 <b>당겨서 새로고침</b>.
+        </li>
+        <li>
+          최후 수단: Chrome <b>⋮ → 설정 → 개인정보 → 인터넷 사용 기록 삭제 → "캐시된 이미지·파일"</b> 체크 → 삭제.
+        </li>
+      </ol>
+    </>
+  );
+}
+
+function AndroidUninstallSteps(): JSX.Element {
+  return (
+    <>
+      <p className="font-semibold text-fg mt-1 mb-1">앱 아이콘 삭제</p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>홈 화면에서 SMCB 아이콘을 <b>길게 누름</b> → <b>"제거"</b> 또는 휴지통으로 드래그.</li>
+      </ol>
+      <p className="font-semibold text-fg mt-3 mb-1">학습 데이터까지 완전 삭제</p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>
+          <b>설정 → 앱 → SMCB</b> 선택 → <b>저장공간</b> → <b>"데이터 지우기"</b>.
+        </li>
+        <li>
+          또는 Chrome <b>⋮ → 설정 → 사이트 설정 → 저장된 데이터</b>에서 해당 사이트 제거.
+        </li>
+      </ol>
+    </>
+  );
+}
+
+function WindowsUpdateSteps(): JSX.Element {
+  return (
+    <ol className="list-decimal pl-5 space-y-1.5">
+      <li>앱 창을 닫고 시작 메뉴에서 다시 열면 자동 업데이트됩니다.</li>
+      <li>
+        강제 새로고침: 앱 안에서 <b>Ctrl + Shift + R</b> (또는 <b>F5</b>).
+      </li>
+      <li>
+        그래도 안 되면 Chrome·Edge에서 <b>설정 → 개인정보 → 검색 데이터 삭제 → "캐시된 이미지·파일"</b>.
+      </li>
+    </ol>
+  );
+}
+
+function WindowsUninstallSteps(): JSX.Element {
+  return (
+    <ol className="list-decimal pl-5 space-y-1.5">
+      <li>
+        시작 메뉴에서 <b>SMCB</b> 검색 → 우클릭 → <b>"제거"</b>.
+      </li>
+      <li>
+        또는 앱 내부 <b>⋮ → "SMCB 제거"</b> (Chrome/Edge에서 설치한 경우).
+      </li>
+      <li>
+        설정 → 앱 → 설치된 앱 → SMCB → <b>"제거"</b>로도 가능합니다.
+      </li>
+    </ol>
+  );
+}
+
+function MacUpdateSteps(): JSX.Element {
+  return (
+    <ol className="list-decimal pl-5 space-y-1.5">
+      <li>Dock에서 SMCB 아이콘 우클릭 → <b>"종료"</b> 후 다시 열기.</li>
+      <li>
+        Safari에서 페이지를 직접 열어 <b>⌘ + Shift + R</b>로 강제 새로고침.
+      </li>
+    </ol>
+  );
+}
+
+function MacUninstallSteps(): JSX.Element {
+  return (
+    <ol className="list-decimal pl-5 space-y-1.5">
+      <li>
+        <b>Launchpad</b>에서 SMCB 아이콘을 길게 누르면 흔들립니다 → <b>X</b> 버튼 클릭 → 삭제.
+      </li>
+      <li>
+        또는 <b>응용 프로그램</b> 폴더에서 SMCB를 휴지통으로 드래그.
+      </li>
+      <li>
+        Safari 저장 데이터까지 삭제: <b>Safari → 설정 → 개인정보 → 웹사이트 데이터 관리</b>에서 검색 후 제거.
+      </li>
+    </ol>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4) FAQ 아코디언
 // ─────────────────────────────────────────────────────────────────────────────
 
 type FAQ = { q: string; a: JSX.Element };
@@ -585,7 +815,7 @@ function FAQItem({ q, a }: FAQ): JSX.Element {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4) 문의
+// 5) 문의
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ContactSection(): JSX.Element {

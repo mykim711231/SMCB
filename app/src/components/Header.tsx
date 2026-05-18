@@ -27,8 +27,8 @@ export default function Header(): JSX.Element {
           )}
           <Link to="/" className="flex items-center gap-2 font-bold text-fg text-lg min-w-0" aria-label="홈으로">
             <span className="inline-block w-7 h-7 rounded-md bg-primary text-white text-[11px] font-bold leading-7 text-center flex-none">SMCB</span>
-            <span className="hidden sm:inline truncate">새문안 중국어 성경반</span>
-            <span className="sm:hidden">SMCB</span>
+            <span className="hidden sm:inline truncate">새문안교회 중국어 성경반(중급)</span>
+            <span className="sm:hidden truncate">중국어 성경반(중급)</span>
           </Link>
         </div>
         <nav className="flex items-center gap-1">

@@ -17,10 +17,10 @@ export default function Home(): JSX.Element {
     <div className="space-y-6">
       <section className="rounded-2xl bg-primary text-white p-5 sm:p-6 shadow-sm">
         <p className="text-xs uppercase tracking-wider opacity-80">
-          새문안교회 중급
+          새문안교회
         </p>
         <h1 className="text-2xl sm:text-3xl font-bold mt-1 leading-tight">
-          중국어 성경반
+          중국어 성경반 (중급)
         </h1>
         <p className="text-sm opacity-90 mt-2">
           한자 · 병음 · 한국어 토글, 단말기 내장 TTS로 듣고 따라하기.
