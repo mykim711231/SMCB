@@ -74,7 +74,7 @@ export type LessonMeta = {
 };
 
 export type Appendix = {
-  id: 'appendix1' | 'appendix2' | 'appendix3';
+  id: 'appendix1' | 'appendix2';
   title: string;
   markdown: string;
 };

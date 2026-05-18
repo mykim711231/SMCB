@@ -78,7 +78,6 @@ export default function Home(): JSX.Element {
           {[
             { id: 'appendix1', title: '중국어 기독교 어휘표' },
             { id: 'appendix2', title: '중국 문화 배경과 선교' },
-            { id: 'appendix3', title: '북경표준중국어 검토보고서' },
           ].map((a) => (
             <li key={a.id}>
               <Link
