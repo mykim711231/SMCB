@@ -1,0 +1,39 @@
+{
+  "name": "smcb-chinese-pwa",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Saemunan Church Mandarin Bible Class PWA",
+  "scripts": {
+    "build:content": "tsx scripts/build-content.ts",
+    "build:search": "tsx scripts/build-search-index.ts",
+    "build:all": "npm run build:content && npm run build:search",
+    "dev": "npm run build:all && vite",
+    "build": "npm run build:all && tsc -b && vite build",
+    "preview": "vite preview --base /SMCB/",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "idb-keyval": "^6.2.1",
+    "lucide-react": "^0.453.0",
+    "minisearch": "^7.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vite-plugin-pwa": "^0.20.5",
+    "workbox-window": "^7.1.0"
+  }
+}

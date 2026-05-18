@@ -1,0 +1,21 @@
+{
+  "name": "새문안 중국어 성경반",
+  "short_name": "SMCB 中文",
+  "description": "새문안교회 중국어 중급 성경반 학습 PWA",
+  "start_url": "/SMCB/",
+  "scope": "/SMCB/",
+  "id": "/SMCB/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAFAFA",
+  "theme_color": "#2563EB",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/SMCB/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+/* Design tokens — light/dark colors + font stack.
+   All colors as `r g b` (no `rgb()`) so Tailwind can apply alpha via <alpha-value>. */
+
+:root {
+  --rgb-bg: 250 250 250;
+  --rgb-surface: 255 255 255;
+  --rgb-text: 23 23 27;
+  --rgb-text-muted: 100 100 110;
+  --rgb-primary: 37 99 235;
+  --rgb-primary-soft: 219 234 254;
+  --rgb-accent: 234 88 12;
+  --rgb-success: 22 163 74;
+  --rgb-divider: 226 232 240;
+  --rgb-pinyin: 75 85 99;
+
+  /* System font chain — no web fonts (storage diet). */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑",
+    "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+
+  --font-pinyin:
+    "SF Mono", Menlo, Consolas, "Liberation Mono", monospace,
+    -apple-system, sans-serif;
+
+  /* Reading rhythm */
+  --reading-line-height: 1.75;
+  --tap-target: 44px;
+}
+
+html.dark {
+  --rgb-bg: 15 17 21;
+  --rgb-surface: 24 27 34;
+  --rgb-text: 230 232 236;
+  --rgb-text-muted: 156 163 175;
+  --rgb-primary: 96 165 250;
+  --rgb-primary-soft: 30 58 138;
+  --rgb-accent: 251 146 60;
+  --rgb-success: 74 222 128;
+  --rgb-divider: 51 55 64;
+  --rgb-pinyin: 156 163 175;
+}
+
+/* Large-font mode (큰글씨) — scales rem base. */
+html.fontsize-lg { font-size: 18px; }
+html.fontsize-xl { font-size: 20px; }
+
+html, body {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-feature-settings: "kern" 1;
+}
+
+.font-pinyin { font-family: var(--font-pinyin); }
+
+/* Focus ring (a11y) */
+:focus-visible {
+  outline: 2px solid rgb(var(--rgb-primary));
+  outline-offset: 2px;
+}
+
+button, [role="button"] {
+  min-height: var(--tap-target);
+  touch-action: manipulation;
+}
+
+/* Hide content visually but keep accessible */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Safe-area padding for iOS */
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+.pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
