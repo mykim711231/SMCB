@@ -41,8 +41,6 @@ export default function Home(): JSX.Element {
         </div>
       </section>
 
-      <InstallPrompt />
-
       <section className="rounded-2xl bg-surface border border-divider p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-2">
           <h2 className="text-base font-bold text-fg">학습 진도</h2>
@@ -94,6 +92,8 @@ export default function Home(): JSX.Element {
           ))}
         </ul>
       </section>
+
+      <InstallPrompt />
     </div>
   );
 }

@@ -6,8 +6,6 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const DISMISS_KEY = 'smcb-install-dismissed';
-
 function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia('(display-mode: standalone)').matches) return true;
@@ -34,16 +32,12 @@ export default function InstallPrompt(): JSX.Element | null {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showIOSModal, setShowIOSModal] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [installed, setInstalled] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (isStandalone()) {
-      setDismissed(true);
-      return;
-    }
-    if (localStorage.getItem(DISMISS_KEY) === '1') {
-      setDismissed(true);
+      setInstalled(true);
       return;
     }
     const onBeforeInstall = (e: Event): void => {
@@ -52,7 +46,7 @@ export default function InstallPrompt(): JSX.Element | null {
     };
     const onInstalled = (): void => {
       setDeferredPrompt(null);
-      setDismissed(true);
+      setInstalled(true);
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     window.addEventListener('appinstalled', onInstalled);
@@ -62,13 +56,10 @@ export default function InstallPrompt(): JSX.Element | null {
     };
   }, []);
 
-  if (dismissed) return null;
+  if (installed) return null;
 
   const androidAvailable = deferredPrompt !== null;
   const iosAvailable = isIOSSafari();
-
-  // 데스크톱 등 어느 쪽도 해당 없으면 표시하지 않음
-  if (!androidAvailable && !iosAvailable) return null;
 
   const handleAndroidInstall = async (): Promise<void> => {
     if (!deferredPrompt) return;
@@ -76,29 +67,16 @@ export default function InstallPrompt(): JSX.Element | null {
     const choice = await deferredPrompt.userChoice;
     if (choice.outcome === 'accepted') {
       setDeferredPrompt(null);
-      setDismissed(true);
+      setInstalled(true);
     }
-  };
-
-  const handleDismiss = (): void => {
-    localStorage.setItem(DISMISS_KEY, '1');
-    setDismissed(true);
   };
 
   return (
     <>
       <section
-        className="relative rounded-2xl border border-primary/30 bg-primary-soft p-4 sm:p-5"
+        className="rounded-2xl border border-primary/30 bg-primary-soft p-4 sm:p-5"
         aria-labelledby="install-title"
       >
-        <button
-          type="button"
-          onClick={handleDismiss}
-          aria-label="설치 안내 닫기"
-          className="absolute top-3 right-3 text-muted hover:text-fg p-1"
-        >
-          <X size={18} aria-hidden />
-        </button>
         <p id="install-title" className="text-sm font-bold text-fg mb-1">
           📱 홈 화면에 앱으로 설치
         </p>
@@ -124,9 +102,14 @@ export default function InstallPrompt(): JSX.Element | null {
             🍎 iPhone에 설치
           </button>
         </div>
+        {!androidAvailable && !iosAvailable && (
+          <p className="text-xs text-muted mt-3">
+            모바일에서 이 페이지를 열면 설치 버튼이 활성화됩니다.
+          </p>
+        )}
         {!androidAvailable && iosAvailable && (
           <p className="text-xs text-muted mt-3">
-            Android 사용자는 Chrome 메뉴 → "앱 설치"로 가능합니다.
+            Android는 Chrome 메뉴 → "앱 설치"로도 가능합니다.
           </p>
         )}
         {androidAvailable && !iosAvailable && (
