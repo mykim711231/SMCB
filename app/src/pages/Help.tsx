@@ -16,6 +16,7 @@ import {
   isSupported as ttsSupported,
   isIOS,
   isStandalonePWA,
+  getIOSVersion,
   speak,
 } from '@/lib/tts';
 import SectionHeader from '@/components/SectionHeader';
@@ -63,6 +64,10 @@ function TTSDiagnostic(): JSX.Element {
 
   const supported = ttsSupported();
   const iosPWA = isIOS() && isStandalonePWA();
+  const iosVer = getIOSVersion();
+  const iosOutdated =
+    iosVer !== null &&
+    (iosVer.major < 17 || (iosVer.major === 17 && iosVer.minor < 4));
 
   const handleTest = (): void => {
     setTestStatus('playing');
@@ -109,6 +114,10 @@ function TTSDiagnostic(): JSX.Element {
             title="홈 화면 앱(PWA)으로 열려 있습니다."
             body="iOS 17.4 미만에서는 음성이 막힐 수 있어요. 안 들리면 Safari 탭에서 다시 열어 보세요."
           />
+        )}
+
+        {iosOutdated && (
+          <IOSUpdateGuide version={iosVer!} />
         )}
 
         {supported && (
@@ -169,6 +178,39 @@ function TTSDiagnostic(): JSX.Element {
         )}
       </div>
     </section>
+  );
+}
+
+function IOSUpdateGuide({
+  version,
+}: {
+  version: { major: number; minor: number };
+}): JSX.Element {
+  const verLabel = `iOS ${version.major}.${version.minor}`;
+  return (
+    <div className="rounded-xl border border-accent/40 bg-accent/10 p-3">
+      <p className="text-sm font-bold text-fg inline-flex items-center gap-1.5">
+        <AlertTriangle size={16} aria-hidden /> 현재 {verLabel} — 업데이트 권장
+      </p>
+      <p className="text-xs text-muted mt-1 mb-2">
+        Apple은 <b>iOS 17.4</b>부터 PWA 음성 재생과 중국어 voiceschanged 버그를 다수 수정했습니다.
+        업데이트하면 음성 문제 대부분이 해결될 수 있어요.
+      </p>
+      <p className="text-sm font-semibold text-fg mb-1">📲 업데이트 방법</p>
+      <ol className="list-decimal pl-5 space-y-1 text-sm text-fg">
+        <li>
+          <b>설정</b> → <b>일반</b> → <b>소프트웨어 업데이트</b>
+        </li>
+        <li>
+          새 버전이 보이면 <b>"다운로드 및 설치"</b> (Wi-Fi · 충전기 권장)
+        </li>
+        <li>업데이트 후 이 앱을 다시 열어 테스트 재생을 다시 눌러 보세요.</li>
+      </ol>
+      <p className="text-xs text-muted mt-2">
+        💡 기기가 너무 오래되어 iOS 17.4를 지원하지 않으면 (iPhone 8 이하 등):
+        가능한 최신 버전으로 올린 뒤, 그래도 안 되면 Safari 탭에서 페이지를 여세요.
+      </p>
+    </div>
   );
 }
 
@@ -480,6 +522,16 @@ function FAQSection(): JSX.Element {
         a: (
           <p>
             ⚙️ <b>설정 → 음성(TTS) → 속도</b> 슬라이더로 0.6× ~ 1.4× 조절할 수 있어요.
+          </p>
+        ),
+      },
+      {
+        q: 'iPhone에서 음성이 자꾸 막혀요. 업데이트하면 좋아지나요?',
+        a: (
+          <p>
+            네. Apple은 <b>iOS 17.4</b>부터 PWA 음성 재생 버그와 voiceschanged 이벤트 누락을 수정했어요.
+            <b>설정 → 일반 → 소프트웨어 업데이트</b>에서 최신 버전으로 올린 뒤 다시 시도해 보세요.
+            iPhone 8 이하 등 17을 지원하지 않는 기기는 가능한 최신 버전으로 올리고 Safari 탭에서 여세요.
           </p>
         ),
       },

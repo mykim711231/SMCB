@@ -33,6 +33,17 @@ export function isStandalonePWA(): boolean {
   return (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
+/**
+ * iOS 버전을 user agent에서 추출합니다.
+ * iPadOS 13+는 macOS UA로 위장하므로 iPad는 정확히 못 잡을 수 있습니다.
+ */
+export function getIOSVersion(): { major: number; minor: number } | null {
+  if (!isIOS()) return null;
+  const m = navigator.userAgent.match(/OS (\d+)[_.](\d+)(?:[_.](\d+))?/);
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]) };
+}
+
 export function getVoices(): SpeechSynthesisVoice[] {
   if (!isSupported()) return [];
   return window.speechSynthesis.getVoices();
