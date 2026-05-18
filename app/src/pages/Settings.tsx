@@ -6,7 +6,7 @@ import { useFavorites } from '@/stores/favorites';
 import { useSRS } from '@/stores/srs';
 import { getStorageInfo, clearAllCaches, clearContentCaches, type StorageInfo } from '@/lib/storage';
 import { dbClearAll } from '@/lib/db';
-import { awaitVoices, isSupported } from '@/lib/tts';
+import { awaitVoices, isSupported, isIOS, isStandalonePWA } from '@/lib/tts';
 import { cn } from '@/lib/cn';
 import SectionHeader from '@/components/SectionHeader';
 
@@ -121,6 +121,39 @@ export default function Settings(): JSX.Element {
             )}
           </Row>
         </div>
+        {voices.length === 0 && isSupported() && (
+          <div className="mt-3 rounded-2xl border border-accent/30 bg-accent/10 p-4 text-sm text-fg">
+            <p className="font-bold mb-2">⚠️ 중국어 음성이 감지되지 않았습니다</p>
+            {isIOS() ? (
+              <>
+                <p className="mb-2">아이폰에서 중국어 음성팩을 다운로드해 주세요:</p>
+                <ol className="list-decimal pl-5 space-y-1 text-muted">
+                  <li>설정 → 손쉬운 사용</li>
+                  <li>음성 콘텐츠 → 음성</li>
+                  <li>중국어 → "중국어(중국 본토)" 또는 "보통화" 다운로드</li>
+                  <li>완료 후 이 앱을 다시 열어 주세요</li>
+                </ol>
+              </>
+            ) : (
+              <>
+                <p className="mb-2">단말기에서 중국어(zh-CN) 음성팩을 설치해 주세요:</p>
+                <ul className="list-disc pl-5 space-y-1 text-muted">
+                  <li>안드로이드: 설정 → 일반 관리 → 언어 → 음성 → Google 음성 → 언어 설치 → 중국어</li>
+                  <li>윈도우: 설정 → 시간 및 언어 → 언어 → 중국어 추가 → 음성 패키지 포함</li>
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+        {isIOS() && isStandalonePWA() && voices.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-divider bg-primary-soft p-4 text-sm text-fg">
+            <p className="font-bold mb-1">ℹ️ 음성이 재생되지 않으면</p>
+            <p className="text-muted">
+              아이폰에서 홈 화면 앱(PWA)으로 열면 iOS 17.4 미만 버전은 음성 재생이 막힐 수 있습니다.
+              그럴 땐 Safari로 페이지를 다시 열어 시도해 주세요.
+            </p>
+          </div>
+        )}
       </section>
 
       <section>

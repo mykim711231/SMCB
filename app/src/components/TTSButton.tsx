@@ -1,8 +1,36 @@
 import { useEffect, useState } from 'react';
 import { Volume2, Square } from 'lucide-react';
-import { speak, stop, isSupported, unlock } from '@/lib/tts';
+import { speak, stop, isSupported, unlock, isIOS, isStandalonePWA, getVoices } from '@/lib/tts';
 import { useSettings } from '@/stores/settings';
 import { cn } from '@/lib/cn';
+
+let ttsErrorShown = false;
+
+function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): string {
+  const lines: string[] = ['중국어 음성을 재생할 수 없습니다.'];
+  if (isIOS()) {
+    lines.push(
+      '',
+      '【아이폰 음성팩 설치】',
+      '설정 → 손쉬운 사용 → 음성 콘텐츠 → 음성 → 중국어 → "중국어(중국 본토)" 또는 "보통화" 다운로드',
+    );
+    if (isStandalonePWA()) {
+      lines.push(
+        '',
+        '※ 홈 화면에 설치한 앱(PWA)에서는 iOS 17.4 미만에서 음성이 막힐 수 있습니다. Safari 탭으로 열어 보세요.',
+      );
+    }
+  } else {
+    lines.push(
+      '',
+      '단말기에 중국어(zh-CN) 음성이 설치되어 있는지 확인해 주세요.',
+    );
+  }
+  const zhVoices = getVoices().filter((v) => v.lang.toLowerCase().startsWith('zh'));
+  lines.push('', `감지된 중국어 음성: ${zhVoices.length}개`);
+  if (err?.error) lines.push(`오류 코드: ${err.error}`);
+  return lines.join('\n');
+}
 
 type Props = {
   text: string;
@@ -37,7 +65,14 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
       rate: ttsRate,
       voiceURI: ttsVoiceURI ?? undefined,
       onEnd: () => setSpeaking(false),
-      onError: () => setSpeaking(false),
+      onError: (e) => {
+        setSpeaking(false);
+        // 'canceled' / 'interrupted'는 사용자가 중지한 정상 흐름
+        if (e?.error === 'canceled' || e?.error === 'interrupted') return;
+        if (ttsErrorShown) return;
+        ttsErrorShown = true;
+        alert(ttsErrorMessage(e));
+      },
     });
   };
 

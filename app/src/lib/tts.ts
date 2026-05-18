@@ -22,6 +22,17 @@ export function isSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
+export function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+export function isStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (window.matchMedia?.('(display-mode: standalone)').matches) return true;
+  return (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
 export function getVoices(): SpeechSynthesisVoice[] {
   if (!isSupported()) return [];
   return window.speechSynthesis.getVoices();
@@ -96,14 +107,22 @@ export type SpeakOptions = {
 /**
  * Speaks `text` in Mandarin. Cancels any in-flight utterance first
  * so rapid tapping behaves predictably.
+ *
+ * iOS notes:
+ *  - cancel() right before speak() can race on iOS — we only cancel if
+ *    something is already queued.
+ *  - if no zh voice is installed, iOS fires onerror with
+ *    'language-unavailable'; surface it so callers can guide the user.
  */
 export function speak(text: string, opts: SpeakOptions = {}): void {
   if (!isSupported() || !text) return;
   const synth = window.speechSynthesis;
-  try {
-    synth.cancel();
-  } catch {
-    /* ignore */
+  if (synth.speaking || synth.pending) {
+    try {
+      synth.cancel();
+    } catch {
+      /* ignore */
+    }
   }
   const u = new SpeechSynthesisUtterance(text);
   const voice = pickMandarinVoice(opts.voiceURI);
@@ -120,6 +139,26 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
   if (opts.onError) u.onerror = opts.onError;
   synth.speak(u);
   unlocked = true;
+}
+
+export type TTSDiagnostic =
+  | 'ok'
+  | 'unsupported'
+  | 'no-zh-voice'
+  | 'ios-pwa-warning';
+
+/**
+ * Returns a hint about likely TTS issues on this device, for the UI to
+ * show actionable guidance.
+ */
+export function diagnose(): TTSDiagnostic {
+  if (!isSupported()) return 'unsupported';
+  const zhCount = getVoices().filter((v) =>
+    v.lang.toLowerCase().startsWith('zh'),
+  ).length;
+  if (zhCount === 0) return 'no-zh-voice';
+  if (isIOS() && isStandalonePWA()) return 'ios-pwa-warning';
+  return 'ok';
 }
 
 export function stop(): void {
