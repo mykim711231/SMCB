@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, Share, Plus, X } from 'lucide-react';
+import { Smartphone, Share, Plus, X, ChevronDown } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -33,6 +33,7 @@ export default function InstallPrompt(): JSX.Element | null {
     useState<BeforeInstallPromptEvent | null>(null);
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -73,49 +74,70 @@ export default function InstallPrompt(): JSX.Element | null {
 
   return (
     <>
-      <section
-        className="rounded-2xl border border-primary/30 bg-primary-soft p-4 sm:p-5"
-        aria-labelledby="install-title"
-      >
-        <p id="install-title" className="text-sm font-bold text-fg mb-1">
-          📱 홈 화면에 앱으로 설치
-        </p>
-        <p className="text-xs text-muted mb-3">
-          한 번 설치하면 인터넷 없이도 사용할 수 있어요.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handleAndroidInstall}
-            disabled={!androidAvailable}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Smartphone size={16} aria-hidden />
-            Android에 설치
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowIOSModal(true)}
-            disabled={!iosAvailable}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white text-primary text-sm font-semibold px-4 py-2 border border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            🍎 iPhone에 설치
-          </button>
-        </div>
-        {!androidAvailable && !iosAvailable && (
-          <p className="text-xs text-muted mt-3">
-            모바일에서 이 페이지를 열면 설치 버튼이 활성화됩니다.
-          </p>
-        )}
-        {!androidAvailable && iosAvailable && (
-          <p className="text-xs text-muted mt-3">
-            Android는 Chrome 메뉴 → "앱 설치"로도 가능합니다.
-          </p>
-        )}
-        {androidAvailable && !iosAvailable && (
-          <p className="text-xs text-muted mt-3">
-            iPhone은 Safari로 이 페이지를 열어주세요.
-          </p>
+      <section className="rounded-2xl border border-primary/30 bg-primary-soft overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-controls="install-body"
+          className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-fg">
+              📱 홈 화면에 앱으로 설치
+            </span>
+            <span className="block text-xs text-muted mt-0.5">
+              {expanded ? '접기' : '탭하여 설치 방법 보기'}
+            </span>
+          </span>
+          <ChevronDown
+            size={20}
+            aria-hidden
+            className={`flex-none text-muted transition-transform duration-200 ${
+              expanded ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        {expanded && (
+          <div id="install-body" className="px-4 sm:px-5 pb-4 sm:pb-5">
+            <p className="text-xs text-muted mb-3">
+              한 번 설치하면 인터넷 없이도 사용할 수 있어요.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleAndroidInstall}
+                disabled={!androidAvailable}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Smartphone size={16} aria-hidden />
+                Android에 설치
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIOSModal(true)}
+                disabled={!iosAvailable}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white text-primary text-sm font-semibold px-4 py-2 border border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                🍎 iPhone에 설치
+              </button>
+            </div>
+            {!androidAvailable && !iosAvailable && (
+              <p className="text-xs text-muted mt-3">
+                모바일에서 이 페이지를 열면 설치 버튼이 활성화됩니다.
+              </p>
+            )}
+            {!androidAvailable && iosAvailable && (
+              <p className="text-xs text-muted mt-3">
+                Android는 Chrome 메뉴 → "앱 설치"로도 가능합니다.
+              </p>
+            )}
+            {androidAvailable && !iosAvailable && (
+              <p className="text-xs text-muted mt-3">
+                iPhone은 Safari로 이 페이지를 열어주세요.
+              </p>
+            )}
+          </div>
         )}
       </section>
       {showIOSModal && <IOSInstallModal onClose={() => setShowIOSModal(false)} />}
