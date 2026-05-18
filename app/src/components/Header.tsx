@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Settings as SettingsIcon, Search as SearchIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Search as SearchIcon, HelpCircle } from 'lucide-react';
 
 export default function Header(): JSX.Element {
   const loc = useLocation();
@@ -22,6 +22,13 @@ export default function Header(): JSX.Element {
               <SearchIcon size={20} aria-hidden />
             </Link>
           )}
+          <Link
+            to="/help"
+            aria-label="도움말"
+            className="w-11 h-11 inline-flex items-center justify-center rounded-lg hover:bg-primary-soft text-fg"
+          >
+            <HelpCircle size={20} aria-hidden />
+          </Link>
           <Link
             to="/settings"
             aria-label="설정"

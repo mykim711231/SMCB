@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, BookOpen, Search, Layers, Info } from 'lucide-react';
+import { Home, BookOpen, Search, Layers, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 const items = [
@@ -7,7 +7,7 @@ const items = [
   { to: '/toc', label: '목차', icon: BookOpen, end: false },
   { to: '/search', label: '검색', icon: Search, end: false },
   { to: '/flashcards', label: '플래시', icon: Layers, end: false },
-  { to: '/about', label: '안내', icon: Info, end: false },
+  { to: '/help', label: '도움말', icon: HelpCircle, end: false },
 ];
 
 export default function BottomNav(): JSX.Element {

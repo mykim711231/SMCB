@@ -1,0 +1,539 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Volume2,
+  Smartphone,
+  Apple,
+  Monitor,
+  HelpCircle,
+  ChevronDown,
+  Play,
+  CheckCircle2,
+  AlertTriangle,
+  Mail,
+} from 'lucide-react';
+import {
+  awaitVoices,
+  isSupported as ttsSupported,
+  isIOS,
+  isStandalonePWA,
+  speak,
+} from '@/lib/tts';
+import SectionHeader from '@/components/SectionHeader';
+import { cn } from '@/lib/cn';
+
+type Platform = 'android' | 'ios' | 'windows' | 'mac';
+
+export default function Help(): JSX.Element {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-xl font-bold text-fg flex items-center gap-2">
+          <HelpCircle size={22} aria-hidden /> 도움말
+        </h1>
+        <p className="text-sm text-muted mt-1">
+          처음 사용하시거나 막힐 때 여기를 보세요.
+        </p>
+      </header>
+
+      <TTSDiagnostic />
+      <InstallGuide />
+      <FAQSection />
+      <ContactSection />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1) 음성(TTS) 진단
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TTSDiagnostic(): JSX.Element {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [testStatus, setTestStatus] = useState<
+    'idle' | 'playing' | 'ok' | 'failed'
+  >('idle');
+  const [testErr, setTestErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!ttsSupported()) return;
+    void awaitVoices().then((vs) => {
+      setVoices(vs.filter((v) => v.lang.toLowerCase().startsWith('zh')));
+    });
+  }, []);
+
+  const supported = ttsSupported();
+  const iosPWA = isIOS() && isStandalonePWA();
+
+  const handleTest = (): void => {
+    setTestStatus('playing');
+    setTestErr(null);
+    speak('你好。我是中文。', {
+      onEnd: () => setTestStatus('ok'),
+      onError: (e) => {
+        setTestStatus('failed');
+        setTestErr(e?.error ?? 'unknown');
+      },
+    });
+  };
+
+  return (
+    <section>
+      <SectionHeader
+        title="🔊 음성이 안 들려요"
+        subtitle="원인을 자동으로 진단합니다."
+      />
+      <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+        {!supported ? (
+          <Status
+            kind="bad"
+            title="이 브라우저는 음성을 지원하지 않습니다."
+            body="Safari(iPhone), Chrome(Android/PC), Edge(PC) 중 하나로 열어 주세요."
+          />
+        ) : voices.length === 0 ? (
+          <Status
+            kind="bad"
+            title="중국어 음성이 단말기에 설치되어 있지 않습니다."
+            body="아래 안내에 따라 중국어 음성팩을 다운로드해 주세요."
+          />
+        ) : (
+          <Status
+            kind="good"
+            title={`중국어 음성 ${voices.length}개가 감지되었습니다.`}
+            body="아래 ‘테스트 재생’ 버튼으로 직접 들어 보세요."
+          />
+        )}
+
+        {iosPWA && voices.length > 0 && (
+          <Status
+            kind="warn"
+            title="홈 화면 앱(PWA)으로 열려 있습니다."
+            body="iOS 17.4 미만에서는 음성이 막힐 수 있어요. 안 들리면 Safari 탭에서 다시 열어 보세요."
+          />
+        )}
+
+        {supported && (
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testStatus === 'playing'}
+              className="inline-flex items-center gap-2 rounded-full bg-primary text-white text-sm font-semibold px-4 py-2 disabled:opacity-60"
+            >
+              <Play size={16} aria-hidden />
+              {testStatus === 'playing' ? '재생 중…' : '테스트 재생 (你好)'}
+            </button>
+            {testStatus === 'ok' && (
+              <p className="text-sm text-success mt-2 inline-flex items-center gap-1">
+                <CheckCircle2 size={16} aria-hidden /> 정상적으로 재생되었습니다.
+              </p>
+            )}
+            {testStatus === 'failed' && (
+              <p className="text-sm text-accent mt-2 inline-flex items-center gap-1">
+                <AlertTriangle size={16} aria-hidden /> 재생 실패
+                {testErr ? ` (오류: ${testErr})` : ''}
+              </p>
+            )}
+          </div>
+        )}
+
+        {voices.length === 0 && supported && (
+          <div className="pt-3 border-t border-divider">
+            {isIOS() ? <IOSVoicePackGuide /> : <AndroidVoicePackGuide />}
+          </div>
+        )}
+
+        {voices.length > 0 && (
+          <details className="pt-3 border-t border-divider">
+            <summary className="text-sm font-semibold text-fg cursor-pointer">
+              감지된 음성 목록 보기
+            </summary>
+            <ul className="mt-2 text-xs text-muted space-y-1">
+              {voices.map((v) => (
+                <li key={v.voiceURI}>
+                  • {v.name} ({v.lang}) {v.localService ? '· 로컬' : '· 네트워크'}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function IOSVoicePackGuide(): JSX.Element {
+  return (
+    <div className="text-sm">
+      <p className="font-bold text-fg mb-2">📱 iPhone 중국어 음성팩 설치</p>
+      <ol className="list-decimal pl-5 space-y-1.5 text-fg">
+        <li>
+          <b>설정</b> 앱 열기
+        </li>
+        <li>
+          <b>손쉬운 사용</b> 탭
+        </li>
+        <li>
+          <b>읽기 및 말하기</b> (iOS 17.6+) 또는 <b>음성 콘텐츠</b> (이전 버전) 탭
+        </li>
+        <li>
+          <b>음성</b> → <b>중국어</b> → <b>"중국어(중국 본토)"</b> 또는 <b>"보통화"</b>
+        </li>
+        <li>
+          추천: <b>Tingting</b>(여성, 자연스러움) → ☁️ 다운로드 (200~400MB, Wi-Fi 권장)
+        </li>
+        <li>다운로드 100% 완료 후 이 앱을 종료 → 다시 열기</li>
+      </ol>
+      <p className="text-xs text-muted mt-3">
+        💡 메뉴 이름이 다르면 설정 앱 상단에서 아래로 당겨 <b>"음성"</b>으로 검색하세요.
+      </p>
+    </div>
+  );
+}
+
+function AndroidVoicePackGuide(): JSX.Element {
+  return (
+    <div className="text-sm">
+      <p className="font-bold text-fg mb-2">📱 Android 중국어 음성팩 설치</p>
+      <ol className="list-decimal pl-5 space-y-1.5 text-fg">
+        <li>
+          <b>설정</b> → <b>일반 관리</b> → <b>언어</b>
+        </li>
+        <li>
+          <b>음성</b> → <b>Google 텍스트 음성 변환 엔진</b>
+        </li>
+        <li>
+          <b>언어 설치</b> → <b>중국어(중국)</b> 체크 → 다운로드
+        </li>
+        <li>완료 후 이 앱을 종료 → 다시 열기</li>
+      </ol>
+      <p className="text-xs text-muted mt-3">
+        💡 일부 기기는 <b>Samsung TTS</b>나 <b>HMS TTS</b>를 쓰며 메뉴 위치가 다를 수 있어요.
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2) 앱 설치 가이드 (OS별 탭)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function InstallGuide(): JSX.Element {
+  const initial: Platform = isIOS()
+    ? 'ios'
+    : /Android/i.test(navigator.userAgent)
+      ? 'android'
+      : /Mac/i.test(navigator.userAgent)
+        ? 'mac'
+        : 'windows';
+  const [tab, setTab] = useState<Platform>(initial);
+
+  return (
+    <section>
+      <SectionHeader
+        title="📲 앱으로 설치하기"
+        subtitle="홈 화면에 추가하면 인터넷 없이도 사용할 수 있어요."
+      />
+      <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+        <div role="tablist" className="flex flex-wrap gap-2">
+          <TabBtn cur={tab} v="ios" onClick={setTab} icon={<Apple size={14} />}>
+            iPhone
+          </TabBtn>
+          <TabBtn cur={tab} v="android" onClick={setTab} icon={<Smartphone size={14} />}>
+            Android
+          </TabBtn>
+          <TabBtn cur={tab} v="windows" onClick={setTab} icon={<Monitor size={14} />}>
+            Windows
+          </TabBtn>
+          <TabBtn cur={tab} v="mac" onClick={setTab} icon={<Monitor size={14} />}>
+            Mac
+          </TabBtn>
+        </div>
+
+        <div className="pt-2 text-sm text-fg">
+          {tab === 'ios' && <IOSInstallSteps />}
+          {tab === 'android' && <AndroidInstallSteps />}
+          {tab === 'windows' && <WindowsInstallSteps />}
+          {tab === 'mac' && <MacInstallSteps />}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TabBtn(props: {
+  cur: Platform;
+  v: Platform;
+  onClick: (v: Platform) => void;
+  icon: JSX.Element;
+  children: React.ReactNode;
+}): JSX.Element {
+  const active = props.cur === props.v;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={() => props.onClick(props.v)}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full text-sm font-semibold px-3 py-1.5 border',
+        active
+          ? 'bg-primary text-white border-primary'
+          : 'bg-bg text-muted border-divider',
+      )}
+    >
+      {props.icon}
+      {props.children}
+    </button>
+  );
+}
+
+function IOSInstallSteps(): JSX.Element {
+  return (
+    <>
+      <p className="text-xs text-muted mb-2">
+        iPhone은 반드시 <b>Safari</b>에서 열어야 설치할 수 있습니다 (Chrome·Firefox 불가).
+      </p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>
+          <b>Safari</b>로 이 페이지를 엽니다.
+        </li>
+        <li>
+          화면 <b>아래 가운데</b>의 <b>공유 버튼</b> (□↑) 탭
+        </li>
+        <li>
+          메뉴를 아래로 스크롤 → <b>"홈 화면에 추가"</b> 선택
+        </li>
+        <li>
+          오른쪽 위 <b>"추가"</b> → 홈 화면에 아이콘 생성
+        </li>
+      </ol>
+    </>
+  );
+}
+
+function AndroidInstallSteps(): JSX.Element {
+  return (
+    <>
+      <p className="text-xs text-muted mb-2">
+        Chrome에서 열면 보통 <b>자동 설치 안내</b>가 뜹니다.
+      </p>
+      <ol className="list-decimal pl-5 space-y-1.5">
+        <li>
+          <b>Chrome</b>으로 이 페이지를 엽니다.
+        </li>
+        <li>
+          홈 화면 아래 <b>"📱 홈 화면에 앱으로 설치"</b>를 펼치고 <b>"Android에 설치"</b> 탭
+        </li>
+        <li>
+          버튼이 비활성화된 경우: 오른쪽 위 <b>⋮ 메뉴</b> → <b>"앱 설치"</b> 또는 <b>"홈 화면에 추가"</b>
+        </li>
+      </ol>
+    </>
+  );
+}
+
+function WindowsInstallSteps(): JSX.Element {
+  return (
+    <ol className="list-decimal pl-5 space-y-1.5">
+      <li>
+        <b>Chrome</b> 또는 <b>Edge</b>로 이 페이지를 엽니다.
+      </li>
+      <li>
+        주소창 오른쪽 끝의 <b>설치 아이콘</b> (모니터 + ⬇️) 클릭
+      </li>
+      <li>
+        또는 메뉴(⋮) → <b>"앱"</b> → <b>"이 사이트를 앱으로 설치"</b>
+      </li>
+      <li>
+        설치된 앱은 <b>시작 메뉴</b>에서 실행됩니다.
+      </li>
+    </ol>
+  );
+}
+
+function MacInstallSteps(): JSX.Element {
+  return (
+    <ol className="list-decimal pl-5 space-y-1.5">
+      <li>
+        <b>Safari 17+</b> 또는 Chrome으로 이 페이지를 엽니다.
+      </li>
+      <li>
+        Safari: 메뉴바 <b>파일</b> → <b>"Dock에 추가"</b>
+      </li>
+      <li>
+        Chrome: 주소창 오른쪽 <b>설치 아이콘</b> 클릭
+      </li>
+      <li>
+        Launchpad / Dock에서 실행하세요.
+      </li>
+    </ol>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3) FAQ 아코디언
+// ─────────────────────────────────────────────────────────────────────────────
+
+type FAQ = { q: string; a: JSX.Element };
+
+function FAQSection(): JSX.Element {
+  const faqs: FAQ[] = useMemo(
+    () => [
+      {
+        q: '글자가 너무 작아요.',
+        a: (
+          <p>
+            우측 상단 ⚙️ <b>설정 → 글자 크기</b>에서 "크게" 또는 "아주 크게"로 바꿀 수 있어요.
+          </p>
+        ),
+      },
+      {
+        q: '한자 위에 병음이 안 보여요.',
+        a: (
+          <p>
+            ⚙️ <b>설정 → 병음 표시</b>가 꺼져 있을 수 있어요. 켜 주세요.
+          </p>
+        ),
+      },
+      {
+        q: '오프라인에서도 쓸 수 있나요?',
+        a: (
+          <p>
+            네. 홈 화면에 <b>앱으로 설치</b>한 뒤 한 번 열면, 인터넷 없이도 65과 본문과 부록을 볼 수 있습니다.
+          </p>
+        ),
+      },
+      {
+        q: '여러 기기에서 학습 진도가 동기화되나요?',
+        a: (
+          <p>
+            현재는 <b>단말기 안에만</b> 저장됩니다. 폰과 PC를 모두 쓰시면 각각 따로 진도가 쌓입니다.
+          </p>
+        ),
+      },
+      {
+        q: '진도를 초기화하고 싶어요.',
+        a: (
+          <p>
+            ⚙️ <b>설정 → 저장 공간 → 전체 초기화</b>를 누르면 진도·즐겨찾기·플래시카드가 모두 삭제됩니다.
+          </p>
+        ),
+      },
+      {
+        q: '플래시카드는 어떻게 만들어지나요?',
+        a: (
+          <p>
+            과별 단어 중 <b>⭐ 즐겨찾기</b>한 단어가 플래시카드에 들어갑니다. 매일 5분씩 복습해 보세요.
+          </p>
+        ),
+      },
+      {
+        q: '검색은 어떤 단어로 가능한가요?',
+        a: (
+          <p>
+            한자(中国), 병음(zhōngguó / zhongguo), 한국어 뜻 모두 가능합니다. 띄어쓰기·성조 표시는 무시됩니다.
+          </p>
+        ),
+      },
+      {
+        q: '음성이 너무 빠르거나 느려요.',
+        a: (
+          <p>
+            ⚙️ <b>설정 → 음성(TTS) → 속도</b> 슬라이더로 0.6× ~ 1.4× 조절할 수 있어요.
+          </p>
+        ),
+      },
+      {
+        q: '데이터가 외부로 전송되나요?',
+        a: (
+          <p>
+            아니요. 이 앱은 <b>서버가 없습니다</b>. 모든 학습 데이터는 사용 중인 단말기 안에만 저장됩니다.
+          </p>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <section>
+      <SectionHeader title="❓ 자주 묻는 질문" />
+      <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
+        {faqs.map((f, i) => (
+          <FAQItem key={i} q={f.q} a={f.a} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FAQItem({ q, a }: FAQ): JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold text-fg">{q}</span>
+        <ChevronDown
+          size={18}
+          aria-hidden
+          className={cn(
+            'flex-none text-muted transition-transform duration-200',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+      {open && <div className="px-4 pb-3 text-sm text-muted">{a}</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4) 문의
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ContactSection(): JSX.Element {
+  return (
+    <section>
+      <SectionHeader title="✉️ 문의 / 오타 신고" />
+      <div className="rounded-2xl border border-divider bg-surface p-4 text-sm text-fg space-y-2">
+        <p>
+          본문 오타·발음 오류·기능 제안은 담당 선생님께 알려 주세요. (연락처는 안내 페이지 참고)
+        </p>
+        <a
+          href="/about"
+          className="inline-flex items-center gap-1.5 text-primary font-semibold"
+        >
+          <Mail size={14} aria-hidden /> 안내 페이지로 가기
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function Status(props: {
+  kind: 'good' | 'warn' | 'bad';
+  title: string;
+  body: string;
+}): JSX.Element {
+  const color =
+    props.kind === 'good'
+      ? 'border-success/30 bg-success/10'
+      : props.kind === 'warn'
+        ? 'border-accent/30 bg-accent/10'
+        : 'border-accent bg-accent/10';
+  const Icon =
+    props.kind === 'good' ? CheckCircle2 : props.kind === 'warn' ? AlertTriangle : Volume2;
+  return (
+    <div className={cn('rounded-xl border p-3', color)}>
+      <p className="text-sm font-bold text-fg inline-flex items-center gap-1.5">
+        <Icon size={16} aria-hidden /> {props.title}
+      </p>
+      <p className="text-xs text-muted mt-1">{props.body}</p>
+    </div>
+  );
+}

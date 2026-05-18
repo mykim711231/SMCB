@@ -10,6 +10,7 @@ const Flashcards = lazy(() => import('./pages/Flashcards'));
 const Settings = lazy(() => import('./pages/Settings'));
 const About = lazy(() => import('./pages/About'));
 const Appendix = lazy(() => import('./pages/Appendix'));
+const Help = lazy(() => import('./pages/Help'));
 
 function LoadingFallback(): JSX.Element {
   return (
@@ -32,6 +33,7 @@ export default function App(): JSX.Element {
           <Route path="/flashcards" element={<Flashcards />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
+          <Route path="/help" element={<Help />} />
           <Route path="/appendix/:id" element={<Appendix />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

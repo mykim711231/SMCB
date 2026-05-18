@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Search, Layers, Info, ArrowRight } from 'lucide-react';
+import { BookOpen, Search, Layers, HelpCircle, ArrowRight } from 'lucide-react';
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -69,7 +69,7 @@ export default function Home(): JSX.Element {
         <QuickCard to="/toc" icon={<BookOpen size={20} aria-hidden />} title="목차" subtitle="65과 전체" />
         <QuickCard to="/search" icon={<Search size={20} aria-hidden />} title="검색" subtitle="한자·병음·한글" />
         <QuickCard to="/flashcards" icon={<Layers size={20} aria-hidden />} title="플래시카드" subtitle="단어 복습" />
-        <QuickCard to="/about" icon={<Info size={20} aria-hidden />} title="안내" subtitle="저작권·설치" />
+        <QuickCard to="/help" icon={<HelpCircle size={20} aria-hidden />} title="도움말" subtitle="음성·설치·FAQ" />
       </section>
 
       <section className="rounded-2xl bg-surface border border-divider p-4 sm:p-5">
