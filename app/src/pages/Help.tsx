@@ -41,6 +41,7 @@ export default function Help(): JSX.Element {
       <TTSDiagnostic />
       <InstallGuide />
       <UpdateUninstallGuide />
+      <TroubleshootSection />
       <FAQSection />
       <ContactSection />
     </div>
@@ -683,7 +684,228 @@ function MacUninstallSteps(): JSX.Element {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4) FAQ 아코디언
+// 4) 자주 발생하는 오류 — 증상별 해결 아코디언
+// ─────────────────────────────────────────────────────────────────────────────
+
+type Trouble = { q: string; a: JSX.Element };
+
+function TroubleshootSection(): JSX.Element {
+  const items: Trouble[] = useMemo(
+    () => [
+      {
+        q: '🔁 흰 화면 / 검은 화면만 보이고 앱이 안 열려요.',
+        a: (
+          <>
+            <p className="mb-2">
+              저장된 캐시(서비스워커)가 손상됐을 수 있어요. 아래를 순서대로 시도해 주세요.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li>앱을 완전히 종료(최근 앱에서 위로 밀기) 후 다시 열기.</li>
+              <li>
+                <b>iPhone</b>: Safari로 페이지를 열어 <b>당겨서 새로고침</b> → 홈 화면 앱 다시 열기.
+              </li>
+              <li>
+                <b>Android</b>: Chrome <b>⋮ → 설정 → 개인정보 → 인터넷 사용 기록 삭제 → 캐시된 이미지·파일</b> 체크 → 삭제.
+              </li>
+              <li>
+                <b>데스크톱</b>: 앱 안에서 <b>Ctrl/⌘ + Shift + R</b>로 강력 새로고침.
+              </li>
+              <li>그래도 안 되면 위쪽 "🗑️ 앱 삭제" 안내대로 제거 후 다시 설치.</li>
+            </ol>
+          </>
+        ),
+      },
+      {
+        q: '📉 학습 진도와 즐겨찾기가 갑자기 사라졌어요.',
+        a: (
+          <>
+            <p className="mb-2">
+              브라우저 보안 정책이 데이터를 자동으로 지운 경우입니다. 흔한 원인 세 가지:
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-fg/90">
+              <li>
+                <b>iPhone Safari</b>는 7일 이상 방문하지 않은 사이트의 저장 데이터를 자동 삭제합니다(ITP).
+                <b> 홈 화면 앱으로 설치</b>하면 이 제한을 받지 않아요.
+              </li>
+              <li>
+                <b>시크릿/프라이빗 모드</b>로 열면 모든 데이터가 탭을 닫는 순간 사라집니다.
+                일반 탭에서 다시 열어 주세요.
+              </li>
+              <li>
+                다른 브라우저(Chrome ↔ Safari, 폰 ↔ PC)는 <b>각각 별도 저장소</b>입니다. 동일 브라우저로 다시 열기.
+              </li>
+            </ul>
+            <p className="text-xs text-muted mt-2">
+              💡 현재 진도는 단말기 안에만 저장됩니다. 백업이 필요하면 즐겨찾기 단어를 메모해 두세요.
+            </p>
+          </>
+        ),
+      },
+      {
+        q: '🈂️ 한자가 일본식 / 이상한 모양으로 보여요.',
+        a: (
+          <>
+            <p className="mb-2">
+              운영체제 폰트가 일본어 CJK를 우선 적용한 경우입니다.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li>
+                <b>Android</b>: <b>설정 → 일반 관리 → 언어</b>에서 <b>한국어 또는 중국어(간체)</b>를 추가하고 우선순위를 위로 올리세요.
+              </li>
+              <li>
+                <b>iPhone</b>: <b>설정 → 일반 → 언어 및 지역 → 기본 언어 순서</b>에서 한국어 또는 중국어를 위로 올리세요.
+              </li>
+              <li>
+                <b>Samsung 폰</b>: <b>설정 → 디스플레이 → 글꼴</b>이 사용자 글꼴이면 기본 글꼴로 되돌리기.
+              </li>
+              <li>일부 단어만 이상하면 본문 오타일 수 있어요. ✉️ 문의로 알려 주세요.</li>
+            </ol>
+          </>
+        ),
+      },
+      {
+        q: '📡 오프라인에서 일부 과만 안 보여요.',
+        a: (
+          <>
+            <p className="mb-2">
+              본문은 용량을 줄이려고 <b>처음 열 때만</b> 다운로드되어 캐시됩니다. 오프라인 모드 전에 미리 한 번씩 열어 두세요.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li>Wi-Fi가 연결된 상태에서 학습할 과들을 한 번씩 열어 본문이 보이는지 확인.</li>
+              <li>부록·검색·플래시카드도 마찬가지로 한 번씩 진입.</li>
+              <li>그 후 비행기 모드로 전환해 다시 열어 정상 표시되는지 확인.</li>
+            </ol>
+            <p className="text-xs text-muted mt-2">
+              💡 앱 캐시 정책: 본문/부록은 최대 90일 보관, 새 버전이 배포되면 자동 갱신됩니다.
+            </p>
+          </>
+        ),
+      },
+      {
+        q: '🔍 검색 결과가 안 나와요.',
+        a: (
+          <>
+            <ul className="list-disc pl-5 space-y-1 text-fg/90">
+              <li>
+                첫 진입 시 인덱스를 다운로드합니다(약 200KB). 1~3초 후 다시 시도해 보세요.
+              </li>
+              <li>
+                <b>한자(中国)</b>, <b>병음(zhongguo, zhōngguó 둘 다 가능)</b>, <b>한국어 뜻</b> 모두로 시도.
+              </li>
+              <li>
+                병음은 <b>성조 표시 없이</b> 입력해도 됩니다. 띄어쓰기는 무시됩니다.
+              </li>
+              <li>
+                그래도 안 되면 본문에 없는 단어일 수 있어요. 어휘표(부록 1)에서 확인.
+              </li>
+            </ul>
+          </>
+        ),
+      },
+      {
+        q: '📐 화면이 잘리거나 버튼이 가려져요.',
+        a: (
+          <>
+            <ul className="list-disc pl-5 space-y-1 text-fg/90">
+              <li>
+                <b>iPhone X 이상</b>: 노치/홈 인디케이터를 피하도록 자동 여백이 적용됩니다. 보이지 않으면 한 번 새로고침.
+              </li>
+              <li>
+                <b>가로 모드</b>로 회전하면 일부 표가 더 넓게 보입니다.
+              </li>
+              <li>
+                글자가 큰글씨로 설정되어 잘리면 <b>설정 → 글자 크기</b>에서 한 단계 작게 변경.
+              </li>
+              <li>
+                브라우저 확대(핀치 줌)가 적용된 상태일 수 있어요. 두 손가락으로 축소해 100%로 맞춥니다.
+              </li>
+            </ul>
+          </>
+        ),
+      },
+      {
+        q: '🔗 앱 안의 링크가 외부 브라우저로 열려요. (iPhone)',
+        a: (
+          <>
+            <p className="mb-2">
+              iOS는 홈 화면 PWA에서 외부 URL을 자동으로 Safari로 띄웁니다. 정상 동작이며 앱은 그대로 유지됩니다.
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-fg/90">
+              <li>다시 앱으로 돌아오려면 화면 좌측 상단의 <b>‹ SMCB</b>를 탭하세요.</li>
+              <li>
+                계속 외부 브라우저로 열리면 iOS의 기본 브라우저가 Safari가 아닐 수 있어요. <b>설정 → 앱 → 기본 앱 → 웹 브라우저</b>에서 Safari 선택.
+              </li>
+            </ul>
+          </>
+        ),
+      },
+      {
+        q: '🔋 배터리 절약 모드에서 음성이 끊기거나 멈춰요. (Android)',
+        a: (
+          <>
+            <p className="mb-2">
+              Android의 절전·데이터 절약 모드는 백그라운드 JavaScript를 제한해 음성 재생이 끊길 수 있어요.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li>
+                <b>설정 → 디바이스 관리 → 배터리</b>에서 절전 모드를 끄거나 SMCB를 예외로 추가.
+              </li>
+              <li>
+                <b>설정 → 연결 → 데이터 절약</b>에서 SMCB를 <b>"제한 없음"</b>으로 설정.
+              </li>
+              <li>
+                Chrome 자체의 <b>"Lite 모드"</b>가 켜져 있으면 끄세요. (Chrome ⋮ → 설정 → Lite 모드)
+              </li>
+            </ol>
+          </>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <section>
+      <SectionHeader
+        title="🛠️ 자주 발생하는 오류"
+        subtitle="증상을 탭하면 해결 방법이 펼쳐집니다."
+      />
+      <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
+        {items.map((t, i) => (
+          <TroubleItem key={i} q={t.q} a={t.a} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TroubleItem({ q, a }: Trouble): JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold text-fg">{q}</span>
+        <ChevronDown
+          size={18}
+          aria-hidden
+          className={cn(
+            'flex-none text-muted transition-transform duration-200',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+      {open && <div className="px-4 pb-3 text-sm text-fg/90">{a}</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5) FAQ 아코디언
 // ─────────────────────────────────────────────────────────────────────────────
 
 type FAQ = { q: string; a: JSX.Element };
@@ -815,7 +1037,7 @@ function FAQItem({ q, a }: FAQ): JSX.Element {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5) 문의
+// 6) 문의
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ContactSection(): JSX.Element {
