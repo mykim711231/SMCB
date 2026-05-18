@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { BookOpen, Search, Layers, Info, ArrowRight } from 'lucide-react';
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
+import InstallPrompt from '@/components/InstallPrompt';
 
 export default function Home(): JSX.Element {
   const byId = useProgress((s) => s.byId);
@@ -39,6 +40,8 @@ export default function Home(): JSX.Element {
           </Link>
         </div>
       </section>
+
+      <InstallPrompt />
 
       <section className="rounded-2xl bg-surface border border-divider p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-2">
