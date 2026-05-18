@@ -142,6 +142,17 @@ function TTSDiagnostic(): JSX.Element {
           </div>
         )}
 
+        {isIOS() && supported && (
+          <details className="pt-3 border-t border-divider">
+            <summary className="text-sm font-semibold text-fg cursor-pointer">
+              🔉 음성이 작거나 안 들려요 (iPhone 볼륨 안내)
+            </summary>
+            <div className="mt-3">
+              <IOSVolumeGuide />
+            </div>
+          </details>
+        )}
+
         {voices.length > 0 && (
           <details className="pt-3 border-t border-divider">
             <summary className="text-sm font-semibold text-fg cursor-pointer">
@@ -158,6 +169,35 @@ function TTSDiagnostic(): JSX.Element {
         )}
       </div>
     </section>
+  );
+}
+
+function IOSVolumeGuide(): JSX.Element {
+  return (
+    <div className="text-sm">
+      <p className="font-bold text-fg mb-2">🔉 iPhone 볼륨이 조절 안 돼요</p>
+      <p className="text-muted mb-2">
+        iPhone은 음성(TTS)을 <b>"벨소리·알림 볼륨"</b>으로 재생합니다.
+        그래서 측면 볼륨 버튼을 눌러도 평소처럼 <b>미디어 볼륨 슬라이더가 안 뜨는</b> 경우가 있어요.
+      </p>
+      <ol className="list-decimal pl-5 space-y-1.5 text-fg">
+        <li>
+          왼쪽 옆면 <b>무음 스위치(주황색)</b>가 켜져 있는지 확인 → 꺼 주세요.
+        </li>
+        <li>
+          <b>설정</b> → <b>사운드 및 햅틱</b> → <b>벨소리와 알림 볼륨</b> 슬라이더를 올립니다.
+        </li>
+        <li>
+          또는 측면 볼륨 버튼으로 직접 올리세요. <b>"벨소리" 슬라이더</b>가 화면에 나타나면 정상입니다.
+        </li>
+        <li>
+          그래도 안 들리면: <b>설정 → 사운드 및 햅틱 → 버튼으로 변경</b>을 켜고 볼륨 버튼으로 조절.
+        </li>
+      </ol>
+      <p className="text-xs text-muted mt-3">
+        💡 음악 앱(Apple Music·YouTube)을 잠깐 재생한 뒤 다시 시도하면 미디어 카테고리가 활성화되어 정상 작동하기도 합니다.
+      </p>
+    </div>
   );
 }
 

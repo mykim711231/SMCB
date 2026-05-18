@@ -12,7 +12,11 @@ function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): string {
     lines.push(
       '',
       '【아이폰 음성팩 설치】',
-      '설정 → 손쉬운 사용 → 음성 콘텐츠 → 음성 → 중국어 → "중국어(중국 본토)" 또는 "보통화" 다운로드',
+      '설정 → 손쉬운 사용 → 읽기 및 말하기(또는 음성 콘텐츠) → 음성 → 중국어 → "중국어(중국 본토)" 또는 "보통화" 다운로드',
+      '',
+      '【볼륨 확인】',
+      'iPhone은 음성을 "벨소리·알림 볼륨"으로 재생합니다.',
+      '설정 → 사운드 및 햅틱 → 벨소리와 알림 볼륨 슬라이더를 올리거나, 무음 스위치를 꺼 주세요.',
     );
     if (isStandalonePWA()) {
       lines.push(
@@ -29,6 +33,7 @@ function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): string {
   const zhVoices = getVoices().filter((v) => v.lang.toLowerCase().startsWith('zh'));
   lines.push('', `감지된 중국어 음성: ${zhVoices.length}개`);
   if (err?.error) lines.push(`오류 코드: ${err.error}`);
+  lines.push('', '※ 자세한 진단은 도움말(?) 페이지를 확인하세요.');
   return lines.join('\n');
 }
 
