@@ -24,6 +24,19 @@ export type TTSStatus = 'idle' | 'speaking' | 'paused' | 'unsupported';
 
 const ZH_LANGS = ['zh-CN', 'zh-Hans-CN', 'zh', 'cmn-Hans-CN'];
 
+/**
+ * 본토 중국어(zh-CN)·싱가포르(zh-SG)·간체(zh-Hans) 변종 식별 정규식.
+ *
+ * 사용처 (single source of truth):
+ *  - pickMandarinVoice() 최종 fallback — zh-TW/zh-HK 변종으로 silent quality fail 방지
+ *  - DeviceVoiceMissingBanner — only-zh-tw 분기 (본토 음성 미설치 경고)
+ *
+ * 본 교재는 보통화(普通话/zh-CN) 기준이라 zh-TW(번체/대만)·zh-HK(광동어) 음성으로
+ * 재생하면 한자음·일부 어휘가 mismatch — 사용자는 "소리는 나는데 발음이 이상"하다고만
+ * 느껴 무엇이 잘못됐는지 모르는 silent quality fail이 발생한다.
+ */
+export const ZH_CN_LIKE_RE = /^zh(-|_)?(cn|sg|hans)/i;
+
 const TTS_MANIFEST = ttsManifest as Record<string, string>;
 const TTS_BASE_URL = `${import.meta.env.BASE_URL}tts/`;
 
@@ -104,13 +117,15 @@ export function pickMandarinVoice(preferredURI?: string): SpeechSynthesisVoice |
     const found = voices.find((v) => v.voiceURI === preferredURI);
     if (found) return found;
   }
-  // Prefer zh-CN; fall back to anything starting with zh
+  // Prefer zh-CN; fall back to zh-CN/SG/Hans 변종까지만.
+  // zh-TW/zh-HK는 한자음·어휘 mismatch — silent quality fail을 피하기 위해
+  // 명시적으로 본토 변종으로 좁힌다. (F3: pickMandarinVoice 최종 fallback narrow)
   for (const lang of ZH_LANGS) {
     const v = voices.find((vc) => vc.lang === lang);
     if (v) return v;
   }
-  const anyZh = voices.find((v) => v.lang.toLowerCase().startsWith('zh'));
-  return anyZh ?? null;
+  const anyCnLike = voices.find((v) => ZH_CN_LIKE_RE.test(v.lang));
+  return anyCnLike ?? null;
 }
 
 /** Wait for voices to be available (Chrome async load). */
@@ -158,9 +173,32 @@ export function unlock(): void {
  * 음성 재생 방식.
  *  - 'device'   : 기기 자체 TTS만 사용 — 매니페스트 lookup 우회.
  *  - 'recorded' : 미리 녹음된 mp3 우선 — manifest miss는 단말기 TTS로 fallback.
- *  - undefined  : 'recorded'와 동일하게 처리 (기본값).
+ *  - undefined  : voiceModeProvider 값을 사용. provider 미등록/null 반환이면 'recorded'.
  */
 export type VoiceMode = 'device' | 'recorded';
+
+/**
+ * 사용자 설정(userMode)을 tts 모듈에 늦은 바인딩으로 주입한다.
+ *  - 직접 useSettings를 import하면 settings.ts ↔ tts.ts 순환 의존이 발생한다
+ *    (settings.ts가 stopTTS를 import하므로).
+ *  - 호출자가 opts.voiceMode를 빠뜨려도 speak()/prefetchAudio()가 정책을 강제 enforce
+ *    할 수 있도록, settings 모듈이 hydrate/setUserMode 흐름에서 이 provider를 등록한다.
+ *  - 미등록 상태(테스트/SSR 등)에서는 기존 default('recorded')로 동작.
+ */
+let voiceModeProvider: (() => VoiceMode | null) | null = null;
+export function setVoiceModeProvider(fn: (() => VoiceMode | null) | null): void {
+  voiceModeProvider = fn;
+}
+function resolveVoiceMode(explicit: VoiceMode | undefined): VoiceMode {
+  if (explicit) return explicit;
+  try {
+    const v = voiceModeProvider?.();
+    if (v === 'device' || v === 'recorded') return v;
+  } catch {
+    /* ignore — fall through to default */
+  }
+  return 'recorded';
+}
 
 export type SpeakOptions = {
   rate?: number; // 0.5 – 1.5 typical
@@ -258,7 +296,9 @@ function playPrerecorded(url: string, opts: SpeakOptions, epoch: number, fallbac
  */
 const prefetched = new Set<string>();
 export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
-  if (voiceMode === 'device') return;
+  // 호출자가 voiceMode를 명시하지 않으면 사용자 설정(userMode)을 enforce.
+  // device 모드에서는 mp3 prefetch를 절대 시작하지 않는다 — 데이터/스토리지 절약.
+  if (resolveVoiceMode(voiceMode) === 'device') return;
   const url = lookupPrerecorded(text);
   if (!url) return;
   if (prefetched.has(url)) return;
@@ -298,7 +338,12 @@ export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
 export function speak(text: string, opts: SpeakOptions = {}): void {
   if (!text) return;
   const epoch = ++speakEpoch;
-  if (opts.voiceMode === 'device') {
+  // 호출자가 voiceMode를 빠뜨려도 정책 일관성 유지를 위해 source에서 resolve.
+  // 과거 7개 call site(Flashcards x2, Hanzi, MinimalPairsGame, SentenceBuilder,
+  // McqGame, MarathonPlayer, Help)가 voiceMode를 전달하지 않아 device 모드 사용자도
+  // mp3 매니페스트 hit 시 녹음 파일이 재생되는 정책 위반이 있었다 — 이제는 차단된다.
+  const mode = resolveVoiceMode(opts.voiceMode);
+  if (mode === 'device') {
     speakSynth(text, opts, epoch);
     return;
   }

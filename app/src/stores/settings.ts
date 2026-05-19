@@ -6,7 +6,7 @@
  */
 import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
-import { stop as stopTTS } from '@/lib/tts';
+import { stop as stopTTS, setVoiceModeProvider } from '@/lib/tts';
 import type { SRSAlgorithm } from '@/stores/srs';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -261,6 +261,16 @@ export function applyFontSize(size: FontSize): void {
   if (size === 'lg') root.classList.add('fontsize-lg');
   else if (size === 'xl') root.classList.add('fontsize-xl');
 }
+
+// tts 모듈에 사용자 모드 공급자 등록.
+//   - 호출자(Flashcards/Hanzi/Mcq/SentenceBuilder/MinimalPairs/Marathon/Help 등)가
+//     opts.voiceMode를 빠뜨려도 speak()/prefetchAudio()가 현재 userMode로 fall back.
+//   - userMode === null (아직 미선택)이면 null을 돌려보내 tts.ts의 default('recorded')로
+//     동작 — OnboardingCard 노출 중 임시 재생이 발생해도 mp3 우선 안전 경로.
+setVoiceModeProvider(() => {
+  const m = useSettings.getState().userMode;
+  return m === 'device' || m === 'recorded' ? m : null;
+});
 
 // React to system theme changes when `theme === 'system'`.
 if (typeof window !== 'undefined' && window.matchMedia) {

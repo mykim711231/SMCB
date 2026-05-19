@@ -21,7 +21,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, FileAudio, HelpCircle } from 'lucide-react';
-import { awaitVoices, getVoices, isSupported, stop as stopTTS } from '@/lib/tts';
+import { awaitVoices, getVoices, isSupported, stop as stopTTS, ZH_CN_LIKE_RE } from '@/lib/tts';
 import { useSettings } from '@/stores/settings';
 
 /**
@@ -34,9 +34,9 @@ import { useSettings } from '@/stores/settings';
  */
 type BannerKind = 'no-engine' | 'no-voice' | 'only-zh-tw' | null;
 
-// 본 교재는 보통화(普通话) 기준 — 명시적으로 본토/싱가포르 변종을 적합으로 인정.
-// zh-HK/zh-TW만 있는 경우 발음 mismatch 위험이 커서 별도 안내.
-const ZH_CN_LIKE_RE = /^zh(-|_)?(cn|sg|hans)/i;
+// 본 교재는 보통화(普通话) 기준 — ZH_CN_LIKE_RE는 lib/tts에서 단일 소스로 정의.
+// pickMandarinVoice 최종 fallback과 동일한 기준이어야 본토 미설치 안내와 실제
+// 재생 가능 여부가 일치한다.
 
 export default function DeviceVoiceMissingBanner(): JSX.Element | null {
   const hydrated = useSettings((s) => s.hydrated);
