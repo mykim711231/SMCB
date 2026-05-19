@@ -11,6 +11,7 @@ import type {
   BibleQuote,
   Dialog,
   Scenario,
+  ScenarioSegment,
   Question,
   Appendix,
 } from '../src/types/lesson.ts';
@@ -327,7 +328,48 @@ function parseDialog(section: Section | undefined): Dialog[] {
   return dialogs;
 }
 
-/** Scenarios: each `### 상황 N: title` -> body markdown until next ### or ## */
+/**
+ * Scenarios — `### 상황 N: title` 하위에 verse trio(zh/pinyin/ko)와
+ * 자유 텍스트가 섞여 있다. trio는 VerseRow + TTS 가능하도록 segments에 verse로,
+ * 나머지는 text segment로 분리한다.
+ *
+ * 줄 형식:
+ *   - `A: 我对象...` / `- Q: 这些事...` 처럼 라벨이 zh 라인 앞에 붙는 경우가 있어
+ *     LABEL_RE로 라벨을 분리하고 prefix로 보존.
+ *   - 들여쓰기·trailing-two-space(markdown linebreak)는 무시.
+ */
+const SCENARIO_LABEL_RE = /^(?:-\s*)?([A-Z])\s*[:：]\s*(.*)$/;
+
+function parseScenarioSegments(lines: string[]): ScenarioSegment[] {
+  const raw = lines.map((l) => l.replace(/\s+$/, '').trim());
+  const segs: ScenarioSegment[] = [];
+  let i = 0;
+  while (i < raw.length) {
+    const a = raw[i];
+    if (!a) {
+      i += 1;
+      continue;
+    }
+    const m = a.match(SCENARIO_LABEL_RE);
+    const aZh = m ? m[2].trim() : a;
+    const prefix = m ? `${m[1]}:` : undefined;
+    const b = raw[i + 1] ?? '';
+    const c = raw[i + 2] ?? '';
+    if (HAS_CJK.test(aZh) && HAS_PINYIN.test(b) && HAS_HANGUL.test(c)) {
+      segs.push({
+        kind: 'verse',
+        verse: { zh: cleanLine(aZh), pinyin: cleanLine(b), ko: cleanLine(c) },
+        prefix,
+      });
+      i += 3;
+      continue;
+    }
+    segs.push({ kind: 'text', text: a });
+    i += 1;
+  }
+  return segs;
+}
+
 function parseScenarios(section: Section | undefined): Scenario[] {
   if (!section) return [];
   const scenarios: Scenario[] = [];
@@ -336,7 +378,7 @@ function parseScenarios(section: Section | undefined): Scenario[] {
   let buf: string[] = [];
   const flush = () => {
     if (title) {
-      scenarios.push({ title, body: buf.join('\n').trim() });
+      scenarios.push({ title, segments: parseScenarioSegments(buf) });
     }
     title = null;
     buf = [];

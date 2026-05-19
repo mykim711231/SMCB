@@ -143,6 +143,11 @@ function collectZh(lessons: Lesson[], phase: Phase): Set<string> {
         for (const ln of d.lines ?? []) if (ln.zh) set.add(ln.zh.trim());
       }
       for (const q of l.questions ?? []) if (q.zh) set.add(q.zh.trim());
+      for (const sc of l.scenarios ?? []) {
+        for (const seg of sc.segments ?? []) {
+          if (seg.kind === 'verse' && seg.verse.zh) set.add(seg.verse.zh.trim());
+        }
+      }
     }
   }
   set.delete('');

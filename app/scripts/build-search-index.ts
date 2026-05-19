@@ -129,16 +129,31 @@ function buildDocs(lessons: Lesson[]): SearchDoc[] {
       ),
     );
 
-    l.scenarios.forEach((s, i) =>
+    l.scenarios.forEach((s, i) => {
+      const verseSegs = s.segments.filter((seg) => seg.kind === 'verse');
+      const zh = [s.title, ...verseSegs.map((seg) => (seg.kind === 'verse' ? seg.verse.zh : ''))]
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 240);
+      const pinyin = verseSegs
+        .map((seg) => (seg.kind === 'verse' ? seg.verse.pinyin : ''))
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 240);
+      const ko = s.segments
+        .map((seg) => (seg.kind === 'verse' ? seg.verse.ko : seg.text))
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 240);
       docs.push({
         ...base,
         id: `${l.id}::scenario::${i}`,
         kind: 'scenario',
-        zh: s.title,
-        pinyin: '',
-        ko: s.body.slice(0, 240),
-      }),
-    );
+        zh,
+        pinyin,
+        ko,
+      });
+    });
 
     l.questions.forEach((q, i) =>
       docs.push({

@@ -112,7 +112,13 @@ function resolveSnippet(lesson: Lesson, kind: SearchKind, parts: string[]): Sear
     }
     case 'scenario': {
       const s = lesson.scenarios[Number(parts[0])];
-      return s ? { zh: s.title, pinyin: '', ko: s.body.slice(0, 120) } : { zh: '', pinyin: '', ko: '' };
+      if (!s) return { zh: '', pinyin: '', ko: '' };
+      const ko = s.segments
+        .map((seg) => (seg.kind === 'verse' ? seg.verse.ko : seg.text))
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 120);
+      return { zh: s.title, pinyin: '', ko };
     }
     case 'question': {
       const q = lesson.questions[Number(parts[0])];

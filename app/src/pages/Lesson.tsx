@@ -109,6 +109,54 @@ export default function LessonPage(): JSX.Element {
         </section>
       )}
 
+      {lesson.bible.length > 0 && (
+        <section>
+          <SectionHeader title="圣经引用 성경 인용" />
+          <ul className="space-y-3">
+            {lesson.bible.map((b, i) => {
+              const k = favKey(lesson.id, 'bible', i);
+              const starred = favHas(k);
+              return (
+                <li key={i} className="rounded-xl border border-divider p-4 bg-surface">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm text-primary font-semibold">
+                      {b.ref} <span className="text-muted font-normal">· {b.refKo}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => favToggle(k)}
+                      aria-label={starred ? '즐겨찾기 해제' : '즐겨찾기'}
+                      aria-pressed={starred}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
+                    >
+                      {starred ? (
+                        <Star size={18} className="text-accent fill-current" />
+                      ) : (
+                        <StarOff size={18} className="text-muted" aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                  <VerseRow verse={b.text} />
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {lesson.questions.length > 0 && (
+        <section>
+          <SectionHeader title="本文问题 본문질문" />
+          <ol className="list-decimal pl-5 space-y-2">
+            {lesson.questions.map((q, i) => (
+              <li key={i}>
+                <VerseRow verse={q} />
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
       {lesson.vocab.length > 0 && (
         <section>
           <SectionHeader title="主要词汇 주요 어휘" subtitle={`${lesson.vocab.length}개`} />
@@ -209,41 +257,6 @@ export default function LessonPage(): JSX.Element {
         </section>
       )}
 
-      {lesson.bible.length > 0 && (
-        <section>
-          <SectionHeader title="圣经引用 성경 인용" />
-          <ul className="space-y-3">
-            {lesson.bible.map((b, i) => {
-              const k = favKey(lesson.id, 'bible', i);
-              const starred = favHas(k);
-              return (
-                <li key={i} className="rounded-xl border border-divider p-4 bg-surface">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-primary font-semibold">
-                      {b.ref} <span className="text-muted font-normal">· {b.refKo}</span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => favToggle(k)}
-                      aria-label={starred ? '즐겨찾기 해제' : '즐겨찾기'}
-                      aria-pressed={starred}
-                      className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
-                    >
-                      {starred ? (
-                        <Star size={18} className="text-accent fill-current" />
-                      ) : (
-                        <StarOff size={18} className="text-muted" aria-hidden />
-                      )}
-                    </button>
-                  </div>
-                  <VerseRow verse={b.text} />
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
       {lesson.dialogDaily.length > 0 && (
         <section>
           <SectionHeader title="应用会话 응용 회화" />
@@ -277,23 +290,18 @@ export default function LessonPage(): JSX.Element {
             {lesson.scenarios.map((s, i) => (
               <li key={i} className="rounded-xl border border-divider p-4 bg-surface">
                 <p className="font-semibold text-fg">{s.title}</p>
-                <p className="text-fg/90 mt-1 whitespace-pre-line leading-relaxed">{s.body}</p>
+                <div className="mt-2 divide-y divide-divider">
+                  {s.segments.map((seg, j) =>
+                    seg.kind === 'verse' ? (
+                      <VerseRow key={j} verse={seg.verse} prefix={seg.prefix} />
+                    ) : (
+                      <p key={j} className="text-fg/90 py-2 leading-relaxed">{seg.text}</p>
+                    ),
+                  )}
+                </div>
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {lesson.questions.length > 0 && (
-        <section>
-          <SectionHeader title="问题 질문" />
-          <ol className="list-decimal pl-5 space-y-2">
-            {lesson.questions.map((q, i) => (
-              <li key={i}>
-                <VerseRow verse={q} />
-              </li>
-            ))}
-          </ol>
         </section>
       )}
 

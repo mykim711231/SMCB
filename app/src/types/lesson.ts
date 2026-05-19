@@ -39,9 +39,13 @@ export type Dialog = {
   lines: Verse[];
 };
 
+export type ScenarioSegment =
+  | { kind: 'verse'; verse: Verse; prefix?: string }
+  | { kind: 'text'; text: string };
+
 export type Scenario = {
   title: string;
-  body: string;
+  segments: ScenarioSegment[];
 };
 
 export type Question = Verse;
