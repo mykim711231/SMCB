@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Volume2, Square } from 'lucide-react';
-import { speak, stop, isSupported, unlock, isIOS, isStandalonePWA, awaitVoices, prefetchAudio } from '@/lib/tts';
+import {
+  speak,
+  stop,
+  isSupported,
+  unlock,
+  isIOS,
+  isStandalonePWA,
+  awaitVoices,
+  prefetchAudio,
+  subscribeVoicesChanged,
+} from '@/lib/tts';
 import { useSettings } from '@/stores/settings';
 import { cn } from '@/lib/cn';
 
@@ -10,6 +20,7 @@ import { cn } from '@/lib/cn';
 //   1) 정상 onEnd (한 번이라도 정상 재생되면 환경이 회복된 것으로 간주)
 //   2) userMode 변경 (device ↔ recorded 전환 = 다른 경로의 새 진단)
 //   3) cooldown 경과 (마지막 표시 후 5분)
+//   4) voiceschanged 이벤트 (F6 — 사용자가 OS에서 음성팩을 설치하고 돌아온 신호)
 // reset 없이는 사용자가 음성팩을 설치한 뒤에도 안내 다이얼로그가 다시 안 떠서
 // 첫 false-negative 다이얼로그를 봤다면 영원히 silenced 되는 회귀가 있었다.
 let ttsErrorShown = false;
@@ -27,6 +38,12 @@ function resetTtsErrorGuard(): void {
   ttsErrorShown = false;
   ttsErrorShownAt = 0;
 }
+
+// F6: voiceschanged 시 cooldown 리셋 (module-level 1회 구독).
+// 사용자가 OS 설정에서 음성팩을 설치하고 돌아오면 voiceschanged가 발화한다.
+// 이때 cooldown(5분)이 살아있어 진단 다이얼로그가 안 뜨면, 사용자는 자신이
+// 한 설치가 효과 있는지 확인할 수 없다 — silenced. 그 신호 즉시 가드 해제.
+subscribeVoicesChanged(resetTtsErrorGuard);
 
 function ttsErrorReason(code: string | undefined): string | null {
   switch (code) {

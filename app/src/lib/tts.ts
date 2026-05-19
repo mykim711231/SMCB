@@ -60,11 +60,31 @@ let speakEpoch = 0;
 //  - 동시에 getVoices()를 한 번 호출해 내부 voice 테이블 초기화를 nudge.
 //  - 이렇게 해도 첫 호출에서 빈 배열을 받는 케이스가 남으므로 speakSynth는
 //    별도로 awaitVoices()로 재시도한다.
+//
+// F6 + F7 외부 구독 모델:
+//  - 사용자가 OS 설정에서 음성팩을 설치하고 돌아오면 voiceschanged가 발화한다.
+//  - F7: 그 즉시 cachedZhVoice를 무효화한다. 과거 캐시된 voice가 unmount된 변형
+//    (예: 임시 voice가 stale)인 경우 다음 speak()에서 stale voice로 발화해 실패.
+//  - F6: TTSButton 등 외부 진단 가드(5분 cooldown)도 동시에 reset 가능하도록
+//    subscribeVoicesChanged()를 제공. resetTtsErrorGuard를 직접 import하는 역방향
+//    의존을 피하기 위해 pub-sub 형태로 노출.
+const voicesChangedListeners = new Set<() => void>();
+export function subscribeVoicesChanged(fn: () => void): () => void {
+  voicesChangedListeners.add(fn);
+  return (): void => { voicesChangedListeners.delete(fn); };
+}
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   try {
     window.speechSynthesis.getVoices();
     window.speechSynthesis.addEventListener('voiceschanged', () => {
-      /* nudge only — actual await happens in awaitVoices() */
+      // F7: voiceschanged 시 cachedZhVoice를 무효화. 새로 설치된 음성으로
+      // pickMandarinVoice가 갱신된 결과를 사용하도록 강제.
+      cachedZhVoice = null;
+      // F6: 구독자(예: TTSButton의 ttsErrorShown 가드)에게 알림 — 사용자가
+      // 음성팩을 설치하고 돌아온 경우 진단 다이얼로그가 다시 표시될 수 있도록.
+      for (const fn of voicesChangedListeners) {
+        try { fn(); } catch { /* ignore */ }
+      }
     });
   } catch {
     /* ignore */

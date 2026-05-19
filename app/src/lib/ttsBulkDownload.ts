@@ -122,8 +122,22 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
   //   - prefetch 만료(30s)된 URL은 자동으로 제외 — 이 set은 호출 시점 snapshot.
   const prefetchedUrlSet = getPrefetchedUrls();
 
+  // R12: captive portal 감지 — 호텔/카페 Wi-Fi가 모든 요청을 portal HTML로
+  // 가로채면, fetch는 200 OK처럼 보이지만 응답은 mp3가 아닌 HTML이라
+  // CacheFirst가 잘못된 응답을 캐시한다. 결과: 다음부터 SW cache hit이지만
+  // audio 디코드는 실패.
+  //
+  // 동작:
+  //   - 첫 fetch에서 content-type을 검사. text/html 또는 audio/ 미시작이면
+  //     captive portal로 판정해 즉시 중단 + 사용자 안내.
+  //   - 이미 받은 잘못된 응답은 호출자(OnboardingCard/Settings)가 status를
+  //     'partial'로 두면 다음 부팅 R8 검증에서 일부만 캐시된 것처럼 보일 뿐
+  //     audio decode 실패는 발생. 사용자가 captive portal 통과 후 재시도해야 함.
+  //   - opaque 응답(0)은 검사 못 함 — pass through.
+  let captivePortalAborted = false;
+
   const next = (): string | null => {
-    if (opts.signal?.aborted) {
+    if (opts.signal?.aborted || captivePortalAborted) {
       aborted = true;
       return null;
     }
@@ -140,6 +154,18 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
       method: 'GET',
       signal: opts.signal,
     });
+    const success = res.ok || res.type === 'opaque' || res.status === 206;
+    // R12: captive portal 판정 — content-type이 audio/* 또는 응답 타입이
+    // opaque/206이 아니면서 text/html이면 portal HTML. 첫 응답에서 한 번만
+    // 검증한다(이후는 동일 origin이라 같은 결과 — 검증 자체가 비용).
+    if (success && res.type !== 'opaque' && res.status !== 206) {
+      const ct = (res.headers.get('content-type') ?? '').toLowerCase();
+      if (ct && !ct.startsWith('audio/') && !ct.includes('octet-stream')) {
+        captivePortalAborted = true;
+        try { void res.body?.cancel().catch(() => { /* ignore */ }); } catch { /* ignore */ }
+        return false;
+      }
+    }
     try {
       // ReadableStream.cancel은 throw 안전성이 브라우저별로 미세하게 다르다.
       // catch 없이 두면 일부 환경에서 unhandled rejection 경고가 떨어진다.
@@ -147,11 +173,36 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
     } catch {
       /* ignore */
     }
-    return res.ok || res.type === 'opaque' || res.status === 206;
+    return success;
+  };
+
+  // R14: abort signal에 반응하는 백오프. 800ms setTimeout 동안 abort되면
+  // 그 사이 사용자 액션(카드 닫기/페이지 이동)에 즉시 응답할 수 없었다.
+  // signal listener와 timeout race로 변환해 abort 시 micro-task 내 종료.
+  const abortableBackoff = (ms: number): Promise<void> => {
+    if (opts.signal?.aborted) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const t = setTimeout(() => {
+        opts.signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      const onAbort = (): void => {
+        clearTimeout(t);
+        opts.signal?.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      opts.signal?.addEventListener('abort', onAbort, { once: true });
+    });
   };
 
   async function worker(): Promise<void> {
     for (;;) {
+      // R14: worker 진입 시점에 abort 확인 — next()도 검사하지만, retry
+      // 백오프 직후 또는 captive portal 직후 빠르게 빠져나가도록 명시.
+      if (opts.signal?.aborted) {
+        aborted = true;
+        return;
+      }
       const file = next();
       if (!file) return;
       const fullUrl = `${TTS_BASE_URL}${file}`;
@@ -172,9 +223,16 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
         // R11: 1회 재시도 — 모바일 회선 단발성 실패가 가장 흔하다.
         ok = false;
       }
+      // captive portal로 판정된 경우 즉시 종료 (재시도 의미 없음).
+      if (captivePortalAborted) {
+        failed++;
+        opts.onProgress?.({ done, failed, total });
+        return;
+      }
       if (!ok && !opts.signal?.aborted) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_BACKOFF_MS));
-        if (!opts.signal?.aborted) {
+        // R14: setTimeout 대신 abort signal-aware 백오프.
+        await abortableBackoff(RETRY_BACKOFF_MS);
+        if (!opts.signal?.aborted && !captivePortalAborted) {
           try {
             ok = await fetchOnce(file);
           } catch {
@@ -198,5 +256,5 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
   }
   await Promise.all(workers);
 
-  return { done, failed, total, aborted };
+  return { done, failed, total, aborted: aborted || captivePortalAborted };
 }
