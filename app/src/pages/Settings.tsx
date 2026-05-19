@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight } from 'lucide-react';
-import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection } from '@/stores/settings';
+import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection, type UserMode } from '@/stores/settings';
 import type { SRSAlgorithm } from '@/stores/srs';
 import { useProgress } from '@/stores/progress';
 import { useFavorites } from '@/stores/favorites';
@@ -9,6 +9,7 @@ import { useSRS } from '@/stores/srs';
 import { getStorageInfo, clearAllCaches, clearContentCaches, type StorageInfo } from '@/lib/storage';
 import { dbClearAll } from '@/lib/db';
 import { awaitVoices, isSupported, isIOS, isStandalonePWA } from '@/lib/tts';
+import { bulkDownloadAll, getManifestSize } from '@/lib/ttsBulkDownload';
 import { cn } from '@/lib/cn';
 import SectionHeader from '@/components/SectionHeader';
 
@@ -90,7 +91,37 @@ export default function Settings(): JSX.Element {
       </section>
 
       <section>
-        <SectionHeader title="음성 (TTS)" subtitle="단말기 내장 음성을 사용합니다." />
+        <SectionHeader
+          title="음성 재생 방식"
+          subtitle="기기에 설치된 음성을 쓸지, 미리 녹음된 음성을 받아 쓸지 고를 수 있어요."
+        />
+        <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
+          <Row label="재생 방식">
+            <Segmented
+              value={s.userMode ?? 'recorded'}
+              options={[
+                { v: 'device', l: '기기 음성' },
+                { v: 'recorded', l: '녹음 음성' },
+              ]}
+              onChange={(v) => s.setUserMode(v as UserMode)}
+            />
+          </Row>
+        </div>
+        {(s.userMode ?? 'recorded') === 'recorded' && <TTSBulkCard />}
+        {s.userMode === 'device' && (
+          <p className="mt-2 text-xs text-muted px-1">
+            기기에 중국어(zh-CN) 음성팩이 설치되어 있어야 정상 재생됩니다.
+            음성팩이 없으면{' '}
+            <Link to="/help" className="text-primary font-semibold underline">
+              도움말의 음성 진단
+            </Link>
+            을 참고해 주세요.
+          </p>
+        )}
+      </section>
+
+      <section>
+        <SectionHeader title="음성 (TTS)" subtitle="미리 녹음된 mp3로 재생합니다. 단말기 중국어 음성팩은 보조용이에요." />
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
           <Row label={`속도: ${s.ttsRate.toFixed(2)}×`}>
             <input
@@ -302,6 +333,148 @@ export default function Settings(): JSX.Element {
         </div>
       </section>
     </div>
+  );
+}
+
+function TTSBulkCard(): JSX.Element {
+  const status = useSettings((st) => st.ttsBulkStatus);
+  const stored = useSettings((st) => st.ttsBulkProgress);
+  const setStatus = useSettings((st) => st.setTTSBulkStatus);
+  const setProgress = useSettings((st) => st.setTTSBulkProgress);
+
+  const total = stored.total || getManifestSize();
+  const [running, setRunning] = useState(false);
+  const [live, setLive] = useState<{ done: number; failed: number; total: number }>({
+    done: stored.done,
+    failed: 0,
+    total,
+  });
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const start = async (): Promise<void> => {
+    if (running) return;
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setRunning(true);
+    setStatus('downloading');
+    setLive({ done: 0, failed: 0, total: getManifestSize() });
+    setProgress({ done: 0, total: getManifestSize() });
+    const result = await bulkDownloadAll({
+      signal: ac.signal,
+      onProgress: (p) => {
+        setLive(p);
+        setProgress({ done: p.done, total: p.total });
+      },
+    });
+    setRunning(false);
+    if (result.aborted) setStatus('skipped');
+    else if (result.failed === 0) setStatus('done');
+    else setStatus('partial');
+    setProgress({ done: result.done, total: result.total });
+  };
+
+  const stop = (): void => {
+    abortRef.current?.abort();
+  };
+
+  const pct = total ? Math.floor((live.done / total) * 100) : 0;
+  const doneCount = running ? live.done : stored.done;
+  const failedCount = live.failed;
+
+  return (
+    <div className="mt-3 rounded-2xl border border-divider bg-surface p-4 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-semibold text-fg inline-flex items-center gap-1.5">
+          <Download size={16} aria-hidden /> 중국어 음성 미리 받기
+        </p>
+        <StatusBadge status={running ? 'downloading' : status} />
+      </div>
+      <p className="text-sm text-muted">
+        약 <b>{total}</b>개 파일. 한 번 받아두면 인터넷 없이도 음성이 재생됩니다.
+      </p>
+      {(running || doneCount > 0) && (
+        <>
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-valuenow={doneCount}
+            className="w-full h-2 rounded-full bg-divider overflow-hidden"
+          >
+            <div
+              className={cn(
+                'h-full transition-[width] duration-300',
+                status === 'done' ? 'bg-success' : 'bg-primary',
+              )}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted inline-flex items-center gap-1.5">
+            {running ? (
+              <>
+                <Loader2 size={14} aria-hidden className="animate-spin" />
+                받는 중… {doneCount}/{total}
+                {failedCount > 0 && ` (실패 ${failedCount})`}
+              </>
+            ) : status === 'done' ? (
+              <>
+                <CheckCircle2 size={14} aria-hidden className="text-success" />
+                완료: {doneCount}/{total}
+              </>
+            ) : (
+              <>
+                {doneCount}/{total}
+                {status === 'partial' && ' · 일부 실패 (재시도 가능)'}
+              </>
+            )}
+          </p>
+        </>
+      )}
+      <div className="flex flex-wrap gap-2 pt-1">
+        {running ? (
+          <button
+            type="button"
+            onClick={stop}
+            className="inline-flex items-center gap-1.5 rounded-full bg-surface border border-divider text-fg text-sm font-semibold px-3 py-2"
+          >
+            중지
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void start()}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-3 py-2"
+          >
+            <Download size={14} aria-hidden />
+            {status === 'done' ? '다시 받기' : status === 'partial' ? '재시도' : '지금 받기'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: ReturnType<typeof useSettings.getState>['ttsBulkStatus'] }): JSX.Element | null {
+  const map: Record<string, { label: string; cls: string }> = {
+    idle: { label: '시작 전', cls: 'bg-divider text-muted' },
+    downloading: { label: '받는 중', cls: 'bg-primary text-white' },
+    done: { label: '완료', cls: 'bg-success text-white' },
+    partial: { label: '일부 실패', cls: 'bg-accent text-white' },
+    skipped: { label: '나중에', cls: 'bg-divider text-muted' },
+  };
+  const item = map[status];
+  if (!item) return null;
+  return (
+    <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', item.cls)}>
+      {item.label}
+    </span>
   );
 }
 

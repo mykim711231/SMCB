@@ -127,10 +127,19 @@ export function unlock(): void {
   }
 }
 
+/**
+ * 음성 재생 방식.
+ *  - 'device'   : 기기 자체 TTS만 사용 — 매니페스트 lookup 우회.
+ *  - 'recorded' : 미리 녹음된 mp3 우선 — manifest miss는 단말기 TTS로 fallback.
+ *  - undefined  : 'recorded'와 동일하게 처리 (기본값).
+ */
+export type VoiceMode = 'device' | 'recorded';
+
 export type SpeakOptions = {
   rate?: number; // 0.5 – 1.5 typical
   pitch?: number;
   voiceURI?: string;
+  voiceMode?: VoiceMode;
   onEnd?: () => void;
   onError?: (e: SpeechSynthesisErrorEvent) => void;
 };
@@ -159,29 +168,68 @@ function stopAudio(): void {
 
 /**
  * 사전녹음 mp3/opus 재생. 실패 시 fallback()을 호출 (보통 Web Speech).
+ *
+ * 첫 클릭 안정화: cold network/디코드 지연으로 1차 play()가 실패할 때
+ * 1회만 짧게 재시도한다 (audio.load() + play 재호출). 두 번째 클릭은
+ * 캐시/디코드가 끝나 있으므로 항상 1차에 성공. 재시도까지 실패하면 fallback.
  */
 function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void): void {
   stopAudio();
-  const a = new Audio(url);
+  const a = new Audio();
+  a.preload = 'auto';
+  a.src = url;
   a.playbackRate = opts.rate ?? 1;
   a.onended = (): void => {
     if (currentAudio === a) currentAudio = null;
     opts.onEnd?.();
   };
-  // 파일 누락(404)·디코드 실패는 audio.onerror로 들어온다 → Web Speech로 폴백.
-  // play()가 reject되는 경우(브라우저 자동재생 차단 등)도 fallback.
-  a.onerror = (): void => {
+  let retried = false;
+  const giveUp = (): void => {
     if (currentAudio === a) currentAudio = null;
     fallback();
   };
+  const retry = (): void => {
+    if (retried) {
+      giveUp();
+      return;
+    }
+    retried = true;
+    setTimeout(() => {
+      try {
+        a.load();
+        const p2 = a.play();
+        if (p2 && typeof p2.catch === 'function') p2.catch(giveUp);
+      } catch {
+        giveUp();
+      }
+    }, 80);
+  };
+  // 파일 누락(404)·디코드 실패는 audio.onerror로 들어온다 → 1회 retry 후 폴백.
+  a.onerror = retry;
   currentAudio = a;
   unlocked = true;
   const p = a.play();
   if (p && typeof p.catch === 'function') {
-    p.catch(() => {
-      if (currentAudio === a) currentAudio = null;
-      fallback();
-    });
+    p.catch(retry);
+  }
+}
+
+/**
+ * 사전녹음 mp3 prefetch — 텍스트가 매니페스트에 있으면 audio 버퍼 다운로드만 시작.
+ * 사용자 제스처 직전(mousedown/touchstart)에 호출하면 첫 클릭 재생 안정성 향상.
+ * device 모드는 mp3를 쓰지 않으므로 no-op.
+ */
+export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
+  if (voiceMode === 'device') return;
+  const url = lookupPrerecorded(text);
+  if (!url) return;
+  try {
+    const a = new Audio();
+    a.preload = 'auto';
+    a.src = url;
+    // 재생하지 않음. 브라우저 HTTP cache + 디코드 버퍼만 채운다.
+  } catch {
+    /* ignore */
   }
 }
 
@@ -189,9 +237,10 @@ function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void):
  * Speaks `text` in Mandarin. Cancels any in-flight utterance first
  * so rapid tapping behaves predictably.
  *
- * 우선순위:
- *   1) 사전녹음 매니페스트 hit → <audio> 재생
- *   2) Web Speech API
+ * voiceMode에 따라 경로 분기:
+ *   - 'device'   : 매니페스트 우회 → 기기 TTS만 사용. mp3 다운 안 받는 모드.
+ *   - 'recorded' : 사전녹음 mp3 hit → 재생. miss는 기기 TTS로 fallback.
+ *   - undefined  : 'recorded'와 동일.
  *
  * iOS notes:
  *  - cancel() right before speak() can race on iOS — we only cancel if
@@ -201,6 +250,10 @@ function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void):
  */
 export function speak(text: string, opts: SpeakOptions = {}): void {
   if (!text) return;
+  if (opts.voiceMode === 'device') {
+    speakSynth(text, opts);
+    return;
+  }
   const url = lookupPrerecorded(text);
   if (url) {
     // 사전녹음 경로 — Web Speech 미지원 환경도 동작한다.
@@ -221,15 +274,21 @@ function speakSynth(text: string, opts: SpeakOptions): void {
       /* ignore */
     }
   }
-  const u = new SpeechSynthesisUtterance(text);
   const voice = pickMandarinVoice(opts.voiceURI);
-  if (voice) {
-    u.voice = voice;
-    u.lang = voice.lang;
-    cachedZhVoice = voice;
-  } else {
-    u.lang = 'zh-CN';
+  // zh voice가 없으면 합성 시도 자체를 차단한다.
+  // Windows SAPI5처럼 ko voice가 한자를 한국어 한자음으로 발음하는 폴백을 막기 위함.
+  // 호출자가 가이드(음성팩 설치 안내)를 띄울 수 있도록 onError를 'language-unavailable'로 통지.
+  if (!voice) {
+    if (opts.onError) {
+      const e = { error: 'language-unavailable' } as unknown as SpeechSynthesisErrorEvent;
+      opts.onError(e);
+    }
+    return;
   }
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = voice;
+  u.lang = voice.lang;
+  cachedZhVoice = voice;
   u.rate = opts.rate ?? 1;
   u.pitch = opts.pitch ?? 1;
   if (opts.onEnd) u.onend = opts.onEnd;
