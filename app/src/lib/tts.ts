@@ -210,14 +210,55 @@ export type SpeakOptions = {
 };
 
 /**
+ * 매니페스트 키 정규화.
+ *
+ * 매니페스트는 build-content가 원문을 그대로 키로 저장하지만 화면에 표시되는
+ * 텍스트는 lessons-vol*.json/검색 입력/사용자 편집 경로를 거치면서 다음과 같은
+ * 비가시 문자가 섞일 수 있다. 이걸 정규화하지 않으면 사람 눈에 똑같이 보이는
+ * 문자열이 매니페스트 miss로 빠져 SpeechSynth fallback 경로(음질·정책 mismatch)로
+ * 떨어진다 — silent quality fail.
+ *
+ * 정규화 대상:
+ *  - NBSP(U+00A0) → 일반 공백 — Word/카피 페이스트에서 흔히 섞임
+ *  - Zero-width(U+200B~200F, U+FEFF) → 제거 — 에디터/번역 도구가 삽입
+ *  - 전각 공백(U+3000) → 일반 공백 — IME 입력
+ *  - 다양한 따옴표/대시 → ASCII 동치로 통일 — "smart quotes" 자동 변환
+ *  - 양끝 공백 trim
+ *
+ * 본 함수는 lookup 시점에 1회 실행. 매니페스트 자체는 빌드 단계에서 같은 규칙으로
+ * 정규화돼 있다는 전제 — 사람 손으로 채운 매니페스트가 unicode 변종을 포함하면
+ * 캐스케이드 miss가 날 수 있다는 점만 주의.
+ */
+function normalizeManifestKey(text: string): string {
+  return text
+    .replace(/[​-‏﻿]/g, '') // zero-width / BOM
+    .replace(/[ 　]/g, ' ')        // NBSP, ideographic space
+    .replace(/[‘’]/g, "'")        // smart single quotes → '
+    .replace(/[“”]/g, '"')        // smart double quotes → "
+    .replace(/[–—]/g, '-')        // en/em dash → -
+    .trim();
+}
+
+/**
  * 사전녹음 매니페스트에서 zh 텍스트를 찾는다.
- * 키는 build-content 등 외부 도구가 채우는 원문 그대로(trim).
+ * 키는 build-content가 채우는 원문(정규화 후).
+ *  1차 정규화 키로 직접 hit.
+ *  2차 fallback: 원문 trim만 — 빌드 매니페스트가 unicode 변종을 그대로 가진
+ *  레거시 케이스 호환. (production 매니페스트는 정규화돼 있어야 정상)
  */
 function lookupPrerecorded(text: string): string | null {
-  const key = text.trim();
-  if (!key) return null;
-  const file = TTS_MANIFEST[key];
-  return file ? `${TTS_BASE_URL}${file}` : null;
+  if (!text) return null;
+  const normalized = normalizeManifestKey(text);
+  if (!normalized) return null;
+  const direct = TTS_MANIFEST[normalized];
+  if (direct) return `${TTS_BASE_URL}${direct}`;
+  // 레거시 호환 — 매니페스트가 unicode 변종을 그대로 저장한 경우만 트리거.
+  const raw = text.trim();
+  if (raw !== normalized) {
+    const legacy = TTS_MANIFEST[raw];
+    if (legacy) return `${TTS_BASE_URL}${legacy}`;
+  }
+  return null;
 }
 
 function stopAudio(): void {
@@ -350,10 +391,34 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
   const url = lookupPrerecorded(text);
   if (url) {
     // 사전녹음 경로 — Web Speech 미지원 환경도 동작한다.
-    playPrerecorded(url, opts, epoch, () => speakSynth(text, opts, epoch));
+    // 사용자 모드가 'recorded' + 오프라인일 때는 mp3 실패 시 SpeechSynth로
+    // fallback하지 않는다. 이유:
+    //   - 사용자는 "녹음 음성으로 듣겠다"고 선택했다 (provider가 resolve한 값 포함).
+    //   - 오프라인에서 mp3가 실패한 건 캐시 miss/네트워크 단절일 가능성.
+    //   - 이 시점에 단말 TTS로 슬쩍 바꾸면 정책 위반 + 발음/음질 mismatch가 발생하고
+    //     사용자는 무엇이 잘못됐는지 모른다(silent policy fail). 본 교재는 본토 발음
+    //     기준이라 단말 zh-TW 음성으로 떨어지는 경우 특히 문제.
+    //   - 대신 'network' 에러를 onError로 통지 → 호출자(TTSButton)가 안내를 띄운다.
+    //   - device 모드는 애초에 mp3 경로로 오지 않으므로 무관.
+    //   - 온라인일 때는 종전과 동일하게 synth fallback — 단순 디코드/cold-start 실패
+    //     커버.
+    const strictRecorded = mode === 'recorded' && !navigatorOnline();
+    const fallback = strictRecorded
+      ? (): void => {
+          if (epoch !== speakEpoch) return;
+          const e = { error: 'network' } as unknown as SpeechSynthesisErrorEvent;
+          opts.onError?.(e);
+        }
+      : (): void => speakSynth(text, opts, epoch);
+    playPrerecorded(url, opts, epoch, fallback);
     return;
   }
   speakSynth(text, opts, epoch);
+}
+
+function navigatorOnline(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  return navigator.onLine !== false;
 }
 
 function speakSynth(text: string, opts: SpeakOptions, epoch: number): void {
