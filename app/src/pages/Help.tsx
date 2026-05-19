@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Volume2,
   Monitor,
@@ -19,6 +20,14 @@ import {
   Ruler,
   Link as LinkIcon,
   BatteryLow,
+  Languages,
+  Settings as SettingsIcon,
+  X,
+  ArrowRight,
+  Mic,
+  Layers,
+  HardDrive,
+  Info,
 } from 'lucide-react';
 import AppleLogo from '@/components/AppleLogo';
 import AndroidLogo from '@/components/AndroidLogo';
@@ -30,14 +39,88 @@ import {
   getIOSVersion,
   speak,
 } from '@/lib/tts';
-import SectionHeader from '@/components/SectionHeader';
 import { cn } from '@/lib/cn';
 
 const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
 type Platform = 'android' | 'ios' | 'windows' | 'mac';
 
+type Guide = {
+  id: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  keywords: string;
+  Body: () => JSX.Element;
+};
+
+// 사용자가 처음부터 차근차근 따라가기 좋은 순서.
+// (글자별 병음 → 재생 방식 → 천천히 음성팩 → 설정 → 음성 진단 → 설치 → 업데이트/삭제)
+const GUIDES: Guide[] = [
+  {
+    id: 'ruby',
+    title: <><Languages size={18} aria-hidden /> 한자 위에 글자별 병음 보기</>,
+    subtitle: '한 글자마다 발음(병음)이 또박또박 따라옵니다.',
+    keywords: '글자별 병음 한자 위 ruby 발음 표기 정렬',
+    Body: PerCharPinyinGuide,
+  },
+  {
+    id: 'playback',
+    title: <><Volume2 size={18} aria-hidden /> 음성 재생 방식 바꾸기</>,
+    subtitle: '녹음 음성 / 기기 음성 중에서 고를 수 있어요.',
+    keywords: '음성 재생 방식 기기 음성 녹음 음성 변경 바꾸기 모드',
+    Body: PlaybackModeGuide,
+  },
+  {
+    id: 'voicepack',
+    title: <><Download size={18} aria-hidden /> 일단 시작하고, 천천히 음성팩 받기</>,
+    subtitle: '먼저 녹음 음성으로 시작 → 나중에 음성팩 추가.',
+    keywords: '녹음 음성 음성팩 다운로드 설치 나중에 mp3 데이터',
+    Body: RecordedFirstGuide,
+  },
+  {
+    id: 'settings',
+    title: <><SettingsIcon size={18} aria-hidden /> 설정 페이지 한눈에 보기</>,
+    subtitle: '화면 · 음성 · 플래시카드 · 저장 공간 안내.',
+    keywords: '설정 화면 테마 다크 라이트 시스템 글자 크기 폰트 한자 병음 한국어 표시 토글 재생 방식 음성 속도 빠르게 느리게 플래시카드 알고리즘 leitner sm2 채점 카드 종류 자동 재생 마라톤 일일 학습 목표 저장 공간 캐시 비우기 초기화 전체 초기화 정보',
+    Body: SettingsOverviewGuide,
+  },
+  {
+    id: 'tts',
+    title: <><Volume2 size={18} aria-hidden /> 음성이 안 들려요</>,
+    subtitle: '단말기 음성 진단 · 중국어 음성팩 설치 안내.',
+    keywords: '음성 안 들려요 TTS 진단 음성팩 voiceschanged ios 26 17.4 볼륨',
+    Body: TTSDiagnostic,
+  },
+  {
+    id: 'install',
+    title: <><Download size={18} aria-hidden /> 앱으로 설치하기</>,
+    subtitle: '홈 화면에 추가하면 인터넷 없이도 사용할 수 있어요.',
+    keywords: '앱 설치 홈 화면 추가 PWA iphone android windows mac safari chrome edge',
+    Body: InstallGuide,
+  },
+  {
+    id: 'update',
+    title: <><RefreshCw size={18} aria-hidden /> 업데이트 / <Trash2 size={18} aria-hidden /> 삭제</>,
+    subtitle: '새 버전 적용 또는 앱·데이터 제거 방법.',
+    keywords: '업데이트 삭제 제거 재설치 캐시 새로고침',
+    Body: UpdateUninstallGuide,
+  },
+];
+
 export default function Help(): JSX.Element {
+  const [query, setQuery] = useState('');
+  const [openGuideId, setOpenGuideId] = useState<string | null>(null);
+  const q = query.trim();
+
+  const filteredGuides = GUIDES.filter((g) => matchesGuide(q, g.keywords));
+  // 검색 중에는 매칭된 가이드를 모두 펼쳐서 한눈에 보여 줍니다.
+  const searching = q.length > 0;
+
+  const filteredTrouble = TROUBLE_ITEMS.filter((t) => matchQuery(t, q));
+  const filteredFAQ = FAQ_ITEMS.filter((f) => matchQuery(f, q));
+  const showTrouble = !searching || filteredTrouble.length > 0;
+  const showFAQ = !searching || filteredFAQ.length > 0;
+
   return (
     <div className="space-y-6">
       <header>
@@ -52,11 +135,722 @@ export default function Help(): JSX.Element {
         </p>
       </header>
 
-      <TTSDiagnostic />
-      <InstallGuide />
-      <UpdateUninstallGuide />
-      <TroubleshootSection />
-      <FAQSection />
+      <HelpSearch query={query} onChange={setQuery} />
+
+      <div className="space-y-3">
+        {filteredGuides.map((g) => {
+          const isOpen = searching ? true : openGuideId === g.id;
+          const Body = g.Body;
+          return (
+            <Accordion
+              key={g.id}
+              title={g.title}
+              subtitle={g.subtitle}
+              isOpen={isOpen}
+              onToggle={() => setOpenGuideId((cur) => (cur === g.id ? null : g.id))}
+            >
+              <Body />
+            </Accordion>
+          );
+        })}
+
+        {showTrouble && (
+          <Accordion
+            title={<><Wrench size={18} aria-hidden /> 자주 발생하는 오류</>}
+            subtitle={
+              searching
+                ? `검색 결과 ${filteredTrouble.length}건 (전체 ${TROUBLE_ITEMS.length}건 중)`
+                : '증상별 해결 방법을 모았어요.'
+            }
+            isOpen={searching ? true : openGuideId === 'trouble'}
+            onToggle={() =>
+              setOpenGuideId((cur) => (cur === 'trouble' ? null : 'trouble'))
+            }
+          >
+            <TroubleshootList query={q} />
+          </Accordion>
+        )}
+
+        {showFAQ && (
+          <Accordion
+            title={<><HelpCircle size={18} aria-hidden /> 자주 묻는 질문</>}
+            subtitle={
+              searching
+                ? `검색 결과 ${filteredFAQ.length}건 (전체 ${FAQ_ITEMS.length}건 중)`
+                : '많이들 물어보시는 질문을 모았어요.'
+            }
+            isOpen={searching ? true : openGuideId === 'faq'}
+            onToggle={() =>
+              setOpenGuideId((cur) => (cur === 'faq' ? null : 'faq'))
+            }
+          >
+            <FAQList query={q} />
+          </Accordion>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 검색어가 비어 있으면 모든 가이드를 표시. 아니면 keywords 와 부분 일치하는 가이드만 표시.
+function matchesGuide(q: string, keywords: string): boolean {
+  if (!q) return true;
+  return keywords.toLowerCase().includes(q.toLowerCase());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0) 도움말 검색
+// ─────────────────────────────────────────────────────────────────────────────
+
+function HelpSearch({
+  query,
+  onChange,
+}: {
+  query: string;
+  onChange: (v: string) => void;
+}): JSX.Element {
+  return (
+    <section>
+      <div className="rounded-2xl border border-divider bg-surface p-3">
+        <label htmlFor="help-search" className="sr-only">
+          도움말 검색
+        </label>
+        <div className="flex items-center gap-2 rounded-xl border border-divider bg-bg px-3 py-2 focus-within:border-primary">
+          <Search size={18} className="text-muted flex-none" aria-hidden />
+          <input
+            id="help-search"
+            type="search"
+            value={query}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="도움말 찾기 (예: 병음, 음성, 설치, 검색…)"
+            className="flex-1 bg-transparent outline-none text-base text-fg placeholder:text-muted"
+            autoComplete="off"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              aria-label="검색어 지우기"
+              className="rounded-full p-1 text-muted hover:bg-divider"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-muted mt-2 px-1">
+          {query.trim()
+            ? <>"<b className="text-fg">{query.trim()}</b>" 와(과) 관련된 도움말만 보여 드릴게요.</>
+            : '아래 가이드를 천천히 살펴보거나, 위 칸에 단어를 입력해 찾을 수 있어요.'}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ReactNode 안의 텍스트만 추출 — 검색 매칭용.
+function nodeToText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeToText).join(' ');
+  if (typeof node === 'object' && 'props' in (node as object)) {
+    const children = (node as { props?: { children?: ReactNode } }).props?.children;
+    return nodeToText(children);
+  }
+  return '';
+}
+
+function matchQuery(item: { q: ReactNode; a: JSX.Element; keywords?: string }, q: string): boolean {
+  if (!q) return true;
+  const haystack = `${nodeToText(item.q)} ${nodeToText(item.a)} ${item.keywords ?? ''}`.toLowerCase();
+  return haystack.includes(q.toLowerCase());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0-A) 아코디언 컴포넌트 (하나만 열림)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Accordion({
+  title,
+  subtitle,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <section className="rounded-2xl border border-divider bg-surface overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-primary-soft/40 transition-colors"
+      >
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-bold text-fg inline-flex items-center gap-2 flex-wrap">
+            {title}
+          </h2>
+          {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
+        </div>
+        <ChevronDown
+          size={22}
+          aria-hidden
+          className={cn(
+            'flex-none text-muted transition-transform duration-200 mt-0.5',
+            isOpen && 'rotate-180',
+          )}
+        />
+      </button>
+      {isOpen && (
+        <div className="border-t border-divider p-4 space-y-3">{children}</div>
+      )}
+    </section>
+  );
+}
+
+// 가이드 내부에서 사용하는 한 단계 작은 아코디언.
+// 한눈에 목록을 훑고 필요한 항목만 펼치는 용도.
+function SubAccordion({
+  title,
+  subtitle,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="rounded-xl border border-divider bg-bg overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="w-full flex items-start justify-between gap-3 px-3 py-2.5 text-left hover:bg-primary-soft/30 transition-colors"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-fg inline-flex items-center gap-1.5 flex-wrap">
+            {title}
+          </p>
+          {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
+        </div>
+        <ChevronDown
+          size={18}
+          aria-hidden
+          className={cn(
+            'flex-none text-muted transition-transform duration-200 mt-0.5',
+            isOpen && 'rotate-180',
+          )}
+        />
+      </button>
+      {isOpen && (
+        <div className="border-t border-divider p-3 text-sm text-fg/90 space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0-1) 글자별 병음 가이드
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PerCharPinyinGuide(): JSX.Element {
+  return (
+    <>
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm text-fg/95">
+          <p className="font-bold text-fg mb-1.5">⭐ 글자별 병음이란?</p>
+          <p>
+            한자 <b>한 글자마다</b> 그 글자의 병음(발음 표기)이 바로 위에 정렬되어 보이는 표시 방식입니다.
+            여러 글자 위에 병음이 한 줄로 길게 늘어서면 어느 병음이 어느 글자에 해당하는지 헷갈리는데,
+            <b> 글자별 병음</b>을 켜면 보기 편해집니다.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-divider p-3 bg-bg">
+          <p className="text-xs text-muted mb-2">예시 (실제 화면 표시 방식)</p>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-muted">❌ 글자별 병음 끔</p>
+              <div className="mt-1">
+                <p className="text-pinyin text-sm">Shàngdì ài shìrén</p>
+                <p className="text-2xl font-semibold text-fg">上帝爱世人</p>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-divider">
+              <p className="text-xs text-muted">✅ 글자별 병음 켬 (권장)</p>
+              <div className="mt-1 flex gap-3 items-end">
+                {[
+                  { z: '上', p: 'Shàng' },
+                  { z: '帝', p: 'dì' },
+                  { z: '爱', p: 'ài' },
+                  { z: '世', p: 'shì' },
+                  { z: '人', p: 'rén' },
+                ].map((c) => (
+                  <div key={c.z} className="text-center">
+                    <div className="text-pinyin text-xs leading-tight">{c.p}</div>
+                    <div className="text-2xl font-semibold text-fg leading-tight">{c.z}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5">
+            <SettingsIcon size={14} aria-hidden /> 켜는 방법
+          </p>
+          <ol className="list-decimal pl-5 space-y-1.5 text-sm text-fg">
+            <li>
+              화면 우측 상단 <b>⚙️ 설정</b> 아이콘 탭
+              <span className="text-xs text-muted"> (또는 </span>
+              <Link to="/settings" className="text-primary font-semibold underline">
+                설정 페이지 바로 가기
+              </Link>
+              <span className="text-xs text-muted">)</span>
+            </li>
+            <li>
+              <b>화면 표시</b> 영역에서
+            </li>
+            <li>
+              <b>"글자별 병음"</b> 스위치를 <b>켭니다</b> (오른쪽으로 밀기)
+            </li>
+            <li>
+              본문/부록으로 돌아오면 즉시 적용됩니다.
+            </li>
+          </ol>
+          <p className="text-xs text-muted mt-2">
+            💡 <b>"병음 표시"</b>가 꺼져 있으면 <b>"글자별 병음"</b>도 보이지 않아요.
+            두 개를 모두 켜 두면 가장 보기 편합니다.
+          </p>
+        </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0-2) 음성 재생 방식 변경하기
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PlaybackModeGuide(): JSX.Element {
+  return (
+    <>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-success/30 bg-success/5 p-3 text-sm">
+            <p className="font-bold text-fg mb-1">🟢 녹음 음성 (기본 · 권장)</p>
+            <ul className="list-disc pl-4 space-y-0.5 text-fg/90 text-xs">
+              <li>본문·단어·회화 약 <b>3,200여 개</b>를 미리 녹음한 mp3로 재생</li>
+              <li>단말기에 중국어 음성팩을 <b>설치하지 않아도</b> 들립니다</li>
+              <li>한 번 들은 음성은 단말기에 저장되어 오프라인에서도 OK</li>
+            </ul>
+          </div>
+          <div className="rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
+            <p className="font-bold text-fg mb-1">🟡 기기 음성</p>
+            <ul className="list-disc pl-4 space-y-0.5 text-fg/90 text-xs">
+              <li>단말기에 설치된 <b>중국어 음성팩</b>만 사용</li>
+              <li>데이터 사용량이 적지만, 음성팩이 없으면 <b>전혀 들리지 않음</b></li>
+              <li>중국어 음성팩이 이미 설치된 분께 적합</li>
+            </ul>
+          </div>
+        </div>
+
+        <div>
+          <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5">
+            <SettingsIcon size={14} aria-hidden /> 재생 방식 바꾸는 법
+          </p>
+          <ol className="list-decimal pl-5 space-y-1.5 text-sm text-fg">
+            <li>
+              화면 우측 상단 <b>⚙️ 설정</b> 아이콘 탭
+              <span className="text-xs text-muted"> (또는 </span>
+              <Link to="/settings" className="text-primary font-semibold underline">
+                설정 페이지 바로 가기
+              </Link>
+              <span className="text-xs text-muted">)</span>
+            </li>
+            <li>
+              <b>음성 재생 방식</b> 영역에서
+            </li>
+            <li>
+              <b>"재생 방식"</b> 버튼 중 원하는 항목을 탭하세요.
+              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-divider bg-bg p-0.5 text-xs">
+                <span className="rounded-full bg-primary text-white px-2.5 py-1 font-semibold">기기 음성</span>
+                <span className="rounded-full px-2.5 py-1 text-muted">녹음 음성</span>
+              </div>
+            </li>
+            <li>
+              변경 즉시 적용됩니다. 본문에서 🔊 버튼을 눌러 들어보세요.
+            </li>
+          </ol>
+          <p className="text-xs text-muted mt-2">
+            💡 처음 설치 후 홈 화면 상단에 보이는 <b>"내게 맞는 음성 방식 고르기"</b> 카드에서도 같은 설정을 할 수 있어요.
+            그 카드는 한 번 고르면 사라지지만, 설정 페이지에서 언제든 다시 바꿀 수 있습니다.
+          </p>
+        </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0-3) 녹음 음성으로 시작 → 나중에 중국어 음성팩 받기
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RecordedFirstGuide(): JSX.Element {
+  return (
+    <div className="text-sm space-y-3">
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+          <p className="text-fg/95">
+            중국어 음성팩 다운로드는 <b>200~400MB</b>로 시간이 걸립니다.
+            먼저 <b>녹음 음성</b>으로 시작하시면 <b>음성팩 없이도</b> 본문·단어·회화 발음을 모두 들으실 수 있어요.
+            나중에 시간이 나실 때 천천히 음성팩을 받으시면 됩니다.
+          </p>
+        </div>
+
+        <div>
+          <p className="font-bold text-fg mb-2">권장 순서 (3단계)</p>
+
+          <div className="space-y-3">
+            <div className="rounded-xl border border-divider p-3">
+              <p className="font-semibold text-fg inline-flex items-center gap-2">
+                <span className="rounded-full bg-primary text-white w-6 h-6 inline-flex items-center justify-center text-xs font-bold">1</span>
+                지금 — 녹음 음성으로 시작
+              </p>
+              <ol className="list-decimal pl-9 mt-1.5 space-y-1 text-fg/90">
+                <li>
+                  ⚙️ <b>설정 → 음성 재생 방식 → "녹음 음성"</b> 선택
+                </li>
+                <li>본문 한 과를 열어 🔊 버튼을 한 번 눌러 보세요. 정상 재생되면 OK.</li>
+                <li>
+                  Wi-Fi가 연결된 상태에서 학습할 과를 미리 한 번씩 열어 두시면
+                  오프라인에서도 들을 수 있어요.
+                </li>
+              </ol>
+            </div>
+
+            <div className="rounded-xl border border-divider p-3">
+              <p className="font-semibold text-fg inline-flex items-center gap-2">
+                <span className="rounded-full bg-primary text-white w-6 h-6 inline-flex items-center justify-center text-xs font-bold">2</span>
+                여유 있을 때 — 중국어 음성팩 받기 (선택)
+              </p>
+              <ol className="list-decimal pl-9 mt-1.5 space-y-1 text-fg/90">
+                <li>
+                  Wi-Fi 환경에서 단말기에 충분한 저장 공간(약 500MB)을 확보하세요.
+                </li>
+                <li>
+                  이 도움말 위쪽 <b>"음성이 안 들려요"</b> 섹션의 <b>"중국어 음성팩 설치 가이드"</b>를
+                  참고해 설치하세요.
+                  <span className="text-xs text-muted"> (iPhone · Android · Windows · Mac 모두 안내가 있습니다)</span>
+                </li>
+                <li>
+                  다운로드 완료 후 이 앱을 <b>완전히 종료하고 다시 열어</b> 주세요.
+                  새 음성이 인식됩니다.
+                </li>
+              </ol>
+              <p className="text-xs text-muted mt-2 pl-9">
+                💡 이 단계를 건너뛰셔도 학습에 전혀 지장이 없어요. 녹음 음성만으로도 모든 본문 발음을 들으실 수 있습니다.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-divider p-3">
+              <p className="font-semibold text-fg inline-flex items-center gap-2">
+                <span className="rounded-full bg-primary text-white w-6 h-6 inline-flex items-center justify-center text-xs font-bold">3</span>
+                음성팩 설치 후 — 재생 방식 다시 고르기 (선택)
+              </p>
+              <ol className="list-decimal pl-9 mt-1.5 space-y-1 text-fg/90">
+                <li>
+                  ⚙️ <b>설정 → 음성 재생 방식</b> 으로 돌아갑니다.
+                </li>
+                <li>
+                  <b>"녹음 음성"</b>을 그대로 두시는 게 <b>가장 안정적</b>이에요.
+                  녹음 음성은 모든 단말기에서 동일한 발음으로 들립니다.
+                </li>
+                <li>
+                  <b>"기기 음성"</b>으로 바꾸면 단말기에 설치된 중국어 음성으로 들을 수 있지만,
+                  단어가 mp3 목록에 없으면 단말기 음성에 의존하게 됩니다.
+                </li>
+              </ol>
+              <p className="text-xs text-muted mt-2 pl-9 inline-flex items-center gap-1">
+                <ArrowRight size={12} aria-hidden /> 자세한 비교는 위쪽 <b>"음성 재생 방식 바꾸기"</b> 섹션을 참고하세요.
+              </p>
+            </div>
+          </div>
+        </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0-4) 설정 페이지 한눈에 보기
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SettingsOverviewGuide(): JSX.Element {
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+
+  const sections: {
+    icon: JSX.Element;
+    title: string;
+    subtitle: string;
+    body: JSX.Element;
+  }[] = [
+    {
+      icon: <Monitor size={14} aria-hidden />,
+      title: '화면',
+      subtitle: '눈에 보이는 것 바꾸기',
+      body: (
+        <ul className="list-disc pl-5 space-y-2 text-fg/90">
+          <li>
+            <b>테마</b> — 화면 바탕색을 고릅니다.
+            <ul className="list-[circle] pl-5 mt-1 text-xs text-muted space-y-0.5">
+              <li><b>라이트</b> · 하얀 종이처럼 환한 화면 (낮에 보기 좋아요)</li>
+              <li><b>다크</b> · 검은 바탕에 흰 글씨 (밤에 눈이 덜 부셔요)</li>
+              <li><b>시스템</b> · 휴대폰 설정에 맞춰 자동으로 바뀝니다</li>
+            </ul>
+          </li>
+          <li>
+            <b>글자 크기</b> — <i>보통 / 크게 / 아주 크게</i>
+            <div className="text-xs text-muted mt-0.5">
+              글씨가 작아 잘 안 보이시면 <b>크게</b> 또는 <b>아주 크게</b>로 바꾸세요.
+              한자도, 발음도, 한국어 뜻도 모두 같이 커집니다.
+            </div>
+          </li>
+          <li>
+            <b>한자 표시 · 병음 표시 · 한국어 표시</b> — 세 줄을 따로 켜고 끌 수 있어요.
+            <div className="text-xs text-muted mt-0.5">
+              예를 들어 한자만 보고 외우고 싶으시면 병음과 한국어를 잠시 꺼 두세요.
+              다시 켜고 싶으면 같은 자리에서 똑같이 다시 누르시면 됩니다.
+            </div>
+          </li>
+          <li>
+            <b>글자별 병음</b> — 한자 한 글자 위에 발음(병음)이 또박또박 따라옵니다.
+            <div className="text-xs text-muted mt-0.5">
+              어느 발음이 어느 한자에 해당하는지 헷갈리실 때 <b>꼭 켜 두세요</b>.
+              자세한 설명은 위쪽 <b>"한자 위에 글자별 병음 보기"</b> 안내를 보세요.
+            </div>
+          </li>
+        </ul>
+      ),
+    },
+    {
+      icon: <Volume2 size={14} aria-hidden />,
+      title: '음성 재생 방식',
+      subtitle: '어떤 목소리로 들을지',
+      body: (
+        <>
+          <p className="text-xs text-muted">
+            본문 옆 스피커 버튼을 누르면 발음이 들려요. 어떤 목소리를 쓸지 여기서 고릅니다.
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-fg/90">
+            <li>
+              <b>녹음 음성</b> (처음에 추천드려요)
+              <div className="text-xs text-muted mt-0.5">
+                저희가 미리 정확하게 녹음해 둔 약 <b>3,200개</b>의 발음 파일을 들려드려요.
+                휴대폰에 중국어 음성팩이 따로 없어도 <b>바로 들리고</b>,
+                한 번 들으신 발음은 인터넷 없이도 다시 들을 수 있어요.
+              </div>
+            </li>
+            <li>
+              <b>기기 음성</b>
+              <div className="text-xs text-muted mt-0.5">
+                휴대폰에 들어 있는 중국어 음성으로 들립니다.
+                중국어 음성팩이 <b>설치되지 않은 휴대폰</b>에서는 소리가 전혀 나지 않으니
+                초보자께는 권하지 않습니다.
+              </div>
+            </li>
+          </ul>
+          <p className="text-xs text-muted">
+            💡 <b>"녹음 음성"</b>을 고르시면 그 아래에 <b>"중국어 음성 미리 받기"</b> 칸이
+            나옵니다. 와이파이가 연결된 곳에서 한 번 받아 두시면, 인터넷이 끊겨도 모든 발음을 들으실 수 있어요.
+          </p>
+        </>
+      ),
+    },
+    {
+      icon: <Mic size={14} aria-hidden />,
+      title: '음성',
+      subtitle: '발음을 빠르게 또는 천천히',
+      body: (
+        <ul className="list-disc pl-5 space-y-2 text-fg/90">
+          <li>
+            <b>속도</b> — 동그라미를 왼쪽으로 미시면 <b>천천히</b>, 오른쪽으로 미시면 <b>빠르게</b> 들립니다.
+            <div className="text-xs text-muted mt-0.5">
+              숫자가 <b>1.00×</b>일 때가 보통 속도입니다.
+              처음 배우실 때는 <b>0.80×</b>(조금 천천히)를 추천드립니다.
+              귀에 익으시면 점점 올려 보세요.
+            </div>
+          </li>
+          <li>
+            <b>음성 선택</b> — 보통은 <b>"자동"</b> 그대로 두세요.
+            <div className="text-xs text-muted mt-0.5">
+              휴대폰에 여러 중국어 목소리가 있을 때 그 중에서 하나를 고르는 칸입니다.
+              특별히 다른 목소리로 듣고 싶으실 때만 바꾸시면 됩니다.
+            </div>
+          </li>
+        </ul>
+      ),
+    },
+    {
+      icon: <Layers size={14} aria-hidden />,
+      title: '플래시카드',
+      subtitle: '단어 외우기 연습',
+      body: (
+        <>
+          <p className="text-xs text-muted">
+            카드를 한 장씩 넘기면서 단어를 외우는 기능입니다.
+            <b> 처음에는 그대로 두시고</b> 익숙해지신 다음에 바꾸셔도 충분합니다.
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-fg/90">
+            <li>
+              <b>채점 단계</b> — 답을 본 뒤 누를 버튼이 몇 개일지 고릅니다.
+              <ul className="list-[circle] pl-5 mt-1 text-xs text-muted space-y-0.5">
+                <li><b>2단계</b> · 〈맞았어요 / 몰랐어요〉 두 가지만 — 간단해서 편해요</li>
+                <li><b>4단계</b> · 〈다시 / 어려워요 / 괜찮아요 / 쉬워요〉 — 더 세밀하게 표시</li>
+              </ul>
+            </li>
+            <li>
+              <b>알고리즘</b> — 다음에 같은 카드를 <b>언제 다시 보여줄지</b> 정하는 방법.
+              <ul className="list-[circle] pl-5 mt-1 text-xs text-muted space-y-0.5">
+                <li><b>Leitner</b> · 쉬운 방식 — 맞히면 더 오래 뒤로 미루고, 틀리면 다시 자주 보여줍니다</li>
+                <li><b>SM-2</b> · 정교한 방식 — 외운 정도에 맞춰 며칠 뒤에 보여줄지 자동 계산</li>
+              </ul>
+              <p className="text-xs text-muted mt-1">
+                💡 어떤 것을 고르셔도 외워집니다. 잘 모르시면 <b>그대로 두세요</b>.
+              </p>
+            </li>
+            <li>
+              <b>문제 방향</b> — 어느 쪽을 먼저 보여 줄지 고릅니다.
+              <ul className="list-[circle] pl-5 mt-1 text-xs text-muted space-y-0.5">
+                <li><b>中→韓</b> · 중국어를 보고 한국어 뜻을 떠올립니다</li>
+                <li><b>韓→中</b> · 한국어 뜻을 보고 중국어를 떠올립니다 (조금 더 어려워요)</li>
+                <li><b>혼합</b> · 두 방향을 번갈아 보여줍니다</li>
+              </ul>
+            </li>
+            <li>
+              <b>카드 종류</b> — <i>단어 · 예문 · 구절</i> 중에서 연습할 종류를 고릅니다.
+              여러 개를 함께 켜 두실 수도 있어요.
+            </li>
+            <li>
+              <b>자동 음성 재생</b> — 카드를 넘길 때마다 발음이 <b>자동으로 들립니다</b>.
+              매번 스피커 버튼을 누르지 않아도 돼서 편해요.
+            </li>
+            <li>
+              <b>오디오 마라톤 모드</b> — 카드의 발음만 <b>줄줄이 연달아</b> 들려주는 모드.
+              <div className="text-xs text-muted mt-0.5">
+                설거지하시거나 산책하실 때처럼 <b>화면을 안 보고 듣기만 할 때</b> 유용합니다.
+              </div>
+            </li>
+            <li>
+              <b>일일 학습 목표</b> — 하루에 새 단어를 <b>몇 장 외울지</b> 미리 정합니다.
+              <div className="text-xs text-muted mt-0.5">
+                처음에는 <b>5~10장</b>이 부담 없어요.
+                동그라미를 맨 왼쪽까지 끌어 <b>"비활성"</b>으로 두시면 제한이 없어집니다.
+              </div>
+            </li>
+          </ul>
+        </>
+      ),
+    },
+    {
+      icon: <HardDrive size={14} aria-hidden />,
+      title: '저장 공간',
+      subtitle: '휴대폰 자리 정리',
+      body: (
+        <>
+          <p className="text-xs text-muted">
+            앱이 휴대폰에서 차지하는 자리(용량)를 보여 줍니다.
+            <b> 자리가 부족할 때만</b> 만지시면 됩니다. 평소엔 그냥 두세요.
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-fg/90">
+            <li>
+              <b>사용 중 · 할당</b> — 이 앱이 지금 쓰고 있는 자리와, 휴대폰이 허락한 최대 자리를 알려 줍니다.
+            </li>
+            <li>
+              <b>콘텐츠 캐시 비우기</b> — 임시로 받아 둔 글과 발음 파일만 지웁니다.
+              <div className="text-xs text-muted mt-0.5">
+                내용이 이상하게 바뀌었거나 발음이 이상할 때 한 번 눌러 보세요.
+                <b> 즐겨찾기, 진도, 외운 카드 기록은 그대로 남아 있어요. 안심하세요.</b>
+              </div>
+            </li>
+            <li>
+              <b className="text-accent">전체 초기화</b> <AlertTriangle size={12} className="inline -mt-0.5 text-accent" aria-hidden /> — <b>처음 설치한 상태로 되돌립니다</b>.
+              <div className="text-xs text-muted mt-0.5">
+                즐겨찾기, 진도, 외운 카드 <b>모두 사라집니다</b>.
+                정말 처음부터 다시 시작하실 때만 사용하세요.
+                실수로 누르셔도 <b>"정말 지울까요?"</b> 확인 창이 한 번 더 떠서 안전합니다.
+              </div>
+            </li>
+          </ul>
+        </>
+      ),
+    },
+    {
+      icon: <Info size={14} aria-hidden />,
+      title: '정보',
+      subtitle: '앱에 대한 설명',
+      body: (
+        <ul className="list-disc pl-5 space-y-1 text-fg/90">
+          <li>
+            <b>앱 정보 · SMCB 소개</b>를 누르시면 <b>앱 버전</b>과 <b>만든 사람들</b> 안내가 나옵니다.
+            <div className="text-xs text-muted mt-0.5">
+              무언가 잘 안 될 때 도움을 청하시려면 여기 적힌 버전 번호를 함께 알려 주세요.
+            </div>
+          </li>
+        </ul>
+      ),
+    },
+  ];
+
+  return (
+    <div className="text-sm space-y-3">
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+          <p className="text-fg/95">
+            설정 페이지는 <b>앱을 내 눈과 귀에 맞춰 주는 곳</b>이에요.
+            글자를 키우거나, 발음을 천천히 들리게 하거나, 어두운 화면으로 바꿀 수 있어요.
+          </p>
+          <p className="text-fg/95 mt-2">
+            한 번 바꾸면 <b>그대로 저장</b>되어 다음에 앱을 열어도 계속 그대로 보여요.
+            잘못 누르셨어도 괜찮습니다. 같은 자리에서 다시 원래대로 바꾸시면 돼요.
+          </p>
+          <p className="text-fg/95 mt-2">
+            👉 지금 바로{' '}
+            <Link to="/settings" className="text-primary font-semibold underline">
+              설정 페이지로 가기
+            </Link>
+            .
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {sections.map((s, i) => (
+            <SubAccordion
+              key={i}
+              title={
+                <>
+                  {s.icon}
+                  <span>{s.title}</span>
+                </>
+              }
+              subtitle={s.subtitle}
+              isOpen={openIdx === i}
+              onToggle={() => setOpenIdx((cur) => (cur === i ? null : i))}
+            >
+              {s.body}
+            </SubAccordion>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted pt-1 rounded-xl border border-divider p-3 bg-bg">
+          💡 <b>걱정 마세요.</b> 설정에서 무엇을 바꾸셔도 본문이나 단어가 사라지지 않습니다.
+          <b className="text-accent"> "전체 초기화"</b> 한 가지만 조심하시면 됩니다.
+          헷갈리시면 같은 자리에서 다시 원래대로 누르시면 돼요.
+        </p>
     </div>
   );
 }
@@ -103,18 +897,13 @@ function TTSDiagnostic(): JSX.Element {
   };
 
   return (
-    <section>
-      <SectionHeader
-        title={<><Volume2 size={18} aria-hidden /> 음성이 안 들려요</>}
-        subtitle="원인을 자동으로 진단합니다."
-      />
-      <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+    <>
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
           <p className="text-sm font-bold text-fg inline-flex items-center gap-1.5">
             <Volume2 size={16} aria-hidden /> 이 앱은 미리 녹음된 중국어 음성을 사용합니다
           </p>
           <p className="text-xs text-muted mt-1">
-            65과 본문·단어·회화의 중국어 발음 약 <b>2,500여 개</b>를 빌드 시점에
+            65과 본문·단어·회화의 중국어 발음 약 <b>3,200여 개</b>를 빌드 시점에
             <b> Microsoft Edge Neural 음성(Xiaoxiao)</b>으로 미리 합성해 두었어요.
             단말기에 중국어 <b>음성팩이 없어도</b> 정상적으로 들립니다.
             처음 한 번만 인터넷이 필요하고, 그 이후에는 오프라인에서도 재생됩니다.
@@ -223,8 +1012,7 @@ function TTSDiagnostic(): JSX.Element {
             </ul>
           </details>
         )}
-      </div>
-    </section>
+    </>
   );
 }
 
@@ -569,12 +1357,7 @@ function InstallGuide(): JSX.Element {
   const [tab, setTab] = useState<Platform>(initial);
 
   return (
-    <section>
-      <SectionHeader
-        title={<><Download size={18} aria-hidden /> 앱으로 설치하기</>}
-        subtitle="홈 화면에 추가하면 인터넷 없이도 사용할 수 있어요."
-      />
-      <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+    <>
         <div role="tablist" className="flex flex-wrap gap-2">
           <TabBtn cur={tab} v="ios" onClick={setTab} icon={<AppleLogo size={12} />}>
             iPhone
@@ -596,8 +1379,7 @@ function InstallGuide(): JSX.Element {
           {tab === 'windows' && <WindowsInstallSteps />}
           {tab === 'mac' && <MacInstallSteps />}
         </div>
-      </div>
-    </section>
+    </>
   );
 }
 
@@ -726,12 +1508,7 @@ function UpdateUninstallGuide(): JSX.Element {
   const [tab, setTab] = useState<Platform>(initial);
 
   return (
-    <section>
-      <SectionHeader
-        title={<><RefreshCw size={16} aria-hidden /> 업데이트 / <Trash2 size={16} aria-hidden /> 삭제</>}
-        subtitle="새 버전 적용 또는 앱·데이터 제거 방법"
-      />
-      <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+    <>
         <div role="tablist" className="flex flex-wrap gap-2">
           <TabBtn cur={tab} v="ios" onClick={setTab} icon={<AppleLogo size={12} />}>
             iPhone
@@ -767,8 +1544,7 @@ function UpdateUninstallGuide(): JSX.Element {
             {tab === 'mac' && <MacUninstallSteps />}
           </div>
         </div>
-      </div>
-    </section>
+    </>
   );
 }
 
@@ -919,11 +1695,9 @@ function MacUninstallSteps(): JSX.Element {
 // 4) 자주 발생하는 오류 — 증상별 해결 아코디언
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Trouble = { q: ReactNode; a: JSX.Element };
+type Trouble = { q: ReactNode; a: JSX.Element; keywords?: string };
 
-function TroubleshootSection(): JSX.Element {
-  const items: Trouble[] = useMemo(
-    () => [
+const TROUBLE_ITEMS: Trouble[] = [
       {
         q: <><RotateCw size={14} aria-hidden /> 흰 화면 / 검은 화면만 보이고 앱이 안 열려요.</>,
         a: (
@@ -1084,7 +1858,7 @@ function TroubleshootSection(): JSX.Element {
         a: (
           <>
             <p className="mb-2">
-              이 앱은 본문·단어·회화 발음 약 <b>2,500개</b>를 미리 녹음한 mp3 파일로 재생합니다.
+              이 앱은 본문·단어·회화 발음 약 <b>3,200여 개</b>를 미리 녹음한 mp3 파일로 재생합니다.
               아래를 순서대로 확인해 주세요.
             </p>
             <ol className="list-decimal pl-5 space-y-1 text-fg/90">
@@ -1101,7 +1875,7 @@ function TroubleshootSection(): JSX.Element {
                 발음을 한 번 재생해 두면, 이후에는 인터넷 없이도 들을 수 있습니다.
               </li>
               <li>
-                그래도 안 되면 ⚙️ <b>설정 → 저장 공간 → 콘텐츠 캐시 비우기</b> 후
+                그래도 안 되면 ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>저장 공간 → 콘텐츠 캐시 비우기</b> 후
                 다시 열어 발음을 재생해 보세요.
               </li>
               <li>
@@ -1140,33 +1914,48 @@ function TroubleshootSection(): JSX.Element {
           </>
         ),
       },
-    ],
-    [],
-  );
+];
+
+function TroubleshootList({ query }: { query: string }): JSX.Element {
+  const filtered = TROUBLE_ITEMS.filter((t) => matchQuery(t, query));
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const searching = query.length > 0;
+
+  if (filtered.length === 0) {
+    return (
+      <div className="text-sm text-muted">
+        이 검색어에 해당하는 항목이 없어요. 다른 단어로 찾아 보세요.
+      </div>
+    );
+  }
 
   return (
-    <section>
-      <SectionHeader
-        title={<><Wrench size={18} aria-hidden /> 자주 발생하는 오류</>}
-        subtitle="증상을 탭하면 해결 방법이 펼쳐집니다."
-      />
-      <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
-        {items.map((t, i) => (
-          <TroubleItem key={i} q={t.q} a={t.a} />
-        ))}
-      </div>
-    </section>
+    <div className="rounded-xl border border-divider bg-bg divide-y divide-divider overflow-hidden">
+      {filtered.map((t, i) => (
+        <TroubleItem
+          key={i}
+          q={t.q}
+          a={t.a}
+          isOpen={searching ? true : openIdx === i}
+          onToggle={() => setOpenIdx((cur) => (cur === i ? null : i))}
+        />
+      ))}
+    </div>
   );
 }
 
-function TroubleItem({ q, a }: Trouble): JSX.Element {
-  const [open, setOpen] = useState(false);
+function TroubleItem({
+  q,
+  a,
+  isOpen,
+  onToggle,
+}: Trouble & { isOpen: boolean; onToggle: () => void }): JSX.Element {
   return (
     <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+        onClick={onToggle}
+        aria-expanded={isOpen}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <span className="text-sm font-semibold text-fg inline-flex items-center gap-2">{q}</span>
@@ -1175,11 +1964,11 @@ function TroubleItem({ q, a }: Trouble): JSX.Element {
           aria-hidden
           className={cn(
             'flex-none text-muted transition-transform duration-200',
-            open && 'rotate-180',
+            isOpen && 'rotate-180',
           )}
         />
       </button>
-      {open && <div className="px-4 pb-3 text-sm text-fg/90">{a}</div>}
+      {isOpen && <div className="px-4 pb-3 text-sm text-fg/90">{a}</div>}
     </div>
   );
 }
@@ -1188,24 +1977,24 @@ function TroubleItem({ q, a }: Trouble): JSX.Element {
 // 5) FAQ 아코디언
 // ─────────────────────────────────────────────────────────────────────────────
 
-type FAQ = { q: ReactNode; a: JSX.Element };
+type FAQ = { q: ReactNode; a: JSX.Element; keywords?: string };
 
-function FAQSection(): JSX.Element {
-  const faqs: FAQ[] = useMemo(
-    () => [
+const FAQ_ITEMS: FAQ[] = [
       {
         q: '글자가 너무 작아요.',
+        keywords: '글자 크기 폰트 크게 설정 폰트사이즈',
         a: (
           <p>
-            우측 상단 ⚙️ <b>설정 → 글자 크기</b>에서 "크게" 또는 "아주 크게"로 바꿀 수 있어요.
+            우측 상단 ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>글자 크기</b>에서 "크게" 또는 "아주 크게"로 바꿀 수 있어요.
           </p>
         ),
       },
       {
         q: '한자 위에 병음이 안 보여요.',
+        keywords: '병음 표시 한자 위 pinyin 안 보여요',
         a: (
           <p>
-            ⚙️ <b>설정 → 병음 표시</b>가 꺼져 있을 수 있어요. 켜 주세요.
+            ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>병음 표시</b>가 꺼져 있을 수 있어요. 켜 주세요.
           </p>
         ),
       },
@@ -1227,9 +2016,10 @@ function FAQSection(): JSX.Element {
       },
       {
         q: '진도를 초기화하고 싶어요.',
+        keywords: '초기화 리셋 진도 삭제 저장 공간 전체',
         a: (
           <p>
-            ⚙️ <b>설정 → 저장 공간 → 전체 초기화</b>를 누르면 진도·즐겨찾기·플래시카드가 모두 삭제됩니다.
+            ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>저장 공간 → 전체 초기화</b>를 누르면 진도·즐겨찾기·플래시카드가 모두 삭제됩니다.
           </p>
         ),
       },
@@ -1251,9 +2041,10 @@ function FAQSection(): JSX.Element {
       },
       {
         q: '음성이 너무 빠르거나 느려요.',
+        keywords: '음성 속도 빠르 느려 slow fast tts 슬라이더',
         a: (
           <p>
-            ⚙️ <b>설정 → 음성(TTS) → 속도</b> 슬라이더로 0.6× ~ 1.4× 조절할 수 있어요.
+            ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>음성(TTS) → 속도</b> 슬라이더로 0.6× ~ 1.4× 조절할 수 있어요.
           </p>
         ),
       },
@@ -1299,9 +2090,10 @@ function FAQSection(): JSX.Element {
       },
       {
         q: '검색 결과가 옛 데이터인 것 같아요 / 단어가 안 나와요.',
+        keywords: '검색 인덱스 옛 데이터 캐시 새로고침 콘텐츠',
         a: (
           <p>
-            ⚙️ <b>설정 → 저장 공간 → 콘텐츠 캐시 비우기</b>를 누른 뒤 검색을 다시 사용하면 인덱스가 새로 받아집니다. (학습 진도는 유지됩니다.)
+            ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>저장 공간 → 콘텐츠 캐시 비우기</b>를 누른 뒤 검색을 다시 사용하면 인덱스가 새로 받아집니다. (학습 진도는 유지됩니다.)
           </p>
         ),
       },
@@ -1319,7 +2111,7 @@ function FAQSection(): JSX.Element {
         q: '단말기에 중국어 음성팩이 없어도 발음을 들을 수 있나요?',
         a: (
           <p>
-            네. 약 <b>2,500개</b>의 미리 녹음된 mp3 파일을 함께 배포합니다.
+            네. 약 <b>3,200여 개</b>의 미리 녹음된 mp3 파일을 함께 배포합니다.
             iPhone·Android·PC 어디서든 음성팩 다운로드 없이 바로 들립니다.
             처음 한 번만 인터넷이 필요하고, 한 번 재생하면 단말기에 캐시되어 오프라인에서도 들을 수 있어요.
             미리 녹음되지 않은 텍스트만 단말기 내장 음성으로 대체됩니다.
@@ -1347,30 +2139,48 @@ function FAQSection(): JSX.Element {
           </ul>
         ),
       },
-    ],
-    [],
-  );
+];
+
+function FAQList({ query }: { query: string }): JSX.Element {
+  const filtered = FAQ_ITEMS.filter((f) => matchQuery(f, query));
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const searching = query.length > 0;
+
+  if (filtered.length === 0) {
+    return (
+      <div className="text-sm text-muted">
+        이 검색어에 해당하는 질문이 없어요. 다른 단어로 찾아 보세요.
+      </div>
+    );
+  }
 
   return (
-    <section>
-      <SectionHeader title={<><HelpCircle size={18} aria-hidden /> 자주 묻는 질문</>} />
-      <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
-        {faqs.map((f, i) => (
-          <FAQItem key={i} q={f.q} a={f.a} />
-        ))}
-      </div>
-    </section>
+    <div className="rounded-xl border border-divider bg-bg divide-y divide-divider overflow-hidden">
+      {filtered.map((f, i) => (
+        <FAQItem
+          key={i}
+          q={f.q}
+          a={f.a}
+          isOpen={searching ? true : openIdx === i}
+          onToggle={() => setOpenIdx((cur) => (cur === i ? null : i))}
+        />
+      ))}
+    </div>
   );
 }
 
-function FAQItem({ q, a }: FAQ): JSX.Element {
-  const [open, setOpen] = useState(false);
+function FAQItem({
+  q,
+  a,
+  isOpen,
+  onToggle,
+}: FAQ & { isOpen: boolean; onToggle: () => void }): JSX.Element {
   return (
     <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+        onClick={onToggle}
+        aria-expanded={isOpen}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <span className="text-sm font-semibold text-fg inline-flex items-center gap-2">{q}</span>
@@ -1379,11 +2189,11 @@ function FAQItem({ q, a }: FAQ): JSX.Element {
           aria-hidden
           className={cn(
             'flex-none text-muted transition-transform duration-200',
-            open && 'rotate-180',
+            isOpen && 'rotate-180',
           )}
         />
       </button>
-      {open && <div className="px-4 pb-3 text-sm text-muted">{a}</div>}
+      {isOpen && <div className="px-4 pb-3 text-sm text-muted">{a}</div>}
     </div>
   );
 }
