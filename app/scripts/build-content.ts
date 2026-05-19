@@ -78,6 +78,70 @@ function parseVerses(lines: string[]): Verse[] {
   return verses;
 }
 
+/**
+ * Vocab 헤더 파서.
+ *
+ * 표준 형식: `word  /  pinyin  /  [pos]  /  meaning`
+ *   - pos 토큰 `[...]` 내부에 슬래시가 들어가는 경우가 빈번하므로
+ *     (예: `[동사/명사 (v./n.)]`) 먼저 마스킹 후 split.
+ *   - meaning 내부의 슬래시(예: `사랑하다 / 사랑`)는 part 4 이후를 join하여 복원.
+ *
+ * 슬래시-없는 형식: `한자(부가) 병음(부가) (한국어뜻)`
+ *   - 예: `赐(给) cì(gěi) (베풀어 주다)`
+ *   - pos는 본문 `- 품사: ...` 라인에서 별도 추출 (caller에서 처리).
+ */
+function parseVocabHeader(
+  headerText: string,
+): { word: string; pinyin: string; pos: string; meaning: string } | null {
+  // 1) pos `[...]` 토큰 보호 마스킹
+  const PH = 'POS';
+  let masked = headerText;
+  let bracketPos = '';
+  const br = headerText.match(/\[[^\]]*\]/);
+  if (br) {
+    bracketPos = br[0];
+    masked = headerText.replace(br[0], PH);
+  }
+  // 2) 슬래시 분리: bracket 토큰 `[...]`의 위치를 기준으로 pos를 잡고
+  //    그 앞은 word/pinyin(+추가 발음), 그 뒤는 meaning으로 분리.
+  //    이 규칙은 슬래시가 4파트(예: pos 안 슬래시)/5파트 이상(예: pinyin 옆 부가 발음
+  //    `舍 shě`가 끼어든 케이스)에도 동일하게 동작.
+  if (masked.includes('/')) {
+    const parts = masked.split('/').map((s) => s.trim());
+    const posIdx = parts.findIndex((p) => p === PH);
+    if (posIdx >= 0) {
+      const word = parts[0] ?? '';
+      // posIdx 이전 part(들)을 pinyin으로 합침 (부가 발음 표기 보존)
+      const pinyin = parts.slice(1, Math.max(1, posIdx)).join(' / ').trim();
+      const meaning = parts
+        .slice(posIdx + 1)
+        .join(' / ')
+        .replace(PH, bracketPos)
+        .trim();
+      return { word, pinyin, pos: bracketPos, meaning };
+    }
+    // bracket이 아예 없는 경우: 표준 4파트로 가정
+    if (parts.length >= 2) {
+      const word = parts[0] ?? '';
+      const pinyin = parts[1] ?? '';
+      const posPart = (parts[2] ?? '').trim();
+      const meaning = parts.slice(3).join(' / ').trim();
+      return { word, pinyin, pos: posPart, meaning };
+    }
+  }
+  // 3) 슬래시 없는 형식: `한자(부가) 병음(부가) (한국어뜻)`
+  //    한자 토큰: 한자/괄호 포함, 공백 없음
+  //    병음 토큰: 알파벳/성조/괄호 포함, 공백 없음
+  //    한국어 뜻: 마지막 (...) 안에
+  const m = headerText.match(
+    /^([一-鿿(][一-鿿()]*)\s+([A-Za-zĀ-ǿÀ-ÿ()]+)\s*\(([^)]+)\)\s*$/,
+  );
+  if (m) {
+    return { word: m[1].trim(), pinyin: m[2].trim(), pos: '', meaning: m[3].trim() };
+  }
+  return null;
+}
+
 /** Vocab entries: `### N. word  /  pinyin  /  [pos]  /  meaning` followed by optional notes */
 function parseVocab(section: Section | undefined, lessonId: string): VocabEntry[] {
   if (!section) return [];
@@ -90,15 +154,20 @@ function parseVocab(section: Section | undefined, lessonId: string): VocabEntry[
     const headerLine = block[0];
     const m = headerLine.match(/^###\s+\d+\.\s*(.+)$/);
     if (!m) return;
-    const parts = m[1].split('/').map((s) => s.trim());
-    const [word, pinyin, pos, meaning] = [parts[0] ?? '', parts[1] ?? '', parts[2] ?? '', parts.slice(3).join(' / ').trim()];
+    const parsed = parseVocabHeader(m[1].trim());
+    if (!parsed) return;
     const entry: VocabEntry = {
       id: `${lessonId}_v${idx}`,
-      word,
-      pinyin,
-      pos,
-      meaning,
+      word: parsed.word,
+      pinyin: parsed.pinyin,
+      pos: parsed.pos,
+      meaning: parsed.meaning,
     };
+    // pos가 비어있고 본문에 `- 품사: ...` 라인이 있으면 보충 (슬래시 없는 헤더 형식 대응)
+    if (!entry.pos) {
+      const posLine = block.find((l) => /^[-\s]*품사\s*[:：]/.test(l));
+      if (posLine) entry.pos = posLine.replace(/^[-\s]*품사\s*[:：]\s*/, '').trim();
+    }
     const noteMatch = block.find((l) => l.includes('한자 풀이'));
     if (noteMatch) entry.hanjaNote = noteMatch.replace(/^[-\s]*한자\s*풀이[:：]\s*/, '').trim();
     const exZh = block.find((l) => /^[-\s]*例句[:：]/.test(l));
