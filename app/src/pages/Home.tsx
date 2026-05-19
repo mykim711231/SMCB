@@ -120,6 +120,29 @@ export default function Home(): JSX.Element {
       </section>
 
       <section className="rounded-2xl bg-surface border border-divider p-4 sm:p-5">
+        <h2 className="text-base font-bold text-fg mb-2">신앙고백 · 기도</h2>
+        <ul className="divide-y divide-divider">
+          {[
+            { id: 'appendix3', title: '사도신경', zh: '使徒信经' },
+            { id: 'appendix4', title: '주기도문', zh: '主祷文' },
+          ].map((a) => (
+            <li key={a.id}>
+              <Link
+                to={`/appendix/${a.id}`}
+                className="flex items-center justify-between py-3 text-fg hover:text-primary"
+              >
+                <span className="flex flex-col">
+                  <span>{a.title}</span>
+                  <span className="text-xs text-muted">{a.zh}</span>
+                </span>
+                <ArrowRight size={16} aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-2xl bg-surface border border-divider p-4 sm:p-5">
         <h2 className="text-base font-bold text-fg mb-2">발음</h2>
         <ul className="divide-y divide-divider">
           {[

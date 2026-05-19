@@ -113,6 +113,22 @@ function loadLessons(): Lesson[] {
   return all;
 }
 
+/** Extract zh from {{tts:...}} placeholders in appendices.json markdown blobs. */
+function collectAppendixTts(): Set<string> {
+  const set = new Set<string>();
+  const p = join(DATA_DIR, 'appendices.json');
+  if (!existsSync(p)) return set;
+  const items = JSON.parse(readFileSync(p, 'utf8')) as { markdown: string }[];
+  const re = /\{\{tts:([^}]+)\}\}/g;
+  for (const it of items) {
+    const md = it.markdown ?? '';
+    let m;
+    while ((m = re.exec(md)) !== null) set.add(m[1].trim());
+  }
+  set.delete('');
+  return set;
+}
+
 function collectZh(lessons: Lesson[], phase: Phase): Set<string> {
   const set = new Set<string>();
   const want = (n: number): boolean => phase === 'all' || phase === n;
@@ -229,7 +245,12 @@ async function main(): Promise<void> {
   }
 
   console.log(`Voice: ${args.voice}`);
-  const texts = Array.from(collectZh(lessons, args.phase));
+  const lessonTexts = collectZh(lessons, args.phase);
+  // Appendix {{tts:...}} placeholders only when phase covers body text (3 or all).
+  if (args.phase === 3 || args.phase === 'all') {
+    for (const t of collectAppendixTts()) lessonTexts.add(t);
+  }
+  const texts = Array.from(lessonTexts);
   const targets = args.limit ? texts.slice(0, args.limit) : texts;
   console.log(
     `Phase ${args.phase}: ${texts.length} unique zh texts${
