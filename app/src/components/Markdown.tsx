@@ -10,7 +10,14 @@ import TTSButton from './TTSButton';
 import VerseRow from './VerseRow';
 import type { Verse } from '@/types/lesson';
 
-type VocabItem = { word: string; pinyin: string; meaning: string };
+type VocabItem = {
+  word: string;
+  pinyin: string;
+  meaning: string;
+  pos?: string;
+  hanjaNote?: string;
+  example?: Verse;
+};
 
 type Block =
   | { kind: 'h'; level: 1 | 2 | 3; text: string }
@@ -22,7 +29,25 @@ type Block =
   | { kind: 'vocab'; items: VocabItem[] };
 
 const VERSE_RE = /^\{\{verse:([^|}]+)\|([^|}]+)\|([^}]+)\}\}\s*$/;
-const VOCAB_RE = /^\{\{vocab:([^|}]+)\|([^|}]+)\|([^}]+)\}\}\s*$/;
+// {{vocab:word|pinyin|meaning}}                                — 3 fields (compact)
+// {{vocab:word|pinyin|pos|meaning|hanjaNote|exZh|exPinyin|exKo}} — 8 fields (full)
+const VOCAB_RE = /^\{\{vocab:([^}]+)\}\}\s*$/;
+
+function parseVocab(body: string): VocabItem | null {
+  const parts = body.split('|').map((p) => p.trim());
+  if (parts.length === 3) {
+    return { word: parts[0], pinyin: parts[1], meaning: parts[2] };
+  }
+  if (parts.length === 8) {
+    const [word, pinyin, pos, meaning, hanjaNote, exZh, exPinyin, exKo] = parts;
+    const v: VocabItem = { word, pinyin, meaning };
+    if (pos) v.pos = pos;
+    if (hanjaNote) v.hanjaNote = hanjaNote;
+    if (exZh && exPinyin && exKo) v.example = { zh: exZh, pinyin: exPinyin, ko: exKo };
+    return v;
+  }
+  return null;
+}
 
 const OL_RE = /^\s*(\d+)\.\s+(.*)$/;
 
