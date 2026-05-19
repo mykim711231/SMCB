@@ -242,16 +242,6 @@ export default function Home(): JSX.Element {
     else setInviteToast('복사에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
     window.setTimeout(() => setInviteToast(null), 4000);
   };
-  const onCopyUrlClick = async (): Promise<void> => {
-    const inAppCtx = !!inApp.label;
-    const ios = isIOSDevice();
-    const text = buildInviteUrlText({ withGuide: inAppCtx, ios });
-    const r = await copyToClipboard(text);
-    if (r === 'copied') {
-      setInviteToast('안내 메시지와 주소가 복사되었어요. Safari · Chrome 등 다른 브라우저에 붙여넣어 여세요.');
-    } else setInviteToast('복사에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
-    window.setTimeout(() => setInviteToast(null), 4000);
-  };
 
   return (
     <div className="space-y-6">
@@ -284,24 +274,14 @@ export default function Home(): JSX.Element {
           >
             전체 목차
           </Link>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void onShareClick()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
-              aria-label="초청 메시지 공유"
-            >
-              <Share2 size={16} aria-hidden /> 초청 하기
-            </button>
-            <button
-              type="button"
-              onClick={() => void onCopyUrlClick()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
-              aria-label="앱 주소를 클립보드에 복사"
-            >
-              <Copy size={16} aria-hidden /> 주소 복사하기
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void onShareClick()}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
+            aria-label="초청 메시지 공유"
+          >
+            <Share2 size={16} aria-hidden /> 초청 하기
+          </button>
         </div>
         {inviteToast && (
           <p
