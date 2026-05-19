@@ -3,6 +3,8 @@ import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, Graduati
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
+import OnboardingCard from '@/components/OnboardingCard';
+import DeviceVoiceMissingBanner from '@/components/DeviceVoiceMissingBanner';
 
 function isInAppBrowser(): { kind: 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram' | null; label: string | null } {
   if (typeof navigator === 'undefined') return { kind: null, label: null };
@@ -53,6 +55,8 @@ export default function Home(): JSX.Element {
   return (
     <div className="space-y-6">
       {inApp.label && <InAppBrowserBanner label={inApp.label} />}
+      {!inApp.label && <OnboardingCard />}
+      {!inApp.label && <DeviceVoiceMissingBanner />}
       {!standalone && !inApp.label && <InstallPrompt defaultExpanded />}
 
       <section className="rounded-2xl bg-primary text-white p-5 sm:p-6 shadow-sm">
