@@ -28,9 +28,8 @@ export function cardIdOf(s: CardSource): string {
 }
 
 export function favKeyOf(s: CardSource): string {
-  if (s.kind === 'vocab' || s.kind === 'example') {
-    return favKey(s.lessonId, 'vocab', s.vocab.id);
-  }
+  if (s.kind === 'vocab') return favKey(s.lessonId, 'vocab', s.vocab.id);
+  if (s.kind === 'example') return favKey(s.lessonId, 'vocabExample', s.vocab.id);
   return favKey(s.lessonId, 'bible', s.idx);
 }
 

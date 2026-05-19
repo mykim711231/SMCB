@@ -181,11 +181,28 @@ export default function LessonPage(): JSX.Element {
                       {v.hanjaNote && (
                         <p className="text-xs text-muted mt-1 leading-snug">{v.hanjaNote}</p>
                       )}
-                      {v.example && (
-                        <div className="mt-2 rounded-lg bg-primary-soft/40 px-3 py-2">
-                          <VerseRow verse={v.example} className="py-0" />
-                        </div>
-                      )}
+                      {v.example && (() => {
+                        const exK = favKey(lesson.id, 'vocabExample', v.id);
+                        const exStarred = favHas(exK);
+                        return (
+                          <div className="mt-2 rounded-lg bg-primary-soft/40 px-3 py-2 relative">
+                            <button
+                              type="button"
+                              onClick={() => favToggle(exK)}
+                              aria-label={exStarred ? '예문 즐겨찾기 해제' : '예문 즐겨찾기'}
+                              aria-pressed={exStarred}
+                              className="absolute top-1 right-1 w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
+                            >
+                              {exStarred ? (
+                                <Star size={14} className="text-accent fill-current" />
+                              ) : (
+                                <StarOff size={14} className="text-muted" aria-hidden />
+                              )}
+                            </button>
+                            <VerseRow verse={v.example} className="py-0 pr-7" />
+                          </div>
+                        );
+                      })()}
                     </div>
                     <button
                       type="button"
