@@ -166,6 +166,52 @@ function normalizeBulkStatus<T extends { ttsBulkStatus: unknown }>(s: T): T {
   return s;
 }
 
+/**
+ * R8: 부팅 시 SW의 tts-audio 캐시가 실제로 채워져 있는지 비동기로 검증한다.
+ *
+ * 시나리오:
+ *   - ttsBulkStatus === 'done'으로 IDB에 기록돼 있지만, 사용자가 브라우저
+ *     데이터 청소 / Workbox 캐시 만료(R7에서 10년으로 늘렸으나 SW 교체
+ *     시 generateSW의 cacheId 변경으로 cache invalidation 가능) / OS 캐시
+ *     wipe 로 SW 캐시가 비었거나 크게 줄어든 상태가 될 수 있다.
+ *   - 이 상태로 두면 RecordedAudioMissingBanner가 'done'을 신뢰해 노출되지
+ *     않고, 사용자는 오프라인에서 묵음을 만나게 된다.
+ *
+ * 방식:
+ *   - hydrate 종료 후 fire-and-forget으로 caches.keys()를 훑어
+ *     'tts-audio'를 포함하는 캐시의 entry 수를 센다.
+ *   - ttsBulkProgress.total의 80% 미만이면 'partial'로 다운그레이드한다.
+ *     (소량 evict는 LRU 정상 동작이므로 80%면 충분히 보수적인 임계값.)
+ *   - PWA 미지원 환경(caches 없음)/SW 미활성화 시에는 검증 자체를 skip — 기록은 그대로.
+ */
+async function validateBulkCache(state: SettingsState): Promise<void> {
+  if (state.ttsBulkStatus !== 'done') return;
+  if (typeof caches === 'undefined') return;
+  const total = state.ttsBulkProgress?.total ?? 0;
+  if (total === 0) return; // 기록은 done인데 total=0 → 검증할 게 없으므로 패스.
+  try {
+    const names = await caches.keys();
+    const ttsCacheName = names.find((n) => n.includes('tts-audio'));
+    if (!ttsCacheName) {
+      // 'done'으로 기록됐는데 SW가 캐시를 만들지 못한 경우 — partial로.
+      useSettings.setState({ ttsBulkStatus: 'partial' });
+      void persist({ ...useSettings.getState() });
+      return;
+    }
+    const cache = await caches.open(ttsCacheName);
+    const keys = await cache.keys();
+    if (keys.length < Math.floor(total * 0.8)) {
+      useSettings.setState({
+        ttsBulkStatus: 'partial',
+        ttsBulkProgress: { done: keys.length, total },
+      });
+      void persist({ ...useSettings.getState() });
+    }
+  } catch {
+    /* ignore — 검증은 best-effort */
+  }
+}
+
 // 진행률(setTTSBulkProgress)은 2,534건 동안 매번 fire 되므로
 // IDB write를 1초 throttle한다. 마지막 값은 setTTSBulkStatus(done|partial) 시
 // 함께 persist되므로 누락 없음.
@@ -229,6 +275,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
       void persist({ ...get(), ...merged } as SettingsState);
+      void validateBulkCache(get());
       return;
     }
     const v1 = await dbGet<Partial<Persisted>>(DB_KEY_LEGACY);
@@ -238,6 +285,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
       void persist({ ...get(), ...merged } as SettingsState);
+      void validateBulkCache(get());
       return;
     }
     set({ hydrated: true });

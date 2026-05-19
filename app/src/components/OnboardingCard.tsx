@@ -122,6 +122,11 @@ export default function OnboardingCard(): JSX.Element | null {
   };
 
   if (step === 'mode') {
+    // R9: 매니페스트가 비어 있으면 "녹음 음성으로 듣기" 옵션은 의미가 없다.
+    //   - 어떤 텍스트를 눌러도 lookupPrerecorded miss → SpeechSynth로 떨어진다.
+    //   - 사용자에게 약 20~40MB 다운로드를 권하면서 실제로는 받을 게 없는
+    //     상황이 되므로 옵션 자체를 숨긴다(개발/스테이징 빌드 케이스).
+    const recordedAvailable = getManifestSize() > 0;
     return (
       <section className="rounded-2xl border-2 border-primary/30 bg-primary-soft p-4 sm:p-5">
         <p className="text-base font-bold text-fg">
@@ -130,7 +135,10 @@ export default function OnboardingCard(): JSX.Element | null {
         <p className="text-sm text-fg/80 mt-1">
           나중에 설정에서 바꿀 수 있어요.
         </p>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className={cn(
+          'mt-4 grid gap-3',
+          recordedAvailable ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+        )}>
           <button
             type="button"
             onClick={pickDevice}
@@ -146,20 +154,22 @@ export default function OnboardingCard(): JSX.Element | null {
               음성팩이 없는 기기에서는 들리지 않을 수 있어요(도움말 참고).
             </p>
           </button>
-          <button
-            type="button"
-            onClick={pickRecorded}
-            className="rounded-xl border-2 border-primary bg-surface p-4 text-left active:scale-[0.98] transition-transform"
-          >
-            <span className="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-primary text-white mb-2">
-              <FileAudio size={20} aria-hidden />
-            </span>
-            <p className="font-bold text-fg">녹음 음성으로 듣기</p>
-            <p className="text-xs text-muted mt-1">
-              미리 녹음된 음성으로 재생해요. <b>약 20~40MB</b>를 한 번 받으면
-              <b> 오프라인에서도</b> 같은 발음으로 일관되게 들립니다.
-            </p>
-          </button>
+          {recordedAvailable && (
+            <button
+              type="button"
+              onClick={pickRecorded}
+              className="rounded-xl border-2 border-primary bg-surface p-4 text-left active:scale-[0.98] transition-transform"
+            >
+              <span className="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-primary text-white mb-2">
+                <FileAudio size={20} aria-hidden />
+              </span>
+              <p className="font-bold text-fg">녹음 음성으로 듣기</p>
+              <p className="text-xs text-muted mt-1">
+                미리 녹음된 음성으로 재생해요. <b>약 20~40MB</b>를 한 번 받으면
+                <b> 오프라인에서도</b> 같은 발음으로 일관되게 들립니다.
+              </p>
+            </button>
+          )}
         </div>
       </section>
     );

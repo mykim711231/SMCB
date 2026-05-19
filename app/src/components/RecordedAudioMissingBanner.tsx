@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Smartphone, WifiOff, Download } from 'lucide-react';
 import { stop as stopTTS } from '@/lib/tts';
+import { getManifestSize } from '@/lib/ttsBulkDownload';
 import { useSettings } from '@/stores/settings';
 
 function readOnline(): boolean {
@@ -50,6 +51,10 @@ export default function RecordedAudioMissingBanner(): JSX.Element | null {
 
   if (!hydrated) return null;
   if (userMode !== 'recorded') return null;
+  // R3: 빈 매니페스트({})에서는 mp3 자체가 없다 — 모든 재생이 SpeechSynth로
+  // 떨어지므로 "다운로드 미완료" 경고는 의미가 없고 사용자를 혼란시킨다.
+  // (개발/스테이징 빌드에서도 동일하게 침묵)
+  if (getManifestSize() === 0) return null;
   // 'done'은 모든 mp3가 캐시 됨 — 오프라인이어도 안전.
   if (ttsBulkStatus === 'done') return null;
   // 온라인이면 fetch가 일단 통과 — 사전 경고 불필요.

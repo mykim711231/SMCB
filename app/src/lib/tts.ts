@@ -333,16 +333,53 @@ function playPrerecorded(url: string, opts: SpeakOptions, epoch: number, fallbac
  * 절약:
  *   - Data Saver(`connection.saveData=true`) 환경에서는 사용자가 실제 클릭하지
  *     않은 시점의 prefetch는 비용 부담. 이 경우 skip하고 click 시 정상 경로로만 받는다.
- *   - 동일 URL에 대한 prefetch는 메모리 set으로 중복 방지(rapid hover/탭 시).
+ *   - 동일 URL에 대한 prefetch는 메모리 Map(URL → 등록 시각)으로 중복 방지.
+ *
+ * R4: 과거 Set은 한 번 add되면 영구 유지돼 다음 문제가 있었다.
+ *   - 일시적 네트워크 오류로 prefetch가 실제로 실패했어도 Set에 남아 재시도
+ *     되지 않는다 → 재방문 시 사용자가 cold network 지연을 또 겪는다.
+ *   - 메모리: 매니페스트 2,500+ 항목을 모두 한 세션에서 hover하면 Set이 비대해진다.
+ *   따라서 TTL(30s) 기반 Map으로 교체. 30초가 지난 항목은 만료 처리되어 재prefetch가
+ *   허용된다. audio.onerror 시에는 즉시 제거해 다음 hover에서 재시도.
+ *
+ * R13: bulkDownloadAll이 사용하는 in-flight 공유 — getPrefetchedUrls() export로
+ *   bulk가 이미 prefetch된 URL을 skip(done으로 카운트)할 수 있게 한다.
  */
-const prefetched = new Set<string>();
+const PREFETCH_TTL_MS = 30_000;
+const prefetched = new Map<string, number>();
+
+function prefetchFresh(url: string, now: number): boolean {
+  const at = prefetched.get(url);
+  if (at === undefined) return false;
+  if (now - at > PREFETCH_TTL_MS) {
+    prefetched.delete(url);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * R13용 — 현재 시점에 prefetch 캐시가 살아있는 URL 집합.
+ * bulkDownloadAll이 중복 fetch를 피하기 위해 참조. 만료된 항목은 자동 제거된다.
+ */
+export function getPrefetchedUrls(): Set<string> {
+  const now = Date.now();
+  const live = new Set<string>();
+  for (const [url, at] of prefetched) {
+    if (now - at <= PREFETCH_TTL_MS) live.add(url);
+    else prefetched.delete(url);
+  }
+  return live;
+}
+
 export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
   // 호출자가 voiceMode를 명시하지 않으면 사용자 설정(userMode)을 enforce.
   // device 모드에서는 mp3 prefetch를 절대 시작하지 않는다 — 데이터/스토리지 절약.
   if (resolveVoiceMode(voiceMode) === 'device') return;
   const url = lookupPrerecorded(text);
   if (!url) return;
-  if (prefetched.has(url)) return;
+  const now = Date.now();
+  if (prefetchFresh(url, now)) return;
   // 데이터 절약 모드: prefetch 비활성
   try {
     const c = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
@@ -350,10 +387,13 @@ export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
   } catch {
     /* ignore */
   }
-  prefetched.add(url);
+  prefetched.set(url, now);
   try {
     const a = new Audio();
     a.preload = 'auto';
+    // R4: 일시적 네트워크/디코드 실패는 prefetched에서 제거해
+    // 다음 hover에서 재시도가 가능하도록 한다.
+    a.onerror = (): void => { prefetched.delete(url); };
     a.src = url;
     // 재생하지 않음. 브라우저 HTTP cache + 디코드 버퍼만 채운다.
   } catch {
@@ -528,16 +568,36 @@ function emitUtterance(
     if (epoch !== speakEpoch) return; // stop()/새 speak() 이후
     // 무한 stuck 회피: utterance를 강제 cancel하고 합성 실패로 통지.
     // 'synthesis-unavailable'은 ttsErrorReason에 매핑되어 있어 안내 가능.
+    //
+    // F5: watchdog 발화 후 뒤늦게 도착하는 onstart/onend/onerror는 무시해야 한다.
+    //   - 사용자 perspective에서 이미 실패로 통지(onError 'synthesis-unavailable')된
+    //     이후 onstart가 발화하면 호출자(TTSButton)가 speaking 상태로 다시 들어가
+    //     UI가 모순된다.
+    //   - epoch 체크가 일부 보호하지만, 동일 epoch 내에서 onstart가 watchdog
+    //     직후에 도착하는 race는 epoch만으론 못 막는다. 핸들러를 null로 직접 끊는다.
+    //
+    // F9: synth.cancel() 호출 직후의 60ms 마진.
+    //   - 일부 엔진(특히 Chrome Android/Edge Win)에서 cancel()이 즉시 동기 반환하지만
+    //     내부 큐 정리는 비동기로 일어난다. 이 사이에 onError를 발화하면 호출자가
+    //     즉시 다음 speak()를 호출하는데, 그 speak()가 cancel 잔여 정리에 의해 다시
+    //     취소되는 chain race가 발생한다.
+    //   - 60ms는 실측 기반(40~50ms 정도면 안전, 마진 20%).
+    u.onstart = null;
+    u.onend = null;
+    u.onerror = null;
     try {
       synth.cancel();
     } catch {
       /* ignore */
     }
-    const synthetic = {
-      error: 'synthesis-unavailable',
-      utterance: u,
-    } as unknown as SpeechSynthesisErrorEvent;
-    opts.onError?.(synthetic);
+    setTimeout(() => {
+      if (epoch !== speakEpoch) return;
+      const synthetic = {
+        error: 'synthesis-unavailable',
+        utterance: u,
+      } as unknown as SpeechSynthesisErrorEvent;
+      opts.onError?.(synthetic);
+    }, 60);
   }, watchdogMs);
 }
 

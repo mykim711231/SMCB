@@ -25,6 +25,7 @@
  *  - 재시도도 실패하면 failed에 카운트. abort된 경우는 재시도하지 않는다.
  */
 import ttsManifest from '@/data/zh-tts-manifest.json';
+import { getPrefetchedUrls } from '@/lib/tts';
 
 const TTS_MANIFEST = ttsManifest as Record<string, string>;
 const TTS_BASE_URL = `${import.meta.env.BASE_URL}tts/`;
@@ -113,6 +114,14 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
     return { done: 0, failed: 0, total, aborted: true };
   }
 
+  // R13: prefetch가 이미 살아있는 URL은 bulk가 다시 fetch하지 않는다.
+  //   - 같은 mp3에 대해 prefetch와 bulk가 동시에 progress하면 SW dedup 보장이
+  //     없는 일부 브라우저에서 2회 upstream fetch가 일어난다.
+  //   - prefetchAudio는 hover/탭 기반이라 사용자 의도가 명확하고 캐시도 채워졌다고
+  //     판단할 수 있으므로 done으로 카운트해 안전하게 skip.
+  //   - prefetch 만료(30s)된 URL은 자동으로 제외 — 이 set은 호출 시점 snapshot.
+  const prefetchedUrlSet = getPrefetchedUrls();
+
   const next = (): string | null => {
     if (opts.signal?.aborted) {
       aborted = true;
@@ -124,12 +133,20 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
 
   const fetchOnce = async (file: string): Promise<boolean> => {
     // no-store로 두면 SW가 가로채 캐시한 응답을 그대로 사용한다.
-    // body는 읽지 않는다 (메모리 압박 회피) — 응답 객체만 받아도
-    // SW의 CacheFirst가 캐시에 저장하기에 충분.
+    // body는 명시적으로 cancel해 메모리 압박 회피 (R10) — Workbox SW는 별도
+    // 자체 fetch로 response를 가로채 캐시에 저장하므로 호출자 측 body cancel은
+    // 캐시 적재에 영향 없다.
     const res = await fetch(`${TTS_BASE_URL}${file}`, {
       method: 'GET',
       signal: opts.signal,
     });
+    try {
+      // ReadableStream.cancel은 throw 안전성이 브라우저별로 미세하게 다르다.
+      // catch 없이 두면 일부 환경에서 unhandled rejection 경고가 떨어진다.
+      void res.body?.cancel().catch(() => { /* ignore */ });
+    } catch {
+      /* ignore */
+    }
     return res.ok || res.type === 'opaque' || res.status === 206;
   };
 
@@ -137,6 +154,13 @@ export async function bulkDownloadAll(opts: BulkOptions = {}): Promise<BulkResul
     for (;;) {
       const file = next();
       if (!file) return;
+      const fullUrl = `${TTS_BASE_URL}${file}`;
+      // R13: prefetch가 살아있는 URL은 fetch 생략 — done으로 카운트.
+      if (prefetchedUrlSet.has(fullUrl)) {
+        done++;
+        opts.onProgress?.({ done, failed, total });
+        continue;
+      }
       let ok = false;
       try {
         ok = await fetchOnce(file);

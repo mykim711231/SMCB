@@ -131,7 +131,11 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'tts-audio',
-              expiration: { maxEntries: TTS_CACHE_MAX_ENTRIES, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              // R7: maxAgeSeconds = 10년. mp3 파일은 사실상 immutable(파일명에
+              // hash가 없지만 매니페스트 자체로 버전 관리됨)이라 1년 만료는
+              // 불필요한 cold-fetch를 일으킨다. 사용자가 1년 만에 한 번 들어와도
+              // 다시 받지 않고 캐시 hit이 되도록 유효 기간을 사실상 영구로 설정.
+              expiration: { maxEntries: TTS_CACHE_MAX_ENTRIES, maxAgeSeconds: 60 * 60 * 24 * 365 * 10 },
               cacheableResponse: { statuses: [0, 200] },
               matchOptions: { ignoreVary: true },
               rangeRequests: true,
