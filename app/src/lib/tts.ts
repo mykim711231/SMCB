@@ -488,9 +488,11 @@ function emitUtterance(
   //   화면을 보고 앱이 망가졌다고 판단하게 된다.
   //   → onstart가 일정 시간 안에 안 오면 인공 timeout 에러를 발화시켜
   //     호출자가 안전하게 복구할 수 있도록 한다.
-  //   - 타임아웃: 최소 2.5초, 또는 글자 길이 * 250ms 중 큰 값.
-  //     긴 절(예: 200자)도 cold start 후 첫 onstart까지 보통 0.5~1.5초.
-  //   - onstart가 오면 워치독 해제 (정상 환경).
+  //   - 타임아웃: 4000ms 고정. (F4: text.length * 250ms 스케일링 제거)
+  //     200자 텍스트에서 50초까지 늘어나 사실상 stuck과 구분이 안 되던 문제 해결.
+  //     onstart는 cold-start 1.5초 + iOS PWA 추가 지연 1.5초로도 4초면 충분.
+  //     워치독은 onstart까지의 타임아웃이지 utterance 완료까지의 타임아웃이 아니므로
+  //     긴 절도 영향 없음 — onstart가 한 번 오면 즉시 해제된다.
   //   - epoch 체크로 stop()/새 speak() 이후의 stale 발화 방지.
   let started = false;
   let watchdog: ReturnType<typeof setTimeout> | null = null;
@@ -500,7 +502,7 @@ function emitUtterance(
       watchdog = null;
     }
   };
-  const watchdogMs = Math.max(2500, text.length * 250);
+  const watchdogMs = 4000;
 
   u.onstart = (): void => {
     started = true;

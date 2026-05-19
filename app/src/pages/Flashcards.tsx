@@ -174,6 +174,11 @@ export default function Flashcards(): JSX.Element {
 
   const onGrade = useCallback((g: SRSGrade): void => {
     if (!current) return;
+    // iOS gesture 보호: grade는 사용자 직접 입력(버튼 또는 키보드)이므로 gesture
+    // 컨텍스트 안이다. unlock()을 여기서 한 번 호출해두지 않으면, 250ms 후 advance
+    // 효과의 autoplay speak() 시점엔 이미 gesture window가 닫혀 있어 iOS PWA에서
+    // silent fail. (F2: Flashcards autoplay 첫 단발 무음 회귀 방지)
+    unlock();
     grade(cardIdOf(current), g, fcAlgorithm);
     const correct = g !== 'again';
     setSessionStats((s) => ({
@@ -193,6 +198,9 @@ export default function Flashcards(): JSX.Element {
 
   const replayTTS = useCallback(() => {
     if (!current) return;
+    // 'r' 키/버튼은 사용자 gesture. iOS 첫 진입에서 reveal 전에 r 키만 누른
+    // 시나리오를 커버.
+    unlock();
     const text = speakTextOf(current);
     if (text) speak(text, { rate: ttsRate, voiceURI: ttsVoiceURI ?? undefined });
   }, [current, ttsRate, ttsVoiceURI]);

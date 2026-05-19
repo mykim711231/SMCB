@@ -6,6 +6,19 @@ import { readFileSync } from 'fs';
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')) as { version: string };
 
+// 사전녹음 zh-tts mp3 캐시 용량(maxEntries) 계산.
+//   maxEntries보다 캐시에 들어온 항목이 많아지면 LRU로 오래된 항목부터 evict된다.
+//   매니페스트가 2,500개 → maxEntries=3000(과거)이면 안전 마진은 200개에 불과해
+//   사용자가 일괄 다운로드 직후 한 곡씩 들으며 cache hit가 발생하는 도중에도
+//   "첫 항목 evict → 다시 fetch → 마지막 항목 evict" 회전이 시작될 수 있다.
+//   매니페스트의 unique 파일 수 + 50% 마진을 동적으로 사용한다. 매니페스트가
+//   비어 있어도(빈 객체) Workbox가 0을 허용하지 않으므로 최소 200으로 가드.
+//   (R6: maxEntries dynamic based on manifest)
+const TTS_MANIFEST_PATH = resolve(__dirname, 'src/data/zh-tts-manifest.json');
+const TTS_MANIFEST_RAW = JSON.parse(readFileSync(TTS_MANIFEST_PATH, 'utf-8')) as Record<string, string>;
+const TTS_UNIQUE_FILES = new Set(Object.values(TTS_MANIFEST_RAW)).size;
+const TTS_CACHE_MAX_ENTRIES = Math.max(200, Math.ceil(TTS_UNIQUE_FILES * 1.5));
+
 // DEPLOY_TARGET=cf  → Cloudflare Pages (root path)
 // (unset / anything else) → GitHub Pages (/SMCB/ subpath)
 const isCloudflare = process.env.DEPLOY_TARGET === 'cf';
@@ -118,7 +131,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'tts-audio',
-              expiration: { maxEntries: 3000, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              expiration: { maxEntries: TTS_CACHE_MAX_ENTRIES, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
               matchOptions: { ignoreVary: true },
               rangeRequests: true,
