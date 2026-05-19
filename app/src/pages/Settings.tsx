@@ -84,6 +84,9 @@ export default function Settings(): JSX.Element {
           <Row label="병음 표시">
             <Toggle on={s.showPinyin} onClick={s.togglePinyin} />
           </Row>
+          <Row label="글자별 병음">
+            <Toggle on={s.rubyPinyin} onClick={s.toggleRubyPinyin} />
+          </Row>
           <Row label="한국어 표시">
             <Toggle on={s.showKorean} onClick={s.toggleKorean} />
           </Row>

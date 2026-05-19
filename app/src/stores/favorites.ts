@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
 
-export type FavoriteKind = 'vocab' | 'bible';
+export type FavoriteKind = 'vocab' | 'bible' | 'dialogDaily' | 'dialogGospel' | 'scenario';
 
 export type FavoritesState = {
   items: Record<string, true>;

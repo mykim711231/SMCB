@@ -255,6 +255,12 @@ function parseGrammar(section: Section | undefined): GrammarPoint[] {
       if (pinIdx < 0) continue;
       const zh = before.slice(0, pinIdx).trim().replace(/[\s]+$/, '');
       const pinyin = before.slice(pinIdx).trim().replace(/[(\s]+$/, '');
+      // 메타 노트 가드: 정상 zh는 괄호를 포함하지 않는다.
+      // 예: `- 当 (dāng) 으로도 대체 가능` 같은 어법 메모는 verse가 아니라 note로 분류.
+      if (/[()（）"'"']/.test(zh)) {
+        note = (note ? note + ' / ' : '') + after;
+        continue;
+      }
       if (zh && HAS_CJK.test(zh) && HAS_PINYIN.test(pinyin) && HAS_HANGUL.test(ko)) {
         examples.push({ zh, pinyin, ko });
       }

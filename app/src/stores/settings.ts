@@ -47,6 +47,8 @@ export type SettingsState = {
   showHanzi: boolean;
   showPinyin: boolean;
   showKorean: boolean;
+  /** Per-character pinyin ruby (Naver/Pagoda style). Requires both hanzi+pinyin on. */
+  rubyPinyin: boolean;
   // TTS
   ttsRate: number;
   ttsVoiceURI: string | null;
@@ -69,6 +71,7 @@ export type SettingsState = {
   toggleHanzi: () => void;
   togglePinyin: () => void;
   toggleKorean: () => void;
+  toggleRubyPinyin: () => void;
   setTTSRate: (n: number) => void;
   setTTSVoiceURI: (uri: string | null) => void;
   setFcAlgorithm: (a: SRSAlgorithm) => void;
@@ -93,6 +96,7 @@ const DEFAULTS = {
   showHanzi: true,
   showPinyin: true,
   showKorean: true,
+  rubyPinyin: false,
   ttsRate: 0.95,
   ttsVoiceURI: null as string | null,
   fcAlgorithm: 'leitner' as SRSAlgorithm,
@@ -111,7 +115,7 @@ type Persisted = Omit<
   SettingsState,
   | 'hydrated'
   | 'setTheme' | 'setFontSize'
-  | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean'
+  | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean' | 'toggleRubyPinyin'
   | 'setTTSRate' | 'setTTSVoiceURI'
   | 'setFcAlgorithm' | 'setFcGrades' | 'setFcDirection' | 'setFcAutoplay'
   | 'setFcCardTypes' | 'setFcDailyGoal'
@@ -127,6 +131,7 @@ function pickPersisted(s: SettingsState): Persisted {
     showHanzi: s.showHanzi,
     showPinyin: s.showPinyin,
     showKorean: s.showKorean,
+    rubyPinyin: s.rubyPinyin,
     ttsRate: s.ttsRate,
     ttsVoiceURI: s.ttsVoiceURI,
     fcAlgorithm: s.fcAlgorithm,
@@ -233,6 +238,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   toggleHanzi: () => { const v = !get().showHanzi; set({ showHanzi: v }); void persist({ ...get(), showHanzi: v }); },
   togglePinyin: () => { const v = !get().showPinyin; set({ showPinyin: v }); void persist({ ...get(), showPinyin: v }); },
   toggleKorean: () => { const v = !get().showKorean; set({ showKorean: v }); void persist({ ...get(), showKorean: v }); },
+  toggleRubyPinyin: () => { const v = !get().rubyPinyin; set({ rubyPinyin: v }); void persist({ ...get(), rubyPinyin: v }); },
   setTTSRate: (n) => { set({ ttsRate: n }); void persist({ ...get(), ttsRate: n }); },
   setTTSVoiceURI: (uri) => { set({ ttsVoiceURI: uri }); void persist({ ...get(), ttsVoiceURI: uri }); },
 

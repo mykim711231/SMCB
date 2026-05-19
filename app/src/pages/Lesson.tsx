@@ -19,8 +19,11 @@ export default function LessonPage(): JSX.Element {
   const visit = useProgress((s) => s.visit);
   const markRead = useProgress((s) => s.markRead);
   const read = useProgress((s) => (id ? Boolean(s.byId[id]?.read) : false));
-  const favHas = useFavorites((s) => s.has);
+  // Subscribe to items (not s.has) so the component re-renders when favorites change.
+  // s.has returns a stable function reference, which would suppress updates.
+  const favItems = useFavorites((s) => s.items);
   const favToggle = useFavorites((s) => s.toggle);
+  const favHas = (k: string): boolean => Boolean(favItems[k]);
   const { showHanzi, showPinyin, showKorean, toggleHanzi, togglePinyin, toggleKorean } = useSettings();
 
   useEffect(() => {
@@ -111,7 +114,7 @@ export default function LessonPage(): JSX.Element {
 
       {lesson.bible.length > 0 && (
         <section>
-          <SectionHeader title="圣经引用 성경 인용" />
+          <SectionHeader title="圣经引用(和合本) 성경 인용 (화합본)" />
           <ul className="space-y-3">
             {lesson.bible.map((b, i) => {
               const k = favKey(lesson.id, 'bible', i);
@@ -180,7 +183,7 @@ export default function LessonPage(): JSX.Element {
                       )}
                       {v.example && (
                         <div className="mt-2 rounded-lg bg-primary-soft/40 px-3 py-2">
-                          <VerseRow verse={v.example} tts={false} className="py-0" />
+                          <VerseRow verse={v.example} className="py-0" />
                         </div>
                       )}
                     </div>
@@ -260,26 +263,80 @@ export default function LessonPage(): JSX.Element {
       {lesson.dialogDaily.length > 0 && (
         <section>
           <SectionHeader title="应用会话 응용 회화" />
-          <div className="rounded-xl border border-divider bg-surface p-4 divide-y divide-divider">
-            {lesson.dialogDaily.flatMap((d, di) =>
-              d.lines.map((v, li) => (
-                <VerseRow key={`${di}-${li}`} verse={v} prefix={d.role ? `${d.role}:` : undefined} />
-              )),
-            )}
-          </div>
+          <ul className="space-y-3">
+            {lesson.dialogDaily.map((d, di) => {
+              const k = favKey(lesson.id, 'dialogDaily', di);
+              const starred = favHas(k);
+              return (
+                <li key={di} className="rounded-xl border border-divider bg-surface p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-muted">
+                      대화 {di + 1}
+                      {d.title ? <span className="text-fg font-medium ml-1">· {d.title}</span> : null}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => favToggle(k)}
+                      aria-label={starred ? '즐겨찾기 해제' : '즐겨찾기'}
+                      aria-pressed={starred}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
+                    >
+                      {starred ? (
+                        <Star size={18} className="text-accent fill-current" />
+                      ) : (
+                        <StarOff size={18} className="text-muted" aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                  <div className="mt-1 divide-y divide-divider">
+                    {d.lines.map((v, li) => (
+                      <VerseRow key={li} verse={v} prefix={d.role ? `${d.role}:` : undefined} />
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 
       {lesson.dialogGospel.length > 0 && (
         <section>
           <SectionHeader title="传福音对话 전도 회화" />
-          <div className="rounded-xl border border-divider bg-surface p-4 divide-y divide-divider">
-            {lesson.dialogGospel.flatMap((d, di) =>
-              d.lines.map((v, li) => (
-                <VerseRow key={`${di}-${li}`} verse={v} prefix={d.role ? `${d.role}:` : undefined} />
-              )),
-            )}
-          </div>
+          <ul className="space-y-3">
+            {lesson.dialogGospel.map((d, di) => {
+              const k = favKey(lesson.id, 'dialogGospel', di);
+              const starred = favHas(k);
+              return (
+                <li key={di} className="rounded-xl border border-divider bg-surface p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-muted">
+                      전도 대화 {di + 1}
+                      {d.title ? <span className="text-fg font-medium ml-1">· {d.title}</span> : null}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => favToggle(k)}
+                      aria-label={starred ? '즐겨찾기 해제' : '즐겨찾기'}
+                      aria-pressed={starred}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
+                    >
+                      {starred ? (
+                        <Star size={18} className="text-accent fill-current" />
+                      ) : (
+                        <StarOff size={18} className="text-muted" aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                  <div className="mt-1 divide-y divide-divider">
+                    {d.lines.map((v, li) => (
+                      <VerseRow key={li} verse={v} prefix={d.role ? `${d.role}:` : undefined} />
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 
@@ -287,20 +344,39 @@ export default function LessonPage(): JSX.Element {
         <section>
           <SectionHeader title="实战场景 실전 상황" />
           <ul className="space-y-3">
-            {lesson.scenarios.map((s, i) => (
-              <li key={i} className="rounded-xl border border-divider p-4 bg-surface">
-                <p className="font-semibold text-fg">{s.title}</p>
-                <div className="mt-2 divide-y divide-divider">
-                  {s.segments.map((seg, j) =>
-                    seg.kind === 'verse' ? (
-                      <VerseRow key={j} verse={seg.verse} prefix={seg.prefix} />
-                    ) : (
-                      <p key={j} className="text-fg/90 py-2 leading-relaxed">{seg.text}</p>
-                    ),
-                  )}
-                </div>
-              </li>
-            ))}
+            {lesson.scenarios.map((s, i) => {
+              const k = favKey(lesson.id, 'scenario', i);
+              const starred = favHas(k);
+              return (
+                <li key={i} className="rounded-xl border border-divider p-4 bg-surface">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-fg">{s.title}</p>
+                    <button
+                      type="button"
+                      onClick={() => favToggle(k)}
+                      aria-label={starred ? '즐겨찾기 해제' : '즐겨찾기'}
+                      aria-pressed={starred}
+                      className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
+                    >
+                      {starred ? (
+                        <Star size={18} className="text-accent fill-current" />
+                      ) : (
+                        <StarOff size={18} className="text-muted" aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                  <div className="mt-2 divide-y divide-divider">
+                    {s.segments.map((seg, j) =>
+                      seg.kind === 'verse' ? (
+                        <VerseRow key={j} verse={seg.verse} prefix={seg.prefix} />
+                      ) : (
+                        <p key={j} className="text-fg/90 py-2 leading-relaxed">{seg.text}</p>
+                      ),
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
