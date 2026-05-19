@@ -119,11 +119,14 @@ function collectAppendixTts(): Set<string> {
   const p = join(DATA_DIR, 'appendices.json');
   if (!existsSync(p)) return set;
   const items = JSON.parse(readFileSync(p, 'utf8')) as { markdown: string }[];
-  const re = /\{\{tts:([^}]+)\}\}/g;
+  const ttsRe = /\{\{tts:([^}]+)\}\}/g;
+  // {{verse:zh|pinyin|ko}} — the zh portion needs an mp3 too (VerseRow renders TTSButton).
+  const verseRe = /\{\{verse:([^|}]+)\|[^|}]+\|[^}]+\}\}/g;
   for (const it of items) {
     const md = it.markdown ?? '';
     let m;
-    while ((m = re.exec(md)) !== null) set.add(m[1].trim());
+    while ((m = ttsRe.exec(md)) !== null) set.add(m[1].trim());
+    while ((m = verseRe.exec(md)) !== null) set.add(m[1].trim());
   }
   set.delete('');
   return set;

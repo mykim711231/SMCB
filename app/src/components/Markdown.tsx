@@ -7,13 +7,18 @@
  */
 import { Fragment } from 'react';
 import TTSButton from './TTSButton';
+import VerseRow from './VerseRow';
+import type { Verse } from '@/types/lesson';
 
 type Block =
   | { kind: 'h'; level: 1 | 2 | 3; text: string }
   | { kind: 'p'; text: string }
   | { kind: 'ul'; items: string[] }
   | { kind: 'ol'; start: number; items: string[] }
-  | { kind: 'table'; headers: string[]; rows: string[][] };
+  | { kind: 'table'; headers: string[]; rows: string[][] }
+  | { kind: 'verses'; items: Verse[] };
+
+const VERSE_RE = /^\{\{verse:([^|}]+)\|([^|}]+)\|([^}]+)\}\}\s*$/;
 
 const OL_RE = /^\s*(\d+)\.\s+(.*)$/;
 
@@ -44,6 +49,20 @@ function parse(md: string): Block[] {
     if (h) {
       blocks.push({ kind: 'h', level: h[1].length as 1 | 2 | 3, text: h[2].trim() });
       i++;
+      continue;
+    }
+
+    // Verse block: collect consecutive {{verse:zh|pinyin|ko}} lines.
+    const vm = line.match(VERSE_RE);
+    if (vm) {
+      const items: Verse[] = [];
+      while (i < lines.length) {
+        const m = lines[i].match(VERSE_RE);
+        if (!m) break;
+        items.push({ zh: m[1].trim(), pinyin: m[2].trim(), ko: m[3].trim() });
+        i++;
+      }
+      blocks.push({ kind: 'verses', items });
       continue;
     }
 
@@ -96,7 +115,8 @@ function parse(md: string): Block[] {
       !/^#{1,3}\s+/.test(lines[i]) &&
       !/^\s*[-*]\s+/.test(lines[i]) &&
       !OL_RE.test(lines[i]) &&
-      !lines[i].trim().startsWith('|')
+      !lines[i].trim().startsWith('|') &&
+      !VERSE_RE.test(lines[i])
     ) {
       buf.push(lines[i].trim());
       i++;
@@ -176,6 +196,15 @@ export default function Markdown({ source }: { source: string }): JSX.Element {
                 <li key={i2}>{renderInline(it)}</li>
               ))}
             </ul>
+          );
+        }
+        if (b.kind === 'verses') {
+          return (
+            <div key={idx} className="divide-y divide-divider -mx-1">
+              {b.items.map((v, i2) => (
+                <VerseRow key={i2} verse={v} />
+              ))}
+            </div>
           );
         }
         if (b.kind === 'ol') {
