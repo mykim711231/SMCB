@@ -9,17 +9,37 @@
  *    expose stop() as the primary interrupt.
  *  - Long utterances on iOS sometimes cut off around the 200-char mark;
  *    callers should pass per-verse text rather than full paragraphs.
+ *
+ * 사전녹음 우선 경로:
+ *  - zh-tts-manifest.json은 zh 원문 → 파일명 매핑이다.
+ *  - 매니페스트 hit이면 /SMCB/tts/<file>을 <audio>로 재생한다.
+ *    단말 음성팩 없음/iOS PWA 17.4↓/엔진 합성 품질 편차를 모두 우회.
+ *  - 매니페스트 miss 또는 audio 재생 실패면 Web Speech로 fallback.
+ *  - 빈 매니페스트({})로도 호환 동작: 호출은 즉시 Web Speech 경로로 빠짐.
+ *  - 매니페스트 콘텐츠는 빌드/배포 외부에서 채운다 (Piper/Edge TTS/Azure 등).
  */
+import ttsManifest from '@/data/zh-tts-manifest.json';
 
 export type TTSStatus = 'idle' | 'speaking' | 'paused' | 'unsupported';
 
 const ZH_LANGS = ['zh-CN', 'zh-Hans-CN', 'zh', 'cmn-Hans-CN'];
 
+const TTS_MANIFEST = ttsManifest as Record<string, string>;
+const TTS_BASE_URL = `${import.meta.env.BASE_URL}tts/`;
+
 let unlocked = false;
 let cachedZhVoice: SpeechSynthesisVoice | null = null;
+let currentAudio: HTMLAudioElement | null = null;
 
+/**
+ * 음성 출력 가능 여부.
+ * 사전녹음 매니페스트가 비어있지 않으면 Web Speech 미지원 환경에서도
+ * <audio> 재생으로 음성을 들려줄 수 있다 — 그 경우도 true.
+ */
 export function isSupported(): boolean {
-  return typeof window !== 'undefined' && 'speechSynthesis' in window;
+  if (typeof window === 'undefined') return false;
+  if ('speechSynthesis' in window) return true;
+  return Object.keys(TTS_MANIFEST).length > 0;
 }
 
 export function isIOS(): boolean {
@@ -116,8 +136,62 @@ export type SpeakOptions = {
 };
 
 /**
+ * 사전녹음 매니페스트에서 zh 텍스트를 찾는다.
+ * 키는 build-content 등 외부 도구가 채우는 원문 그대로(trim).
+ */
+function lookupPrerecorded(text: string): string | null {
+  const key = text.trim();
+  if (!key) return null;
+  const file = TTS_MANIFEST[key];
+  return file ? `${TTS_BASE_URL}${file}` : null;
+}
+
+function stopAudio(): void {
+  if (!currentAudio) return;
+  try {
+    currentAudio.pause();
+    currentAudio.src = '';
+  } catch {
+    /* ignore */
+  }
+  currentAudio = null;
+}
+
+/**
+ * 사전녹음 mp3/opus 재생. 실패 시 fallback()을 호출 (보통 Web Speech).
+ */
+function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void): void {
+  stopAudio();
+  const a = new Audio(url);
+  a.playbackRate = opts.rate ?? 1;
+  a.onended = (): void => {
+    if (currentAudio === a) currentAudio = null;
+    opts.onEnd?.();
+  };
+  // 파일 누락(404)·디코드 실패는 audio.onerror로 들어온다 → Web Speech로 폴백.
+  // play()가 reject되는 경우(브라우저 자동재생 차단 등)도 fallback.
+  a.onerror = (): void => {
+    if (currentAudio === a) currentAudio = null;
+    fallback();
+  };
+  currentAudio = a;
+  unlocked = true;
+  const p = a.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch(() => {
+      if (currentAudio === a) currentAudio = null;
+      fallback();
+    });
+  }
+}
+
+/**
  * Speaks `text` in Mandarin. Cancels any in-flight utterance first
  * so rapid tapping behaves predictably.
+ *
+ * 우선순위:
+ *   1) 사전녹음 매니페스트 hit → <audio> 재생
+ *   2) Web Speech API
  *
  * iOS notes:
  *  - cancel() right before speak() can race on iOS — we only cancel if
@@ -126,7 +200,19 @@ export type SpeakOptions = {
  *    'language-unavailable'; surface it so callers can guide the user.
  */
 export function speak(text: string, opts: SpeakOptions = {}): void {
+  if (!text) return;
+  const url = lookupPrerecorded(text);
+  if (url) {
+    // 사전녹음 경로 — Web Speech 미지원 환경도 동작한다.
+    playPrerecorded(url, opts, () => speakSynth(text, opts));
+    return;
+  }
+  speakSynth(text, opts);
+}
+
+function speakSynth(text: string, opts: SpeakOptions): void {
   if (!isSupported() || !text) return;
+  stopAudio();
   const synth = window.speechSynthesis;
   if (synth.speaking || synth.pending) {
     try {
@@ -161,9 +247,12 @@ export type TTSDiagnostic =
 /**
  * Returns a hint about likely TTS issues on this device, for the UI to
  * show actionable guidance.
+ * 사전녹음 매니페스트가 충분히 채워져 있다면 단말 음성팩/iOS PWA 제약은
+ * 사실상 우회되므로 'ok'로 분류한다.
  */
 export function diagnose(): TTSDiagnostic {
   if (!isSupported()) return 'unsupported';
+  if (Object.keys(TTS_MANIFEST).length > 0) return 'ok';
   const zhCount = getVoices().filter((v) =>
     v.lang.toLowerCase().startsWith('zh'),
   ).length;
@@ -173,6 +262,7 @@ export function diagnose(): TTSDiagnostic {
 }
 
 export function stop(): void {
+  stopAudio();
   if (!isSupported()) return;
   try {
     window.speechSynthesis.cancel();

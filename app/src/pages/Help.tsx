@@ -1,18 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Volume2,
-  Smartphone,
-  Apple,
   Monitor,
   HelpCircle,
   ChevronDown,
   Play,
   CheckCircle2,
   AlertTriangle,
-  Mail,
   RefreshCw,
   Trash2,
+  Wrench,
+  Download,
+  RotateCw,
+  TrendingDown,
+  Type,
+  WifiOff,
+  Search,
+  Ruler,
+  Link as LinkIcon,
+  BatteryLow,
 } from 'lucide-react';
+import AppleLogo from '@/components/AppleLogo';
+import AndroidLogo from '@/components/AndroidLogo';
 import {
   awaitVoices,
   isSupported as ttsSupported,
@@ -23,6 +32,8 @@ import {
 } from '@/lib/tts';
 import SectionHeader from '@/components/SectionHeader';
 import { cn } from '@/lib/cn';
+
+const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
 type Platform = 'android' | 'ios' | 'windows' | 'mac';
 
@@ -36,6 +47,9 @@ export default function Help(): JSX.Element {
         <p className="text-sm text-muted mt-1">
           처음 사용하시거나 막힐 때 여기를 보세요.
         </p>
+        <p className="text-xs text-muted mt-1">
+          앱 버전: <b>v{APP_VERSION}</b>
+        </p>
       </header>
 
       <TTSDiagnostic />
@@ -43,7 +57,6 @@ export default function Help(): JSX.Element {
       <UpdateUninstallGuide />
       <TroubleshootSection />
       <FAQSection />
-      <ContactSection />
     </div>
   );
 }
@@ -88,7 +101,7 @@ function TTSDiagnostic(): JSX.Element {
   return (
     <section>
       <SectionHeader
-        title="🔊 음성이 안 들려요"
+        title={<><Volume2 size={18} aria-hidden /> 음성이 안 들려요</>}
         subtitle="원인을 자동으로 진단합니다."
       />
       <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
@@ -200,7 +213,7 @@ function IOSUpdateGuide({
         Apple은 <b>iOS 17.4</b>부터 PWA 음성 재생과 중국어 voiceschanged 버그를 다수 수정했습니다.
         업데이트하면 음성 문제 대부분이 해결될 수 있어요.
       </p>
-      <p className="text-sm font-semibold text-fg mb-1">📲 업데이트 방법</p>
+      <p className="text-sm font-semibold text-fg mb-1 inline-flex items-center gap-1.5"><Download size={14} aria-hidden /> 업데이트 방법</p>
       <ol className="list-decimal pl-5 space-y-1 text-sm text-fg">
         <li>
           <b>설정</b> → <b>일반</b> → <b>소프트웨어 업데이트</b>
@@ -230,8 +243,8 @@ function IOSVolumeGuide(): JSX.Element {
       <div className="rounded-lg border border-divider p-3">
         <p className="font-semibold text-fg mb-1.5">① 무음 모드 확인</p>
         <ul className="list-disc pl-5 space-y-1 text-fg/90">
-          <li>왼쪽 옆면 <b>무음 스위치(주황색이 보이면 ON)</b> → 꺼 주세요.</li>
-          <li>iPhone 15 Pro 이상은 <b>액션 버튼</b>이 무음으로 설정되어 있을 수 있어요. <b>설정 → 액션 버튼</b>에서 확인.</li>
+          <li>왼쪽 옆면 <b>무음 스위치(주황색이 보이면 ON)</b> → 꺼 주세요. (iPhone 14 이하)</li>
+          <li><b>iPhone 15 Pro·15 Pro Max, iPhone 16 시리즈 전체</b>는 무음 스위치 대신 <b>액션 버튼</b>이 있어요. 위 옆면을 길게 눌렀을 때 무음으로 동작하면 <b>설정 → 액션 버튼</b>에서 다른 동작으로 바꾸세요.</li>
           <li>화면 우상단을 아래로 쓸어 <b>제어 센터</b> → 종 모양 아이콘이 빨간색이면 무음 → 탭하여 해제.</li>
         </ul>
       </div>
@@ -262,9 +275,17 @@ function IOSVolumeGuide(): JSX.Element {
         </ul>
       </div>
 
+      <div className="rounded-lg border border-divider p-3">
+        <p className="font-semibold text-fg mb-1.5">⑤ 첫 한 번은 ▶ 버튼을 직접 탭</p>
+        <ul className="list-disc pl-5 space-y-1 text-fg/90">
+          <li>iOS는 보안상 <b>사용자가 직접 누른 첫 탭</b>이 있어야 음성 재생이 깨어납니다.</li>
+          <li>위 <b>"테스트 재생 (你好)"</b> 버튼을 손가락으로 한 번만 눌러 주세요. 이후엔 본문 🔊 버튼도 정상 작동합니다.</li>
+        </ul>
+      </div>
+
       <p className="text-xs text-muted">
-        💡 위 네 가지를 모두 확인해도 안 들리면 중국어 음성팩이 설치되지 않았을 가능성이 큽니다.
-        위쪽의 <b>"음성팩 설치"</b> 안내를 따라주세요.
+        💡 위를 모두 확인해도 안 들리면 중국어 음성팩이 설치되지 않았을 가능성이 큽니다.
+        설정 → 손쉬운 사용 → <b>음성 콘텐츠 → 음성 → 중국어</b>에서 음성팩을 다운로드하세요.
       </p>
     </div>
   );
@@ -273,7 +294,7 @@ function IOSVolumeGuide(): JSX.Element {
 function IOSVoicePackGuide(): JSX.Element {
   return (
     <div className="text-sm">
-      <p className="font-bold text-fg mb-2">📱 iPhone 중국어 음성팩 설치</p>
+      <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5"><AppleLogo size={14} /> iPhone 중국어 음성팩 설치</p>
       <ol className="list-decimal pl-5 space-y-1.5 text-fg">
         <li>
           <b>설정</b> 앱 열기
@@ -282,7 +303,7 @@ function IOSVoicePackGuide(): JSX.Element {
           <b>손쉬운 사용</b> 탭
         </li>
         <li>
-          <b>읽기 및 말하기</b> (iOS 17.6+) 또는 <b>음성 콘텐츠</b> (이전 버전) 탭
+          <b>음성 콘텐츠</b> 탭 (iOS 버전에 따라 위치가 살짝 다를 수 있어요)
         </li>
         <li>
           <b>음성</b> → <b>중국어</b> → <b>"중국어(중국 본토)"</b> 또는 <b>"보통화"</b>
@@ -302,21 +323,31 @@ function IOSVoicePackGuide(): JSX.Element {
 function AndroidVoicePackGuide(): JSX.Element {
   return (
     <div className="text-sm">
-      <p className="font-bold text-fg mb-2">📱 Android 중국어 음성팩 설치</p>
-      <ol className="list-decimal pl-5 space-y-1.5 text-fg">
+      <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5"><AndroidLogo size={16} /> Android 중국어 음성팩 설치</p>
+      <p className="font-semibold text-fg mt-2 mb-1">▸ Samsung Galaxy 폰</p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
         <li>
-          <b>설정</b> → <b>일반 관리</b> → <b>언어</b>
+          <b>설정</b> → <b>일반 관리</b> → <b>언어 및 입력</b> → <b>음성</b>
         </li>
         <li>
-          <b>음성</b> → <b>Google 텍스트 음성 변환 엔진</b>
+          <b>텍스트 음성 변환</b> → <b>Google 텍스트 음성 변환 엔진</b>
         </li>
         <li>
           <b>언어 설치</b> → <b>중국어(중국)</b> 체크 → 다운로드
         </li>
-        <li>완료 후 이 앱을 종료 → 다시 열기</li>
       </ol>
+      <p className="font-semibold text-fg mt-3 mb-1">▸ Pixel · 기타 Android (대부분)</p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li>
+          <b>설정</b> → <b>시스템</b> → <b>언어 및 입력</b> → <b>음성</b>
+        </li>
+        <li>
+          <b>텍스트 음성 변환 출력</b> → <b>Google TTS 엔진</b>의 ⚙️ → <b>언어 설치</b> → <b>중국어(중국)</b>
+        </li>
+      </ol>
+      <p className="text-fg mt-3">완료 후 이 앱을 완전 종료 → 다시 열기.</p>
       <p className="text-xs text-muted mt-3">
-        💡 일부 기기는 <b>Samsung TTS</b>나 <b>HMS TTS</b>를 쓰며 메뉴 위치가 다를 수 있어요.
+        💡 메뉴 이름이 위와 다르면 <b>설정 앱 검색창</b>에 <b>"음성"</b> 또는 <b>"TTS"</b>를 입력해 보세요. 일부 기기(샤오미·화웨이 등)는 <b>Samsung TTS</b>·<b>HMS TTS</b>를 쓰며 위치가 다릅니다.
       </p>
     </div>
   );
@@ -339,21 +370,21 @@ function InstallGuide(): JSX.Element {
   return (
     <section>
       <SectionHeader
-        title="📲 앱으로 설치하기"
+        title={<><Download size={18} aria-hidden /> 앱으로 설치하기</>}
         subtitle="홈 화면에 추가하면 인터넷 없이도 사용할 수 있어요."
       />
       <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
         <div role="tablist" className="flex flex-wrap gap-2">
-          <TabBtn cur={tab} v="ios" onClick={setTab} icon={<Apple size={14} />}>
+          <TabBtn cur={tab} v="ios" onClick={setTab} icon={<AppleLogo size={12} />}>
             iPhone
           </TabBtn>
-          <TabBtn cur={tab} v="android" onClick={setTab} icon={<Smartphone size={14} />}>
+          <TabBtn cur={tab} v="android" onClick={setTab} icon={<AndroidLogo size={14} />}>
             Android
           </TabBtn>
           <TabBtn cur={tab} v="windows" onClick={setTab} icon={<Monitor size={14} />}>
             Windows
           </TabBtn>
-          <TabBtn cur={tab} v="mac" onClick={setTab} icon={<Monitor size={14} />}>
+          <TabBtn cur={tab} v="mac" onClick={setTab} icon={<AppleLogo size={12} />}>
             Mac
           </TabBtn>
         </div>
@@ -496,21 +527,21 @@ function UpdateUninstallGuide(): JSX.Element {
   return (
     <section>
       <SectionHeader
-        title="🔄 업데이트 / 🗑️ 삭제"
+        title={<><RefreshCw size={16} aria-hidden /> 업데이트 / <Trash2 size={16} aria-hidden /> 삭제</>}
         subtitle="새 버전 적용 또는 앱·데이터 제거 방법"
       />
       <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
         <div role="tablist" className="flex flex-wrap gap-2">
-          <TabBtn cur={tab} v="ios" onClick={setTab} icon={<Apple size={14} />}>
+          <TabBtn cur={tab} v="ios" onClick={setTab} icon={<AppleLogo size={12} />}>
             iPhone
           </TabBtn>
-          <TabBtn cur={tab} v="android" onClick={setTab} icon={<Smartphone size={14} />}>
+          <TabBtn cur={tab} v="android" onClick={setTab} icon={<AndroidLogo size={14} />}>
             Android
           </TabBtn>
           <TabBtn cur={tab} v="windows" onClick={setTab} icon={<Monitor size={14} />}>
             Windows
           </TabBtn>
-          <TabBtn cur={tab} v="mac" onClick={setTab} icon={<Monitor size={14} />}>
+          <TabBtn cur={tab} v="mac" onClick={setTab} icon={<AppleLogo size={12} />}>
             Mac
           </TabBtn>
         </div>
@@ -687,13 +718,13 @@ function MacUninstallSteps(): JSX.Element {
 // 4) 자주 발생하는 오류 — 증상별 해결 아코디언
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Trouble = { q: string; a: JSX.Element };
+type Trouble = { q: ReactNode; a: JSX.Element };
 
 function TroubleshootSection(): JSX.Element {
   const items: Trouble[] = useMemo(
     () => [
       {
-        q: '🔁 흰 화면 / 검은 화면만 보이고 앱이 안 열려요.',
+        q: <><RotateCw size={14} aria-hidden /> 흰 화면 / 검은 화면만 보이고 앱이 안 열려요.</>,
         a: (
           <>
             <p className="mb-2">
@@ -710,13 +741,13 @@ function TroubleshootSection(): JSX.Element {
               <li>
                 <b>데스크톱</b>: 앱 안에서 <b>Ctrl/⌘ + Shift + R</b>로 강력 새로고침.
               </li>
-              <li>그래도 안 되면 위쪽 "🗑️ 앱 삭제" 안내대로 제거 후 다시 설치.</li>
+              <li>그래도 안 되면 위쪽 <b>"🔄 업데이트 / 🗑️ 삭제"</b> 섹션의 삭제 안내대로 제거 후 다시 설치.</li>
             </ol>
           </>
         ),
       },
       {
-        q: '📉 학습 진도와 즐겨찾기가 갑자기 사라졌어요.',
+        q: <><TrendingDown size={14} aria-hidden /> 학습 진도와 즐겨찾기가 갑자기 사라졌어요.</>,
         a: (
           <>
             <p className="mb-2">
@@ -742,7 +773,7 @@ function TroubleshootSection(): JSX.Element {
         ),
       },
       {
-        q: '🈂️ 한자가 일본식 / 이상한 모양으로 보여요.',
+        q: <><Type size={14} aria-hidden /> 한자가 일본식 / 이상한 모양으로 보여요.</>,
         a: (
           <>
             <p className="mb-2">
@@ -750,13 +781,16 @@ function TroubleshootSection(): JSX.Element {
             </p>
             <ol className="list-decimal pl-5 space-y-1 text-fg/90">
               <li>
-                <b>Android</b>: <b>설정 → 일반 관리 → 언어</b>에서 <b>한국어 또는 중국어(간체)</b>를 추가하고 우선순위를 위로 올리세요.
+                <b>Android (Samsung)</b>: <b>설정 → 일반 관리 → 언어 및 입력 → 언어</b>에서 <b>한국어 또는 중국어(간체)</b>를 추가하고 우선순위를 위로 올리세요.
+              </li>
+              <li>
+                <b>Android (Pixel·기타)</b>: <b>설정 → 시스템 → 언어 및 입력 → 언어</b>에서 동일하게 추가·우선순위 조정.
               </li>
               <li>
                 <b>iPhone</b>: <b>설정 → 일반 → 언어 및 지역 → 기본 언어 순서</b>에서 한국어 또는 중국어를 위로 올리세요.
               </li>
               <li>
-                <b>Samsung 폰</b>: <b>설정 → 디스플레이 → 글꼴</b>이 사용자 글꼴이면 기본 글꼴로 되돌리기.
+                <b>Samsung Galaxy</b>: <b>설정 → 디스플레이 → 글꼴</b>이 사용자 글꼴이면 기본 글꼴로 되돌리기.
               </li>
               <li>일부 단어만 이상하면 본문 오타일 수 있어요. ✉️ 문의로 알려 주세요.</li>
             </ol>
@@ -764,7 +798,7 @@ function TroubleshootSection(): JSX.Element {
         ),
       },
       {
-        q: '📡 오프라인에서 일부 과만 안 보여요.',
+        q: <><WifiOff size={14} aria-hidden /> 오프라인에서 일부 과만 안 보여요.</>,
         a: (
           <>
             <p className="mb-2">
@@ -782,7 +816,7 @@ function TroubleshootSection(): JSX.Element {
         ),
       },
       {
-        q: '🔍 검색 결과가 안 나와요.',
+        q: <><Search size={14} aria-hidden /> 검색 결과가 안 나와요.</>,
         a: (
           <>
             <ul className="list-disc pl-5 space-y-1 text-fg/90">
@@ -803,7 +837,7 @@ function TroubleshootSection(): JSX.Element {
         ),
       },
       {
-        q: '📐 화면이 잘리거나 버튼이 가려져요.',
+        q: <><Ruler size={14} aria-hidden /> 화면이 잘리거나 버튼이 가려져요.</>,
         a: (
           <>
             <ul className="list-disc pl-5 space-y-1 text-fg/90">
@@ -824,7 +858,7 @@ function TroubleshootSection(): JSX.Element {
         ),
       },
       {
-        q: '🔗 앱 안의 링크가 외부 브라우저로 열려요. (iPhone)',
+        q: <><LinkIcon size={14} aria-hidden /> 앱 안의 링크가 외부 브라우저로 열려요. (iPhone)</>,
         a: (
           <>
             <p className="mb-2">
@@ -833,14 +867,19 @@ function TroubleshootSection(): JSX.Element {
             <ul className="list-disc pl-5 space-y-1 text-fg/90">
               <li>다시 앱으로 돌아오려면 화면 좌측 상단의 <b>‹ SMCB</b>를 탭하세요.</li>
               <li>
-                계속 외부 브라우저로 열리면 iOS의 기본 브라우저가 Safari가 아닐 수 있어요. <b>설정 → 앱 → 기본 앱 → 웹 브라우저</b>에서 Safari 선택.
+                계속 외부 브라우저로 열리면 iOS 기본 브라우저가 Safari가 아닐 수 있어요.
+                <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                  <li><b>iOS 18+</b>: 설정 → <b>앱</b> → <b>기본 앱</b> → <b>웹 브라우저</b> → Safari.</li>
+                  <li><b>iOS 17 이하</b>: 설정 → <b>Safari</b> 또는 사용 중인 브라우저 앱(Chrome 등) → <b>기본 브라우저 앱</b>.</li>
+                  <li>경로가 안 보이면 설정 검색창에 <b>"기본 브라우저"</b>를 입력하세요.</li>
+                </ul>
               </li>
             </ul>
           </>
         ),
       },
       {
-        q: '🔋 배터리 절약 모드에서 음성이 끊기거나 멈춰요. (Android)',
+        q: <><BatteryLow size={14} aria-hidden /> 배터리 절약 모드에서 음성이 끊기거나 멈춰요. (Android)</>,
         a: (
           <>
             <p className="mb-2">
@@ -848,13 +887,16 @@ function TroubleshootSection(): JSX.Element {
             </p>
             <ol className="list-decimal pl-5 space-y-1 text-fg/90">
               <li>
-                <b>설정 → 디바이스 관리 → 배터리</b>에서 절전 모드를 끄거나 SMCB를 예외로 추가.
+                <b>Samsung Galaxy</b>: <b>설정 → 디바이스 관리(또는 배터리 및 디바이스 관리) → 배터리</b>에서 절전 모드 끄기, 또는 <b>앱 → SMCB → 배터리 → "제한 없음"</b>.
               </li>
               <li>
-                <b>설정 → 연결 → 데이터 절약</b>에서 SMCB를 <b>"제한 없음"</b>으로 설정.
+                <b>Pixel·기타 Android</b>: <b>설정 → 배터리 → 절전 모드</b>를 끄거나, <b>설정 → 앱 → SMCB → 배터리 → "제한 없음"</b>.
               </li>
               <li>
-                Chrome 자체의 <b>"Lite 모드"</b>가 켜져 있으면 끄세요. (Chrome ⋮ → 설정 → Lite 모드)
+                Chrome 데이터 절약: <b>Chrome ⋮ → 설정 → 사이트 설정</b>에서 차단된 항목이 없는지 확인. <span className="text-muted">(Chrome 100 이후 "Lite 모드"는 제거되었습니다.)</span>
+              </li>
+              <li>
+                메뉴 위치는 제조사·OS 버전에 따라 다릅니다. 안 보이면 설정 검색창에 <b>"배터리"</b>를 입력하세요.
               </li>
             </ol>
           </>
@@ -867,7 +909,7 @@ function TroubleshootSection(): JSX.Element {
   return (
     <section>
       <SectionHeader
-        title="🛠️ 자주 발생하는 오류"
+        title={<><Wrench size={18} aria-hidden /> 자주 발생하는 오류</>}
         subtitle="증상을 탭하면 해결 방법이 펼쳐집니다."
       />
       <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
@@ -889,7 +931,7 @@ function TroubleItem({ q, a }: Trouble): JSX.Element {
         aria-expanded={open}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
-        <span className="text-sm font-semibold text-fg">{q}</span>
+        <span className="text-sm font-semibold text-fg inline-flex items-center gap-2">{q}</span>
         <ChevronDown
           size={18}
           aria-hidden
@@ -908,7 +950,7 @@ function TroubleItem({ q, a }: Trouble): JSX.Element {
 // 5) FAQ 아코디언
 // ─────────────────────────────────────────────────────────────────────────────
 
-type FAQ = { q: string; a: JSX.Element };
+type FAQ = { q: ReactNode; a: JSX.Element };
 
 function FAQSection(): JSX.Element {
   const faqs: FAQ[] = useMemo(
@@ -995,13 +1037,47 @@ function FAQSection(): JSX.Element {
           </p>
         ),
       },
+      {
+        q: '학습 진도를 백업하거나 다른 기기로 옮길 수 있나요?',
+        a: (
+          <>
+            <p className="mb-1">
+              현재 자동 백업·동기화 기능은 없습니다. (서버가 없기 때문이에요.) 다음 방법을 권장합니다.
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>플래시카드에 추가한 ⭐ 즐겨찾기 단어 목록을 메모 앱이나 사진으로 보관.</li>
+              <li>주로 사용할 기기 하나를 정해 그 기기에서만 학습하기.</li>
+              <li>기기 변경 시: 새 기기에서 처음부터 다시 시작 → 진도 표시는 책갈피처럼 활용.</li>
+            </ul>
+          </>
+        ),
+      },
+      {
+        q: '검색 결과가 옛 데이터인 것 같아요 / 단어가 안 나와요.',
+        a: (
+          <p>
+            ⚙️ <b>설정 → 저장 공간 → 콘텐츠 캐시 비우기</b>를 누른 뒤 검색을 다시 사용하면 인덱스가 새로 받아집니다. (학습 진도는 유지됩니다.)
+          </p>
+        ),
+      },
+      {
+        q: '용어가 어려워요 — PWA, 서비스워커, ITP가 뭔가요?',
+        a: (
+          <ul className="list-disc pl-5 space-y-1">
+            <li><b>PWA(홈 화면 앱)</b>: 일반 앱처럼 홈 화면에 아이콘이 생기고 인터넷 없이도 열리는 웹앱 형식.</li>
+            <li><b>서비스워커(앱 캐시)</b>: 본문·음성 버튼을 단말기에 저장해 두는 작은 도우미. 오프라인 사용을 가능하게 합니다.</li>
+            <li><b>ITP(Apple 자동 삭제 정책)</b>: iPhone Safari가 7일 이상 안 쓴 사이트의 데이터를 자동 지우는 보안 정책. 홈 화면 앱으로 설치하면 이 제한을 받지 않아요.</li>
+            <li><b>voiceschanged(음성 목록 갱신)</b>: 단말기에 새 음성팩을 받았을 때 브라우저가 목록을 새로고침하는 신호.</li>
+          </ul>
+        ),
+      },
     ],
     [],
   );
 
   return (
     <section>
-      <SectionHeader title="❓ 자주 묻는 질문" />
+      <SectionHeader title={<><HelpCircle size={18} aria-hidden /> 자주 묻는 질문</>} />
       <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
         {faqs.map((f, i) => (
           <FAQItem key={i} q={f.q} a={f.a} />
@@ -1021,7 +1097,7 @@ function FAQItem({ q, a }: FAQ): JSX.Element {
         aria-expanded={open}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
-        <span className="text-sm font-semibold text-fg">{q}</span>
+        <span className="text-sm font-semibold text-fg inline-flex items-center gap-2">{q}</span>
         <ChevronDown
           size={18}
           aria-hidden
@@ -1033,29 +1109,6 @@ function FAQItem({ q, a }: FAQ): JSX.Element {
       </button>
       {open && <div className="px-4 pb-3 text-sm text-muted">{a}</div>}
     </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6) 문의
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ContactSection(): JSX.Element {
-  return (
-    <section>
-      <SectionHeader title="✉️ 문의 / 오타 신고" />
-      <div className="rounded-2xl border border-divider bg-surface p-4 text-sm text-fg space-y-2">
-        <p>
-          본문 오타·발음 오류·기능 제안은 담당 선생님께 알려 주세요. (연락처는 안내 페이지 참고)
-        </p>
-        <a
-          href="/about"
-          className="inline-flex items-center gap-1.5 text-primary font-semibold"
-        >
-          <Mail size={14} aria-hidden /> 안내 페이지로 가기
-        </a>
-      </div>
-    </section>
   );
 }
 

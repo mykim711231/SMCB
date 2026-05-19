@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, Share, Plus, X, ChevronDown } from 'lucide-react';
+import { Share, Plus, X, ChevronDown, Download, Lightbulb } from 'lucide-react';
+import AppleLogo from '@/components/AppleLogo';
+import AndroidLogo from '@/components/AndroidLogo';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -28,12 +30,16 @@ function isIOSSafari(): boolean {
   return !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
 }
 
-export default function InstallPrompt(): JSX.Element | null {
+type InstallPromptProps = {
+  defaultExpanded?: boolean;
+};
+
+export default function InstallPrompt({ defaultExpanded = false }: InstallPromptProps = {}): JSX.Element | null {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [installed, setInstalled] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -83,8 +89,8 @@ export default function InstallPrompt(): JSX.Element | null {
           className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left"
         >
           <span className="min-w-0">
-            <span className="block text-sm font-bold text-fg">
-              📱 홈 화면에 앱으로 설치
+            <span className="block text-sm font-bold text-fg inline-flex items-center gap-1.5">
+              <Download size={14} aria-hidden /> 홈 화면에 앱으로 설치
             </span>
             <span className="block text-xs text-muted mt-0.5">
               {expanded ? '접기' : '탭하여 설치 방법 보기'}
@@ -110,7 +116,7 @@ export default function InstallPrompt(): JSX.Element | null {
                 disabled={!androidAvailable}
                 className="inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Smartphone size={16} aria-hidden />
+                <AndroidLogo size={16} />
                 Android에 설치
               </button>
               <button
@@ -119,7 +125,8 @@ export default function InstallPrompt(): JSX.Element | null {
                 disabled={!iosAvailable}
                 className="inline-flex items-center gap-1.5 rounded-full bg-white text-primary text-sm font-semibold px-4 py-2 border border-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🍎 iPhone에 설치
+                <AppleLogo size={14} />
+                iPhone에 설치
               </button>
             </div>
             {!androidAvailable && !iosAvailable && (
@@ -159,8 +166,9 @@ function IOSInstallModal({ onClose }: { onClose: () => void }): JSX.Element {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h3 id="ios-install-title" className="text-lg font-bold text-fg">
-            🍎 iPhone에 설치하기
+          <h3 id="ios-install-title" className="text-lg font-bold text-fg inline-flex items-center gap-2">
+            <AppleLogo size={18} />
+            iPhone에 설치하기
           </h3>
           <button
             type="button"
@@ -205,9 +213,9 @@ function IOSInstallModal({ onClose }: { onClose: () => void }): JSX.Element {
             </span>
           </li>
         </ol>
-        <p className="text-xs text-muted mt-4 pt-3 border-t border-divider">
-          💡 Chrome·다른 브라우저로 보고 계시면 Safari에서 이 페이지를 다시
-          열어주세요.
+        <p className="text-xs text-muted mt-4 pt-3 border-t border-divider inline-flex items-start gap-1.5">
+          <Lightbulb size={14} aria-hidden className="flex-none mt-0.5" />
+          <span>Chrome·다른 브라우저로 보고 계시면 Safari에서 이 페이지를 다시 열어주세요.</span>
         </p>
         <button
           type="button"

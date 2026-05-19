@@ -6,7 +6,8 @@ const Home = lazy(() => import('./pages/Home'));
 const Toc = lazy(() => import('./pages/Toc'));
 const Lesson = lazy(() => import('./pages/Lesson'));
 const Search = lazy(() => import('./pages/Search'));
-const Flashcards = lazy(() => import('./pages/Flashcards'));
+const Learn = lazy(() => import('./pages/Learn'));
+const Hanzi = lazy(() => import('./pages/Hanzi'));
 const Settings = lazy(() => import('./pages/Settings'));
 const About = lazy(() => import('./pages/About'));
 const Appendix = lazy(() => import('./pages/Appendix'));
@@ -30,7 +31,11 @@ export default function App(): JSX.Element {
           <Route path="/toc/:vol" element={<Toc />} />
           <Route path="/lesson/:id" element={<Lesson />} />
           <Route path="/search" element={<Search />} />
-          <Route path="/flashcards" element={<Flashcards />} />
+          <Route path="/learn" element={<Learn />} />
+          {/* 구 경로 호환: 북마크/외부 링크 보존 */}
+          <Route path="/flashcards" element={<Navigate to="/learn?mode=flashcard" replace />} />
+          <Route path="/quiz" element={<Navigate to="/learn?mode=sentence" replace />} />
+          <Route path="/hanzi" element={<Hanzi />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
           <Route path="/help" element={<Help />} />

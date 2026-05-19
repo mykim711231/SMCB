@@ -4,11 +4,6 @@ import type { Appendix } from '@/types/lesson';
 import { loadAppendix } from '@/data/loaders';
 import Markdown from '@/components/Markdown';
 
-const TITLES: Record<string, string> = {
-  appendix1: '附录 1 — 중국어 기독교 어휘표',
-  appendix2: '附录 2 — 중국 문화 배경과 선교',
-};
-
 export default function AppendixPage(): JSX.Element {
   const { id } = useParams();
   const [data, setData] = useState<Appendix | null>(null);
@@ -17,9 +12,9 @@ export default function AppendixPage(): JSX.Element {
   useEffect(() => {
     let alive = true;
     if (!id) return;
-    loadAppendix(id as Appendix['id']).then((a) => {
+    loadAppendix(id).then((a) => {
       if (!alive) return;
-      if (!a) setError('부록을 찾을 수 없습니다.');
+      if (!a) setError('자료를 찾을 수 없습니다.');
       else setData(a);
     });
     return () => {
@@ -41,7 +36,7 @@ export default function AppendixPage(): JSX.Element {
 
   return (
     <article className="space-y-4">
-      <h1 className="text-xl font-bold text-fg">{TITLES[id] ?? data.title}</h1>
+      <h1 className="text-xl font-bold text-fg">{data.title}</h1>
       <div className="bg-surface border border-divider rounded-2xl p-4 sm:p-5">
         <Markdown source={data.markdown} />
       </div>

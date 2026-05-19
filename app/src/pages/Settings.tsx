@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Trash2, RefreshCw } from 'lucide-react';
-import { useSettings, type Theme, type FontSize } from '@/stores/settings';
+import { Link } from 'react-router-dom';
+import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight } from 'lucide-react';
+import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection } from '@/stores/settings';
+import type { SRSAlgorithm } from '@/stores/srs';
 import { useProgress } from '@/stores/progress';
 import { useFavorites } from '@/stores/favorites';
 import { useSRS } from '@/stores/srs';
@@ -41,7 +43,7 @@ export default function Settings(): JSX.Element {
     await dbClearAll();
     useProgress.setState({ byId: {}, lastLessonId: null });
     useFavorites.setState({ items: {} });
-    useSRS.setState({ cards: {} });
+    useSRS.setState({ cards: {}, newCardsByDate: {}, reviewsByDate: {} });
     setMsg('모든 데이터가 초기화되었습니다.');
     refreshStorage();
   };
@@ -123,7 +125,7 @@ export default function Settings(): JSX.Element {
         </div>
         {voices.length === 0 && isSupported() && (
           <div className="mt-3 rounded-2xl border border-accent/30 bg-accent/10 p-4 text-sm text-fg">
-            <p className="font-bold mb-2">⚠️ 중국어 음성이 감지되지 않았습니다</p>
+            <p className="font-bold mb-2 inline-flex items-center gap-1.5"><AlertTriangle size={16} aria-hidden /> 중국어 음성이 감지되지 않았습니다</p>
             {isIOS() ? (
               <>
                 <p className="mb-2">아이폰에서 중국어 음성팩을 다운로드해 주세요:</p>
@@ -147,13 +149,90 @@ export default function Settings(): JSX.Element {
         )}
         {isIOS() && isStandalonePWA() && voices.length > 0 && (
           <div className="mt-3 rounded-2xl border border-divider bg-primary-soft p-4 text-sm text-fg">
-            <p className="font-bold mb-1">ℹ️ 음성이 재생되지 않으면</p>
+            <p className="font-bold mb-1 inline-flex items-center gap-1.5"><Info size={16} aria-hidden /> 음성이 재생되지 않으면</p>
             <p className="text-muted">
               아이폰에서 홈 화면 앱(PWA)으로 열면 iOS 17.4 미만 버전은 음성 재생이 막힐 수 있습니다.
               그럴 땐 Safari로 페이지를 다시 열어 시도해 주세요.
             </p>
           </div>
         )}
+      </section>
+
+      <section>
+        <SectionHeader title="플래시카드" subtitle="복습 알고리즘과 일일 학습량을 조절합니다." />
+        <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
+          <Row label="채점 단계">
+            <Segmented
+              value={String(s.fcGrades)}
+              options={[
+                { v: '2', l: '2단계' },
+                { v: '4', l: '4단계' },
+              ]}
+              onChange={(v) => s.setFcGrades(Number(v) as FlashcardGrades)}
+            />
+          </Row>
+          <Row label="알고리즘">
+            <Segmented
+              value={s.fcAlgorithm}
+              options={[
+                { v: 'leitner', l: 'Leitner' },
+                { v: 'sm2', l: 'SM-2' },
+              ]}
+              onChange={(v) => s.setFcAlgorithm(v as SRSAlgorithm)}
+            />
+          </Row>
+          <Row label="문제 방향(기본)">
+            <Segmented
+              value={s.fcDirection}
+              options={[
+                { v: 'zh2ko', l: '中→韓' },
+                { v: 'ko2zh', l: '韓→中' },
+                { v: 'mixed', l: '혼합' },
+              ]}
+              onChange={(v) => s.setFcDirection(v as FlashcardDirection)}
+            />
+          </Row>
+          <Row label="카드 종류 (기본)">
+            <div className="flex flex-wrap gap-1.5">
+              {(['vocab', 'example', 'verse'] as const).map((k) => {
+                const label = k === 'vocab' ? '단어' : k === 'example' ? '예문' : '구절';
+                const on = s.fcCardTypes[k];
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => s.setFcCardTypes({ ...s.fcCardTypes, [k]: !on })}
+                    aria-pressed={on}
+                    className={cn(
+                      'rounded-full px-3 py-1 text-xs font-semibold border',
+                      on ? 'bg-primary text-white border-primary' : 'bg-surface text-muted border-divider',
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </Row>
+          <Row label="자동 음성 재생">
+            <Toggle on={s.fcAutoplay} onClick={() => s.setFcAutoplay(!s.fcAutoplay)} />
+          </Row>
+          <Row label="오디오 마라톤 모드">
+            <Toggle on={s.fcAudioMarathon} onClick={() => s.setFcAudioMarathon(!s.fcAudioMarathon)} />
+          </Row>
+          <Row label={`일일 학습 목표: ${s.fcDailyGoal === 0 ? '비활성' : `${s.fcDailyGoal}장`}`}>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={s.fcDailyGoal}
+              onChange={(e) => s.setFcDailyGoal(Number(e.target.value))}
+              className="w-32"
+              aria-label="일일 학습 목표"
+            />
+          </Row>
+        </div>
       </section>
 
       <section>
@@ -204,6 +283,22 @@ export default function Settings(): JSX.Element {
             </button>
           </div>
           {msg && <p className="text-sm text-success pt-1">{msg}</p>}
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader title="정보" />
+        <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
+          <Link
+            to="/about"
+            className="flex items-center justify-between gap-3 px-4 py-3 text-fg hover:bg-primary-soft"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Info size={16} className="text-primary" aria-hidden />
+              앱 정보 · SMCB 소개
+            </span>
+            <ChevronRight size={16} className="text-muted" aria-hidden />
+          </Link>
         </div>
       </section>
     </div>

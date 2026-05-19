@@ -73,8 +73,11 @@ export type LessonMeta = {
   titleKo: string;
 };
 
+export type AppendixCategory = 'appendix' | 'pronunciation';
+
 export type Appendix = {
-  id: 'appendix1' | 'appendix2';
+  id: string;
+  category: AppendixCategory;
   title: string;
   markdown: string;
 };

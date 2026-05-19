@@ -6,12 +6,16 @@
  * No dependencies; safe because all input is built-in data.
  */
 import { Fragment } from 'react';
+import TTSButton from './TTSButton';
 
 type Block =
   | { kind: 'h'; level: 1 | 2 | 3; text: string }
   | { kind: 'p'; text: string }
   | { kind: 'ul'; items: string[] }
+  | { kind: 'ol'; start: number; items: string[] }
   | { kind: 'table'; headers: string[]; rows: string[][] };
+
+const OL_RE = /^\s*(\d+)\.\s+(.*)$/;
 
 function splitRow(line: string): string[] {
   const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
@@ -67,6 +71,22 @@ function parse(md: string): Block[] {
       continue;
     }
 
+    // Ordered list (1. ..., 2. ...)
+    const olMatch = line.match(OL_RE);
+    if (olMatch) {
+      const start = parseInt(olMatch[1], 10);
+      const items: string[] = [olMatch[2].trim()];
+      i++;
+      while (i < lines.length) {
+        const m = lines[i].match(OL_RE);
+        if (!m) break;
+        items.push(m[2].trim());
+        i++;
+      }
+      blocks.push({ kind: 'ol', start, items });
+      continue;
+    }
+
     // Paragraph (collect consecutive non-empty, non-special lines)
     const buf: string[] = [line.trim()];
     i++;
@@ -75,6 +95,7 @@ function parse(md: string): Block[] {
       lines[i].trim() &&
       !/^#{1,3}\s+/.test(lines[i]) &&
       !/^\s*[-*]\s+/.test(lines[i]) &&
+      !OL_RE.test(lines[i]) &&
       !lines[i].trim().startsWith('|')
     ) {
       buf.push(lines[i].trim());
@@ -87,11 +108,23 @@ function parse(md: string): Block[] {
 }
 
 function renderInline(text: string): JSX.Element {
-  // Split on **bold** while keeping pieces; render bold for odd-indexed segments.
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  // Split on {{tts:...}} or **bold** while keeping pieces.
+  const parts = text.split(/(\{\{tts:[^}]+\}\}|\*\*[^*]+\*\*)/g);
   return (
     <>
       {parts.map((p, idx) => {
+        const ttsMatch = p.match(/^\{\{tts:([^}]+)\}\}$/);
+        if (ttsMatch) {
+          return (
+            <TTSButton
+              key={idx}
+              text={ttsMatch[1]}
+              label={`${ttsMatch[1]} 발음 듣기`}
+              size="sm"
+              className="align-middle mx-0.5"
+            />
+          );
+        }
         if (/^\*\*[^*]+\*\*$/.test(p)) {
           return (
             <strong key={idx} className="font-semibold text-fg">
@@ -143,6 +176,19 @@ export default function Markdown({ source }: { source: string }): JSX.Element {
                 <li key={i2}>{renderInline(it)}</li>
               ))}
             </ul>
+          );
+        }
+        if (b.kind === 'ol') {
+          return (
+            <ol
+              key={idx}
+              start={b.start}
+              className="list-decimal pl-6 space-y-1 text-sm sm:text-base text-fg/95"
+            >
+              {b.items.map((it, i2) => (
+                <li key={i2}>{renderInline(it)}</li>
+              ))}
+            </ol>
           );
         }
         // table

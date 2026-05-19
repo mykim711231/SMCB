@@ -1,16 +1,19 @@
-import { NavLink } from 'react-router-dom';
-import { Home, BookOpen, Search, Layers, HelpCircle } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { Home, BookOpen, Search, GraduationCap, Settings as SettingsIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 const items = [
   { to: '/', label: '홈', icon: Home, end: true },
   { to: '/toc', label: '목차', icon: BookOpen, end: false },
   { to: '/search', label: '검색', icon: Search, end: false },
-  { to: '/flashcards', label: '플래시', icon: Layers, end: false },
-  { to: '/help', label: '도움말', icon: HelpCircle, end: false },
+  { to: '/learn', label: '학습', icon: GraduationCap, end: false },
+  { to: '/settings', label: '설정', icon: SettingsIcon, end: false },
 ];
 
 export default function BottomNav(): JSX.Element {
+  const loc = useLocation();
+  // 구 경로(/flashcards, /quiz)에서도 '학습' 탭 활성화 표시 (redirect 직전 한 프레임 깜빡임 방지)
+  const onLegacyLearn = loc.pathname === '/flashcards' || loc.pathname === '/quiz';
   return (
     <nav
       aria-label="주요 메뉴"
@@ -25,7 +28,9 @@ export default function BottomNav(): JSX.Element {
               className={({ isActive }) =>
                 cn(
                   'flex flex-col items-center justify-center py-2 gap-0.5 min-h-[56px] text-xs',
-                  isActive ? 'text-primary font-semibold' : 'text-muted',
+                  (isActive || (to === '/learn' && onLegacyLearn))
+                    ? 'text-primary font-semibold'
+                    : 'text-muted',
                 )
               }
             >

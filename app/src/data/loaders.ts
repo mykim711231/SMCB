@@ -42,7 +42,7 @@ export async function loadAppendices(): Promise<Appendix[]> {
   return appendicesCache;
 }
 
-export async function loadAppendix(id: Appendix['id']): Promise<Appendix | undefined> {
+export async function loadAppendix(id: string): Promise<Appendix | undefined> {
   const list = await loadAppendices();
   return list.find((a) => a.id === id);
 }

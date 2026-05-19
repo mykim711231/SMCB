@@ -14,6 +14,7 @@ import type {
   Question,
   Appendix,
 } from '../src/types/lesson.ts';
+import { tokenizeChinese } from '../src/lib/zh-tokenize';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..');
@@ -385,22 +386,88 @@ function main() {
   writeFileSync(join(OUT_DIR, 'lessons-meta.json'), JSON.stringify(meta));
   console.log(`  lessons-meta.json  (${meta.length} entries)`);
 
-  // Appendices
+  // Appendices + Pronunciation (same data model, unified JSON file)
   const appendices: Appendix[] = [];
+
+  const extractTitleAndBody = (md: string, fallback: string): { title: string; body: string } => {
+    const lines = md.split(/\r?\n/);
+    const firstIdx = lines.findIndex((l) => l.trim().length > 0);
+    if (firstIdx === -1) return { title: fallback, body: md };
+    const firstLine = lines[firstIdx];
+    const title = firstLine.replace(/^#\s*/, '').trim();
+    const body = [...lines.slice(0, firstIdx), ...lines.slice(firstIdx + 1)].join('\n').replace(/^\s+/, '');
+    return { title, body };
+  };
+
+  // 1) Pronunciation: 发音*.md  (listed first so they appear before 附录 in the UI)
+  const pronFiles = readdirSync(DOC_DIR).filter((f) => f.startsWith('发音') && f.endsWith('.md'));
+  pronFiles.sort();
+  for (let i = 0; i < pronFiles.length; i++) {
+    const f = pronFiles[i];
+    const md = readFileSync(join(DOC_DIR, f), 'utf-8');
+    const { title, body } = extractTitleAndBody(md, f);
+    appendices.push({
+      id: `pronunciation${i + 1}`,
+      category: 'pronunciation',
+      title,
+      markdown: body,
+    });
+  }
+
+  // 2) Appendices: 附录*.md
   const appendixFiles = readdirSync(DOC_DIR).filter((f) => f.startsWith('附录') && f.endsWith('.md'));
   appendixFiles.sort();
   for (let i = 0; i < appendixFiles.length; i++) {
     const f = appendixFiles[i];
     const md = readFileSync(join(DOC_DIR, f), 'utf-8');
-    const firstLine = md.split(/\r?\n/).find((l) => l.trim().length > 0) ?? f;
+    const { title, body } = extractTitleAndBody(md, f);
     appendices.push({
-      id: `appendix${i + 1}` as Appendix['id'],
-      title: firstLine.replace(/^#\s*/, '').trim(),
-      markdown: md,
+      id: `appendix${i + 1}`,
+      category: 'appendix',
+      title,
+      markdown: body,
     });
   }
+
   writeFileSync(join(OUT_DIR, 'appendices.json'), JSON.stringify(appendices));
-  console.log(`  appendices.json  (${appendices.length} appendices)`);
+  console.log(`  appendices.json  (${appendices.length} items: ${pronFiles.length} pronunciation + ${appendixFiles.length} appendix)`);
+
+  // 중국어 토큰 매니페스트 — 빌드타임에 모든 zh 문자열을 토큰화하여 저장.
+  // Why: 런타임의 Intl.Segmenter('zh','word')는 브라우저 ICU 버전에 따라 결과가
+  //   달라져 같은 문장이 다른 토큰 시퀀스로 분할될 수 있다. 빌드 환경(Node)에서
+  //   사전계산해두면 모든 사용자가 동일한 토큰을 본다.
+  // 수집 대상: 게임/검색에 사용 가능한 모든 zh 원천.
+  //   - body, vocab.word, vocab.example.zh, pronunciation.hanzi
+  //   - grammar.examples.zh, bible.text.zh
+  //   - dialogDaily/Gospel.lines.zh, questions.zh
+  const zhSet = new Set<string>();
+  const addZh = (s: string | undefined | null): void => {
+    if (!s) return;
+    const t = s.trim();
+    if (!t) return;
+    zhSet.add(t);
+  };
+  for (const l of allLessons) {
+    addZh(l.titleZh);
+    for (const v of l.body) addZh(v.zh);
+    for (const v of l.vocab) {
+      addZh(v.word);
+      if (v.example) addZh(v.example.zh);
+    }
+    for (const p of l.pronunciation) addZh(p.hanzi);
+    for (const g of l.grammar) for (const e of g.examples) addZh(e.zh);
+    for (const b of l.bible) addZh(b.text.zh);
+    for (const d of l.dialogDaily) for (const ln of d.lines) addZh(ln.zh);
+    for (const d of l.dialogGospel) for (const ln of d.lines) addZh(ln.zh);
+    for (const q of l.questions) addZh(q.zh);
+  }
+  const tokenManifest: Record<string, string[]> = {};
+  for (const zh of zhSet) {
+    const tokens = tokenizeChinese(zh);
+    if (tokens.length > 0) tokenManifest[zh] = tokens;
+  }
+  writeFileSync(join(OUT_DIR, 'zh-tokens.json'), JSON.stringify(tokenManifest));
+  console.log(`  zh-tokens.json  (${Object.keys(tokenManifest).length} entries)`);
 
   // Stats
   const totalVerses = allLessons.reduce((s, l) => s + l.body.length, 0);
