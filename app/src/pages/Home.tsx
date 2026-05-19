@@ -95,26 +95,6 @@ async function copyToClipboard(text: string): Promise<'copied' | 'failed'> {
   return 'failed';
 }
 
-/**
- * "주소 복사하기" 버튼이 클립보드에 넣을 텍스트를 만든다.
- *   - 일반 브라우저(PWA 포함): "Safari·Chrome 등 다른 브라우저 주소창에 붙여넣어 여세요." 안내 + URL.
- *     받는 사람이 카톡으로 받아 인앱 브라우저로 열렸을 때도 다음 단계가 명확함.
- *   - 카톡/네이버 등 인앱 브라우저: 강한 경고문("음성·설치 안 됨") + 디바이스 권장 브라우저 안내 + URL.
- */
-function buildInviteUrlText(opts: { withGuide?: boolean; ios?: boolean } = {}): string {
-  if (opts.withGuide) {
-    const browser = opts.ios ? 'Safari' : 'Chrome';
-    const objectParticle = opts.ios ? '를' : '을';
-    return `※ 카카오톡 등 인앱 브라우저에서는 음성 재생·앱 설치가 동작하지 않습니다.
-${browser}${objectParticle} 열고 주소창에 아래 주소를 붙여넣어 여세요.
-
-${INVITE_URL}`;
-  }
-  return `Safari · Chrome 등 다른 브라우저 주소창에 붙여넣어 여세요.
-
-${INVITE_URL}`;
-}
-
 function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const ios = isIOSDevice();
@@ -124,8 +104,11 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
   const directionParticle = ios ? '로' : '으로'; // …(으)로 열기
 
   const copyUrl = async (): Promise<void> => {
-    const text = buildInviteUrlText({ withGuide: true, ios });
-    const r = await copyToClipboard(text);
+    // 주소창에 그대로 붙여넣을 수 있도록 클립보드에는 깨끗한 URL 만 넣는다.
+    // 안내문은 이 배너의 본문에 이미 시각적으로 표시되어 있어, 클립보드에 추가하면
+    // 사용자가 주소창에 붙여넣을 때 URL 앞에 한글이 끼어 주소창이 검색 쿼리로
+    // 처리하는 문제가 생긴다.
+    const r = await copyToClipboard(INVITE_URL);
     if (r !== 'copied') return;
     setCopied(true);
     window.setTimeout(() => setCopied(false), 3000);
