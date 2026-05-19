@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight, Download, Loader2, CheckCircle2 } from 'lucide-react';
-import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection, type UserMode } from '@/stores/settings';
+import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection } from '@/stores/settings';
 import type { SRSAlgorithm } from '@/stores/srs';
 import { useProgress } from '@/stores/progress';
 import { useFavorites } from '@/stores/favorites';
@@ -103,7 +103,13 @@ export default function Settings(): JSX.Element {
                 { v: 'device', l: '기기 음성' },
                 { v: 'recorded', l: '녹음 음성' },
               ]}
-              onChange={(v) => s.setUserMode(v as UserMode)}
+              onChange={(v) => {
+                // Segmented 옵션은 'device'|'recorded'만 노출되므로 narrow 가능.
+                // UserMode는 null도 포함하지만 사용자가 null로 되돌리는 UI 없음.
+                if (v === 'device' || v === 'recorded') {
+                  s.setUserMode(v);
+                }
+              }}
             />
           </Row>
         </div>

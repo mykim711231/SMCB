@@ -6,6 +6,7 @@
  */
 import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
+import { stop as stopTTS } from '@/lib/tts';
 import type { SRSAlgorithm } from '@/stores/srs';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -156,6 +157,15 @@ function migrateUserMode<T extends { userMode: unknown }>(s: T): T {
   return { ...s, userMode: null };
 }
 
+// 다운로드 중 앱이 종료/탭이 닫혔다면 다음 hydrate 시 'downloading'이 남아 있다.
+// 이 상태는 UX상 영원히 "받는 중"으로 보이는 stale 상태이므로 'skipped'로 정규화.
+// 진행률은 그대로 보존(부분 완료 표시).
+function normalizeBulkStatus<T extends { ttsBulkStatus: unknown }>(s: T): T {
+  const v = s.ttsBulkStatus as string | undefined;
+  if (v === 'downloading') return { ...s, ttsBulkStatus: 'skipped' };
+  return s;
+}
+
 // 진행률(setTTSBulkProgress)은 2,534건 동안 매번 fire 되므로
 // IDB write를 1초 throttle한다. 마지막 값은 setTTSBulkStatus(done|partial) 시
 // 함께 persist되므로 누락 없음.
@@ -193,7 +203,17 @@ export const useSettings = create<SettingsState>((set, get) => ({
   },
   setFcDailyGoal: (n) => { const v = Math.max(0, Math.floor(n)); set({ fcDailyGoal: v }); void persist({ ...get(), fcDailyGoal: v }); },
   setFcAudioMarathon: (b) => { set({ fcAudioMarathon: b }); void persist({ ...get(), fcAudioMarathon: b }); },
-  setUserMode: (m) => { set({ userMode: m }); void persist({ ...get(), userMode: m }); },
+  setUserMode: (m) => {
+    // 모드 전환 시 진행 중인 음성/오디오를 즉시 종료한다.
+    //   - 직전 utterance가 살아남아 새 모드와 다른 경로에서 끝나면
+    //     onEnd/onError가 잘못된 모드 컨텍스트에서 발화한다.
+    //   - tts.stop()은 epoch를 증가시켜 in-flight 비동기도 무효화한다.
+    if (get().userMode !== m) {
+      try { stopTTS(); } catch { /* ignore */ }
+    }
+    set({ userMode: m });
+    void persist({ ...get(), userMode: m });
+  },
   setTTSBulkStatus: (s) => { set({ ttsBulkStatus: s }); void persist({ ...get(), ttsBulkStatus: s }); },
   setTTSBulkProgress: (p) => {
     // 진행률은 매 청크마다 갱신되므로 persist는 1초당 1회로 throttle.
@@ -204,7 +224,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   hydrate: async () => {
     const v2 = await dbGet<Partial<Persisted>>(DB_KEY);
     if (v2) {
-      const merged = migrateUserMode({ ...DEFAULTS, ...v2 });
+      const merged = normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v2 }));
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
@@ -213,7 +233,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     }
     const v1 = await dbGet<Partial<Persisted>>(DB_KEY_LEGACY);
     if (v1) {
-      const merged = migrateUserMode({ ...DEFAULTS, ...v1 });
+      const merged = normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v1 }));
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);

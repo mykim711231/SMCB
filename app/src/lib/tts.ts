@@ -31,6 +31,16 @@ let unlocked = false;
 let cachedZhVoice: SpeechSynthesisVoice | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 
+// Cancellation epoch — speak()/stop() 시 매번 증가한다.
+// 비동기 분기(awaitVoices, audio.onerror 재시도 등)에서 자신이 시작된
+// epoch와 현재 epoch를 비교하여, stop()이 이후에 호출됐거나 다른 speak()로
+// 대체됐다면 emit/fallback을 건너뛴다.
+// 해결되는 race:
+//   - 빠른 탭에서 첫 utterance의 fallback이 두 번째 utterance를 중첩 trigger
+//   - awaitVoices 도착 시점에 사용자가 stop() — 그래도 language-unavailable이 발화
+//   - userMode 변경 시 (settings.setUserMode → stop() 호출) 직전 speech가 살아남음
+let speakEpoch = 0;
+
 // Chrome/Edge 보이스 비동기 로드 워밍업.
 //  - 일부 Chromium 엔진은 `voiceschanged` 리스너가 한 번이라도 붙어 있어야
 //    실제로 이벤트를 발화한다. 모듈 로드 시 더미 리스너를 등록해 보장한다.
@@ -190,7 +200,7 @@ function stopAudio(): void {
  * 1회만 짧게 재시도한다 (audio.load() + play 재호출). 두 번째 클릭은
  * 캐시/디코드가 끝나 있으므로 항상 1차에 성공. 재시도까지 실패하면 fallback.
  */
-function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void): void {
+function playPrerecorded(url: string, opts: SpeakOptions, epoch: number, fallback: () => void): void {
   stopAudio();
   const a = new Audio();
   a.preload = 'auto';
@@ -198,11 +208,13 @@ function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void):
   a.playbackRate = opts.rate ?? 1;
   a.onended = (): void => {
     if (currentAudio === a) currentAudio = null;
+    if (epoch !== speakEpoch) return;
     opts.onEnd?.();
   };
   let retried = false;
   const giveUp = (): void => {
     if (currentAudio === a) currentAudio = null;
+    if (epoch !== speakEpoch) return; // stop()/새 speak() 이후라면 폴백 차단
     fallback();
   };
   const retry = (): void => {
@@ -212,6 +224,7 @@ function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void):
     }
     retried = true;
     setTimeout(() => {
+      if (epoch !== speakEpoch) return;
       try {
         a.load();
         const p2 = a.play();
@@ -224,7 +237,9 @@ function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void):
   // 파일 누락(404)·디코드 실패는 audio.onerror로 들어온다 → 1회 retry 후 폴백.
   a.onerror = retry;
   currentAudio = a;
-  unlocked = true;
+  // 주의: unlocked 플래그는 SpeechSynthesis용 (iOS gesture). mp3 path에서는
+  // 의미가 없고, 오히려 device 모드 첫 SpeechSynthesis 호출에서 unlock()을
+  // skip하게 만들어 첫 음성이 묵음이 되는 회귀를 일으킨다. 여기서 세팅 금지.
   const p = a.play();
   if (p && typeof p.catch === 'function') {
     p.catch(retry);
@@ -235,18 +250,33 @@ function playPrerecorded(url: string, opts: SpeakOptions, fallback: () => void):
  * 사전녹음 mp3 prefetch — 텍스트가 매니페스트에 있으면 audio 버퍼 다운로드만 시작.
  * 사용자 제스처 직전(mousedown/touchstart)에 호출하면 첫 클릭 재생 안정성 향상.
  * device 모드는 mp3를 쓰지 않으므로 no-op.
+ *
+ * 절약:
+ *   - Data Saver(`connection.saveData=true`) 환경에서는 사용자가 실제 클릭하지
+ *     않은 시점의 prefetch는 비용 부담. 이 경우 skip하고 click 시 정상 경로로만 받는다.
+ *   - 동일 URL에 대한 prefetch는 메모리 set으로 중복 방지(rapid hover/탭 시).
  */
+const prefetched = new Set<string>();
 export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
   if (voiceMode === 'device') return;
   const url = lookupPrerecorded(text);
   if (!url) return;
+  if (prefetched.has(url)) return;
+  // 데이터 절약 모드: prefetch 비활성
+  try {
+    const c = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (c?.saveData) return;
+  } catch {
+    /* ignore */
+  }
+  prefetched.add(url);
   try {
     const a = new Audio();
     a.preload = 'auto';
     a.src = url;
     // 재생하지 않음. 브라우저 HTTP cache + 디코드 버퍼만 채운다.
   } catch {
-    /* ignore */
+    prefetched.delete(url);
   }
 }
 
@@ -267,20 +297,21 @@ export function prefetchAudio(text: string, voiceMode?: VoiceMode): void {
  */
 export function speak(text: string, opts: SpeakOptions = {}): void {
   if (!text) return;
+  const epoch = ++speakEpoch;
   if (opts.voiceMode === 'device') {
-    speakSynth(text, opts);
+    speakSynth(text, opts, epoch);
     return;
   }
   const url = lookupPrerecorded(text);
   if (url) {
     // 사전녹음 경로 — Web Speech 미지원 환경도 동작한다.
-    playPrerecorded(url, opts, () => speakSynth(text, opts));
+    playPrerecorded(url, opts, epoch, () => speakSynth(text, opts, epoch));
     return;
   }
-  speakSynth(text, opts);
+  speakSynth(text, opts, epoch);
 }
 
-function speakSynth(text: string, opts: SpeakOptions): void {
+function speakSynth(text: string, opts: SpeakOptions, epoch: number): void {
   if (!isSupported() || !text) return;
   stopAudio();
   const synth = window.speechSynthesis;
@@ -299,6 +330,9 @@ function speakSynth(text: string, opts: SpeakOptions): void {
   //   띄우게 되므로, awaitVoices()로 한 번 더 기다린 뒤 재선택하여 폴백한다.
   if (!voice) {
     void awaitVoices().then((voices) => {
+      // stop() 또는 새 speak() 이후에 도착한 voiceschanged면 무시.
+      // (모드 전환 직후 false-positive language-unavailable 발화 방지)
+      if (epoch !== speakEpoch) return;
       const retryVoice =
         voices.length === 0
           ? null
@@ -314,19 +348,21 @@ function speakSynth(text: string, opts: SpeakOptions): void {
         }
         return;
       }
-      emitUtterance(text, opts, retryVoice);
+      emitUtterance(text, opts, retryVoice, epoch);
     });
     return;
   }
-  emitUtterance(text, opts, voice);
+  emitUtterance(text, opts, voice, epoch);
 }
 
 function emitUtterance(
   text: string,
   opts: SpeakOptions,
   voice: SpeechSynthesisVoice,
+  epoch: number,
 ): void {
   if (!isSupported()) return;
+  if (epoch !== speakEpoch) return; // 동기 경로에서는 거의 만나지 않지만 안전망
   const synth = window.speechSynthesis;
   const u = new SpeechSynthesisUtterance(text);
   u.voice = voice;
@@ -334,10 +370,63 @@ function emitUtterance(
   cachedZhVoice = voice;
   u.rate = opts.rate ?? 1;
   u.pitch = opts.pitch ?? 1;
-  if (opts.onEnd) u.onend = opts.onEnd;
-  if (opts.onError) u.onerror = opts.onError;
+
+  // iOS PWA silent-fail 워치독 (critical):
+  //   iOS 17.4 미만, iOS 26.0~26.1 회귀 구간에서 standalone PWA가 synth.speak()
+  //   호출 후 onstart/onend/onerror 어느 것도 발화하지 않는 버그가 보고되어 있다.
+  //   결과적으로 호출자(TTSButton)의 speaking 상태가 stuck되고, 사용자는 묵음
+  //   화면을 보고 앱이 망가졌다고 판단하게 된다.
+  //   → onstart가 일정 시간 안에 안 오면 인공 timeout 에러를 발화시켜
+  //     호출자가 안전하게 복구할 수 있도록 한다.
+  //   - 타임아웃: 최소 2.5초, 또는 글자 길이 * 250ms 중 큰 값.
+  //     긴 절(예: 200자)도 cold start 후 첫 onstart까지 보통 0.5~1.5초.
+  //   - onstart가 오면 워치독 해제 (정상 환경).
+  //   - epoch 체크로 stop()/새 speak() 이후의 stale 발화 방지.
+  let started = false;
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
+  const clearWatchdog = (): void => {
+    if (watchdog) {
+      clearTimeout(watchdog);
+      watchdog = null;
+    }
+  };
+  const watchdogMs = Math.max(2500, text.length * 250);
+
+  u.onstart = (): void => {
+    started = true;
+    clearWatchdog();
+  };
+  u.onend = (): void => {
+    clearWatchdog();
+    if (epoch !== speakEpoch) return;
+    opts.onEnd?.();
+  };
+  u.onerror = (e): void => {
+    clearWatchdog();
+    if (epoch !== speakEpoch) return;
+    opts.onError?.(e);
+  };
+
   synth.speak(u);
   unlocked = true;
+
+  watchdog = setTimeout(() => {
+    watchdog = null;
+    if (started) return; // 정상 환경 — onstart가 이미 도착
+    if (epoch !== speakEpoch) return; // stop()/새 speak() 이후
+    // 무한 stuck 회피: utterance를 강제 cancel하고 합성 실패로 통지.
+    // 'synthesis-unavailable'은 ttsErrorReason에 매핑되어 있어 안내 가능.
+    try {
+      synth.cancel();
+    } catch {
+      /* ignore */
+    }
+    const synthetic = {
+      error: 'synthesis-unavailable',
+      utterance: u,
+    } as unknown as SpeechSynthesisErrorEvent;
+    opts.onError?.(synthetic);
+  }, watchdogMs);
 }
 
 export type TTSDiagnostic =
@@ -364,6 +453,9 @@ export function diagnose(): TTSDiagnostic {
 }
 
 export function stop(): void {
+  // epoch 증가로 모든 in-flight 비동기 분기(awaitVoices, audio.onerror retry,
+  // SpeechSynthesisUtterance onend/onerror)를 무효화한다.
+  speakEpoch++;
   stopAudio();
   if (!isSupported()) return;
   try {

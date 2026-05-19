@@ -35,7 +35,17 @@ export async function clearAllCaches(): Promise<number> {
   return names.length;
 }
 
-/** Delete only content caches (keep app shell). */
+/**
+ * Delete only content caches (keep app shell).
+ *
+ * 명시적으로 보존하는 항목 (NEVER 포함시키지 말 것):
+ *  - `tts-audio`        : 사전 녹음 mp3 (20~40MB). 사용자가 명시적으로
+ *                         "녹음 음성"을 선택하고 다운로드까지 받은 자산.
+ *                         이걸 지우면 오프라인에서 음성이 안 나오는 회귀.
+ *  - app shell (precache) : 앱 자체. 지우면 다음 로드에서 깨짐.
+ *
+ * 포함 대상은 본문/검색 데이터처럼 onlineFirst로 복구 가능한 콘텐츠만.
+ */
 export async function clearContentCaches(): Promise<number> {
   if (typeof caches === 'undefined') return 0;
   const names = await caches.keys();

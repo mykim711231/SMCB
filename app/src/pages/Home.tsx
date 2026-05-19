@@ -5,6 +5,7 @@ import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
 import OnboardingCard from '@/components/OnboardingCard';
 import DeviceVoiceMissingBanner from '@/components/DeviceVoiceMissingBanner';
+import RecordedAudioMissingBanner from '@/components/RecordedAudioMissingBanner';
 
 function isInAppBrowser(): { kind: 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram' | null; label: string | null } {
   if (typeof navigator === 'undefined') return { kind: null, label: null };
@@ -57,6 +58,7 @@ export default function Home(): JSX.Element {
       {inApp.label && <InAppBrowserBanner label={inApp.label} />}
       {!inApp.label && <OnboardingCard />}
       {!inApp.label && <DeviceVoiceMissingBanner />}
+      {!inApp.label && <RecordedAudioMissingBanner />}
       {!standalone && !inApp.label && <InstallPrompt defaultExpanded />}
 
       <section className="rounded-2xl bg-primary text-white p-5 sm:p-6 shadow-sm">

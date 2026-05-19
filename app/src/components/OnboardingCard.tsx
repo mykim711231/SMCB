@@ -44,17 +44,34 @@ export default function OnboardingCard(): JSX.Element | null {
     };
   }, []);
 
+  // 외부에서 userMode가 'device'로 바뀌면 (Settings 패널, 다른 배너의 전환 버튼 등)
+  // 현재 진행 중인 mp3 일괄 다운로드를 즉시 abort한다.
+  //   - 카드는 곧 unmount되지만 bulkDownloadAll은 async 루프라 abort signal 없이는
+  //     백그라운드에서 계속 진행돼 데이터/배터리를 낭비한다.
+  //   - userMode === 'recorded' 일 때 의도적으로 시작된 다운로드는 그대로 유지.
+  useEffect(() => {
+    if (userMode === 'device' && running) {
+      abortRef.current?.abort();
+    }
+  }, [userMode, running]);
+
   if (!hydrated) return null;
-  if (userMode !== null) return null;
+  // 모드 선택 단계만 userMode==null로 가드. 사용자가 'recorded'를 고르면
+  // 즉시 mode persist + 다운로드 단계로 전환되므로, recorded-download 화면은
+  // userMode==='recorded'여도 계속 렌더한다.
+  if (step === 'mode' && userMode !== null) return null;
 
   const pickDevice = (): void => {
     setUserMode('device');
   };
 
-  // 녹음 음성 선택 직후에는 userMode를 아직 기록하지 않는다.
-  // 기록하면 컴포넌트가 unmount되어 다운로드 화면이 사라지기 때문.
-  // 실제 기록은 다운로드 종료/닫기 시점에 한 번 수행.
+  // 녹음 음성 선택 즉시 mode를 persist한다 (U3).
+  // 이전엔 다운로드 종료/닫기 시점까지 기록을 미뤘는데,
+  // 그 사이 앱이 강제 종료되면 첫 진입 시 OnboardingCard가 다시 떴다.
+  // 렌더 가드(`step === 'mode' && userMode !== null`)로 카드가 사라지는 것을
+  // 방지하므로 안전하게 즉시 기록 가능.
   const pickRecorded = (): void => {
+    setUserMode('recorded');
     setStep('recorded-download');
   };
 
@@ -77,8 +94,7 @@ export default function OnboardingCard(): JSX.Element | null {
     setTTSBulkProgress({ done: result.done, total: result.total });
     if (result.aborted) {
       setTTSBulkStatus('skipped');
-      // 중지는 사용자가 명시적으로 누른 흐름 — 모드 기록하고 카드 닫음.
-      setUserMode('recorded');
+      // userMode는 pickRecorded()에서 이미 'recorded'로 기록됨.
     } else if (result.failed === 0) {
       setTTSBulkStatus('done');
       // 완료 화면을 잠시 보여준 뒤 [완료] 버튼 클릭 시 unmount.
@@ -87,17 +103,22 @@ export default function OnboardingCard(): JSX.Element | null {
     }
   };
 
-  // "나중에"/"X" — userMode는 recorded로 기록(선호 모드는 정해졌음)하고
-  // 다운로드 상태는 skipped. Settings에서 언제든 재시도 가능.
+  // "나중에"/"X" — 다운로드 상태는 skipped. userMode는 pickRecorded에서 기록됨.
+  // Settings에서 언제든 재시도 가능.
   const skipDownload = (): void => {
     abortRef.current?.abort();
     setTTSBulkStatus('skipped');
-    setUserMode('recorded');
+    // 렌더 가드를 트리거하기 위해 step도 mode로 되돌리면 카드가 사라진다.
+    // 단 userMode === 'recorded'이므로 카드는 이미 닫혀야 함 — step 변경으로 보장.
+    setStep('mode');
   };
 
   // "완료" 또는 다운로드 종료 후 카드 닫기.
+  // userMode는 pickRecorded에서 이미 'recorded'로 기록됨.
+  // step을 'mode'로 되돌려 렌더 가드(`step === 'mode' && userMode !== null`)에
+  // 의해 카드가 unmount되도록 한다.
   const closeCard = (): void => {
-    setUserMode('recorded');
+    setStep('mode');
   };
 
   if (step === 'mode') {

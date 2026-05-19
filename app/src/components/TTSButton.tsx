@@ -5,7 +5,28 @@ import { speak, stop, isSupported, unlock, isIOS, isStandalonePWA, awaitVoices, 
 import { useSettings } from '@/stores/settings';
 import { cn } from '@/lib/cn';
 
+// 같은 에러 다이얼로그를 연속으로 띄우지 않기 위한 가드.
+// 무한 supress가 되지 않도록 reset 트리거:
+//   1) 정상 onEnd (한 번이라도 정상 재생되면 환경이 회복된 것으로 간주)
+//   2) userMode 변경 (device ↔ recorded 전환 = 다른 경로의 새 진단)
+//   3) cooldown 경과 (마지막 표시 후 5분)
+// reset 없이는 사용자가 음성팩을 설치한 뒤에도 안내 다이얼로그가 다시 안 떠서
+// 첫 false-negative 다이얼로그를 봤다면 영원히 silenced 되는 회귀가 있었다.
 let ttsErrorShown = false;
+let ttsErrorShownAt = 0;
+const TTS_ERROR_COOLDOWN_MS = 5 * 60 * 1000;
+function shouldShowTtsError(): boolean {
+  if (!ttsErrorShown) return true;
+  return Date.now() - ttsErrorShownAt > TTS_ERROR_COOLDOWN_MS;
+}
+function markTtsErrorShown(): void {
+  ttsErrorShown = true;
+  ttsErrorShownAt = Date.now();
+}
+function resetTtsErrorGuard(): void {
+  ttsErrorShown = false;
+  ttsErrorShownAt = 0;
+}
 
 function ttsErrorReason(code: string | undefined): string | null {
   switch (code) {
@@ -96,6 +117,20 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
     };
   }, []);
 
+  // userMode가 바뀌면 환경이 달라진 것 — error guard 초기화해서
+  // 새 모드에서 한 번 더 진단 다이얼로그를 띄울 수 있게 한다.
+  //
+  // 또한 재생 중에 모드가 바뀌면 settings.setUserMode → tts.stop() 호출로
+  // speakEpoch가 증가해 현재 utterance의 onEnd/onError가 stale로 무시된다.
+  // 그 결과 setSpeaking(false)가 영원히 호출되지 않아 정지 아이콘이 stuck.
+  //   → 모드 변경 시 즉시 로컬 speaking을 false로 리셋 (A1).
+  useEffect(() => {
+    resetTtsErrorGuard();
+    if (speakingRef.current) {
+      setSpeaking(false);
+    }
+  }, [userMode]);
+
   if (!isSupported()) return null;
 
   // 클릭 직전(mousedown/touchstart)에 mp3 prefetch — 첫 클릭에서
@@ -119,13 +154,17 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
       rate: ttsRate,
       voiceURI: ttsVoiceURI ?? undefined,
       voiceMode,
-      onEnd: () => setSpeaking(false),
+      onEnd: () => {
+        setSpeaking(false);
+        // 한 번이라도 정상 재생됐다면 환경은 정상 — 에러 guard 해제.
+        resetTtsErrorGuard();
+      },
       onError: (e) => {
         setSpeaking(false);
         // 'canceled' / 'interrupted'는 사용자가 중지한 정상 흐름
         if (e?.error === 'canceled' || e?.error === 'interrupted') return;
-        if (ttsErrorShown) return;
-        ttsErrorShown = true;
+        if (!shouldShowTtsError()) return;
+        markTtsErrorShown();
         // 비동기 — awaitVoices()로 voiceschanged 도착까지 대기 후 표시.
         // 동기 alert가 즉시 뜨던 기존 흐름에서는 음성팩이 설치돼 있어도
         // "0개"로 나오는 false-negative가 있었음.
