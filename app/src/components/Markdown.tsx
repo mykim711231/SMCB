@@ -95,14 +95,16 @@ function parse(md: string): Block[] {
       continue;
     }
 
-    // Vocab block: collect consecutive {{vocab:word|pinyin|meaning}} lines.
+    // Vocab block: collect consecutive {{vocab:...}} lines.
     const vbm = line.match(VOCAB_RE);
     if (vbm) {
       const items: VocabItem[] = [];
       while (i < lines.length) {
         const m = lines[i].match(VOCAB_RE);
         if (!m) break;
-        items.push({ word: m[1].trim(), pinyin: m[2].trim(), meaning: m[3].trim() });
+        const v = parseVocab(m[1]);
+        if (!v) break;
+        items.push(v);
         i++;
       }
       blocks.push({ kind: 'vocab', items });
@@ -262,8 +264,17 @@ export default function Markdown({ source }: { source: string }): JSX.Element {
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-2xl font-semibold text-fg">{v.word}</span>
                         <span className="text-pinyin font-pinyin text-sm">{v.pinyin}</span>
+                        {v.pos && <span className="text-xs text-muted">{v.pos}</span>}
                       </div>
                       <p className="text-fg/90 mt-1">{v.meaning}</p>
+                      {v.hanjaNote && (
+                        <p className="text-xs text-muted mt-1 leading-snug">{v.hanjaNote}</p>
+                      )}
+                      {v.example && (
+                        <div className="mt-2 rounded-lg bg-primary-soft/40 px-3 py-2">
+                          <VerseRow verse={v.example} className="py-0" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </li>
