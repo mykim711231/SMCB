@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SMCB 시안6 - SMCB 강조+마진">
+  <!-- 라운드 사각형 배경 (iOS/Android 마스킹 안전) -->
+  <rect width="512" height="512" rx="112" fill="#2563EB"/>
+  <!-- 80% 안전 영역 배경 원 -->
+  <circle cx="256" cy="256" r="180" fill="#FFFFFF" opacity="0.08"/>
+  <!-- SMCB - 크고 또렷하게, letter-spacing 줄여서 좌우 잘림 방지 -->
+  <text x="256" y="240" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="108" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="-4">SMCB</text>
+  <!-- 中 - 보조 요소로 작게 -->
+  <text x="256" y="360" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="92" font-weight="700" fill="#FFFFFF" text-anchor="middle" opacity="0.95">中</text>
+</svg>

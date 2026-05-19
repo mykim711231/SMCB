@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SMCB 시안1 - 성경+中">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#g1)"/>
+  <!-- 펼친 성경책 -->
+  <g transform="translate(256 270)">
+    <path d="M-150 -80 Q-150 -100 -130 -100 L-10 -100 Q0 -100 0 -88 L0 100 Q0 110 -10 110 L-130 110 Q-150 110 -150 90 Z" fill="#FFFFFF" opacity="0.95"/>
+    <path d="M150 -80 Q150 -100 130 -100 L10 -100 Q0 -100 0 -88 L0 100 Q0 110 10 110 L130 110 Q150 110 150 90 Z" fill="#FFFFFF" opacity="0.95"/>
+    <line x1="-130" y1="-70" x2="-30" y2="-70" stroke="#93C5FD" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-130" y1="-45" x2="-50" y2="-45" stroke="#93C5FD" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-130" y1="-20" x2="-40" y2="-20" stroke="#93C5FD" stroke-width="4" stroke-linecap="round"/>
+    <!-- 우측 페이지에 中 -->
+    <text x="75" y="40" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="130" font-weight="800" fill="#1D4ED8" text-anchor="middle">中</text>
+  </g>
+</svg>

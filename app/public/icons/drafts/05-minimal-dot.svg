@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SMCB 시안5 - 미니멀 中+점">
+  <rect width="512" height="512" rx="112" fill="#FFFFFF"/>
+  <rect width="512" height="512" rx="112" fill="none" stroke="#2563EB" stroke-width="12"/>
+  <!-- 中 - 두꺼운 한 획 강조 -->
+  <text x="256" y="370" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="340" font-weight="900" fill="#2563EB" text-anchor="middle">中</text>
+  <!-- 우상단 십자가 점 액센트 (빨강) -->
+  <g transform="translate(400 110)">
+    <circle r="32" fill="#DC2626"/>
+    <rect x="-3" y="-14" width="6" height="28" rx="2" fill="#FFFFFF"/>
+    <rect x="-14" y="-3" width="28" height="6" rx="2" fill="#FFFFFF"/>
+  </g>
+</svg>

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SMCB 아이콘 시안 5종</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: #F8FAFC;
+    color: #0F172A;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { color: #64748B; margin: 0 0 24px; font-size: 14px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+  }
+  .card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .name { font-weight: 700; font-size: 14px; margin: 0 0 4px; }
+  .desc { color: #64748B; font-size: 12px; margin: 0 0 14px; line-height: 1.5; }
+  .sizes {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .sz { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .sz img { display: block; border-radius: 16px; background: #F1F5F9; }
+  .sz img.r24 { border-radius: 6px; }
+  .sz span { font-size: 10px; color: #94A3B8; font-variant-numeric: tabular-nums; }
+  .home {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding: 10px;
+    background: #F8FAFC; border-radius: 10px;
+    font-weight: 700; font-size: 13px;
+  }
+  .home img { width: 28px; height: 28px; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <h1>SMCB 아이콘 시안 5종</h1>
+  <p class="sub">각 시안을 192·96·48·28px에서 비교하고, 하단에는 헤더(28px)에서의 모습을 미리 봅니다.</p>
+
+  <div class="grid">
+    <div class="card">
+      <p class="name">현재 (기준)</p>
+      <p class="desc">파란 정사각형 · "SMCB" + "中" — 정보량이 두 줄로 분산되어 작은 크기에서 가독성↓</p>
+      <div class="sizes">
+        <div class="sz"><img src="../icon.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="../icon.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="../icon.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="../icon.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 1 · 성경+中</p>
+      <p class="desc">펼친 성경책 위에 中 — 컨셉 직관적, 디테일이 많아 작은 크기 가독성 주의</p>
+      <div class="sizes">
+        <div class="sz"><img src="./01-book-zhong.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./01-book-zhong.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./01-book-zhong.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./01-book-zhong.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 2 · 십자가+经</p>
+      <p class="desc">배경 십자가 + 큰 经(경) 한 글자 — 기독교+성경 정체성 강함, 한 글자라 작은 사이즈에도 또렷</p>
+      <div class="sizes">
+        <div class="sz"><img src="./02-cross-jing.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./02-cross-jing.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./02-cross-jing.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./02-cross-jing.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 3 · 모노그램 리파인</p>
+      <p class="desc">현재 디자인 계열 — SMCB + 中级(노란) + 작은 십자가 — 정보량 많아 28px엔 부담</p>
+      <div class="sizes">
+        <div class="sz"><img src="./03-monogram-smcb.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./03-monogram-smcb.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./03-monogram-smcb.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./03-monogram-smcb.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 4 · 서예 中 + 인장</p>
+      <p class="desc">한지 배경에 붓글씨 中, 우하단 빨간 인장(圣) — 동양 정서 강함, 색감이 톤과 다름</p>
+      <div class="sizes">
+        <div class="sz"><img src="./04-brush-zhong.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./04-brush-zhong.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./04-brush-zhong.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./04-brush-zhong.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 5 · 미니멀 中 + 십자가 점</p>
+      <p class="desc">흰 바탕 + 파란 中 + 우상단 작은 빨간 십자가 점 — 가장 단순, 작은 크기 가독성↑</p>
+      <div class="sizes">
+        <div class="sz"><img src="./05-minimal-dot.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./05-minimal-dot.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./05-minimal-dot.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./05-minimal-dot.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 6 · SMCB 강조 + 中 보조</p>
+      <p class="desc">SMCB를 크게 강조(108) + 中을 보조로 작게(92) + 라운드 사각형 — SMCB 식별 우선</p>
+      <div class="sizes">
+        <div class="sz"><img src="./06-smcb-margin.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./06-smcb-margin.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./06-smcb-margin.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./06-smcb-margin.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+
+    <div class="card">
+      <p class="name">시안 7 · SMCB 전용 (단일 라인)</p>
+      <p class="desc">中 제거, SMCB만 큼직하게(148) — 작은 사이즈에서 가장 또렷, 정체성 단일화</p>
+      <div class="sizes">
+        <div class="sz"><img src="./07-smcb-only.svg" width="96" height="96"/><span>96</span></div>
+        <div class="sz"><img src="./07-smcb-only.svg" width="48" height="48"/><span>48</span></div>
+        <div class="sz"><img src="./07-smcb-only.svg" width="28" height="28" class="r24"/><span>28</span></div>
+      </div>
+      <div class="home"><img src="./07-smcb-only.svg"/> 새문안교회 중국어 성경반(중급)</div>
+    </div>
+  </div>
+</body>
+</html>
