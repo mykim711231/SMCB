@@ -68,11 +68,15 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
   const [focusIdx, setFocusIdx] = useState(0);
   const choiceRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  const play = useCallback((text: string) => {
+  // play()는 onEnd 콜백을 받는다 — RT 앵커는 TTS 재생이 끝난 시점에 잡아야
+  // 재생 길이(보통 0.5~1.5s)가 RT에 섞이지 않는다. 리플레이도 같은 콜백을 넘겨
+  // 두 번째 청취 직후로 앵커를 갱신해야 SM-2의 fast 임계값이 다시 한 번 들은
+  // 사용자를 'easy' 로 잘못 분류하지 않는다.
+  const play = useCallback((text: string, onEnd?: () => void) => {
     if (!ttsSupported()) return;
     unlock();
     ttsStop();
-    speak(text, { rate: ttsRate, voiceURI: ttsVoiceURI ?? undefined });
+    speak(text, { rate: ttsRate, voiceURI: ttsVoiceURI ?? undefined, onEnd });
   }, [ttsRate, ttsVoiceURI]);
 
   // 라운드 변경(cursor 이동) 시 자동 1회 재생 · 선택 초기화
@@ -83,10 +87,12 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
     setFocusIdx(0);
     if (!round) return;
     const t = window.setTimeout(() => {
-      play(round.answer.word);
-      playedRef.current = true;
-      setPlayed(true);
-      playedAtRef.current = performance.now();
+      play(round.answer.word, () => {
+        // TTS 재생 완료 시점이 진정한 RT 시작점
+        playedAtRef.current = performance.now();
+        playedRef.current = true;
+        setPlayed(true);
+      });
     }, 200);
     return () => window.clearTimeout(t);
   }, [round, play]);
@@ -255,7 +261,7 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
         <p className="text-xs text-muted">들리는 글자의 성조를 고르세요</p>
         <button
           type="button"
-          onClick={() => play(round.answer.word)}
+          onClick={() => play(round.answer.word, () => { playedAtRef.current = performance.now(); })}
           className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary text-white shadow"
           aria-label="다시 듣기"
         >

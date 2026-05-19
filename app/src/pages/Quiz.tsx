@@ -9,8 +9,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ArrowLeftRight, AlertTriangle } from 'lucide-react';
-import { loadAllLessons, META } from '@/data/loaders';
-import type { Lesson, VocabEntry } from '@/types/lesson';
+import { loadAllLessons, loadAppendixVocabs, META } from '@/data/loaders';
+import type { Lesson, PronRow, VocabEntry } from '@/types/lesson';
 import { useSettings } from '@/stores/settings';
 import { useSRS } from '@/stores/srs';
 import { useLearnScope } from '@/stores/learnScope';
@@ -33,18 +33,43 @@ type Props = { mode: QuizMode };
 type Deck = 'due' | 'mistakes' | 'lapses' | 'all';
 
 /**
- * SentenceBuilder example 프롬프트 id (`{lessonId}:ex:{vocabId}`)에서 vocabId 추출.
- * dialog(`:dd:` / `:dg:`)·verse 등 다른 source는 null을 돌려준다.
+ * SentenceBuilder 프롬프트 id → SRS 카드 id 매핑.
+ *
+ * sentence-builder.ts §프롬프트 ID 형식과 동기화 필수.
+ *   `{lessonId}:dd:{di}:{li}` → `d:{lessonId}:dd:{di}:{li}`  (응용 회화)
+ *   `{lessonId}:dg:{di}:{li}` → `d:{lessonId}:dg:{di}:{li}`  (전도 회화)
+ *   `{lessonId}:ex:{vocabId}` → `v:{vocabId}`                (단어 예문)
+ *   `{lessonId}:sc:{si}:{sj}` → `s:{lessonId}:{si}:{sj}`     (실전 시나리오)
+ *   `{lessonId}:ge:...` / `:q:...` → null (SRS 카드 없음 → due/mistakes 덱 제외)
  */
-function extractVocabIdFromExamplePromptId(promptId: string): string | null {
+function srsCardIdFromPromptId(promptId: string): string | null {
   const parts = promptId.split(':');
   if (parts.length < 3) return null;
-  if (parts[1] !== 'ex') return null;
-  return parts.slice(2).join(':') || null;
+  const lessonId = parts[0];
+  const kind = parts[1];
+  if (kind === 'dd' || kind === 'dg') {
+    if (parts.length < 4) return null;
+    return `d:${lessonId}:${kind}:${parts[2]}:${parts[3]}`;
+  }
+  if (kind === 'sc') {
+    if (parts.length < 4) return null;
+    return `s:${lessonId}:${parts[2]}:${parts[3]}`;
+  }
+  if (kind === 'ex') {
+    const v = parts.slice(2).join(':');
+    return v ? `v:${v}` : null;
+  }
+  return null;
 }
 
 export default function Quiz({ mode }: Props): JSX.Element {
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  // 부록1 기독교 용어집의 학습 vocab — 설정 토글 시 4지선다·대조쌍 풀에 합쳐진다.
+  // lessonId는 Appendix.id("appendix1")이며 lessonSel 멀티 필터의 범위 밖에 있으므로
+  // 사용자가 토글로 켰을 때 lessonSel 선택과 무관하게 항상 포함된다.
+  const [appendixVocabs, setAppendixVocabs] = useState<
+    Array<{ vocab: VocabEntry; lessonId: string; lessonTitleKo: string }>
+  >([]);
   // Flashcards와 공유 — 모드 전환에도 범위 유지
   const lessonSel = useLearnScope((s) => s.lessonSel);
   const setLessonSel = useLearnScope((s) => s.setLessonSel);
@@ -61,6 +86,8 @@ export default function Quiz({ mode }: Props): JSX.Element {
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
   const fcAlgorithm = useSettings((s) => s.fcAlgorithm);
+  const fcPronInPairs = useSettings((s) => s.fcPronInPairs);
+  const fcAppendixVocab = useSettings((s) => s.fcAppendixVocab);
   const grade = useSRS((s) => s.grade);
   const ensure = useSRS((s) => s.ensure);
   const cards = useSRS((s) => s.cards);
@@ -70,6 +97,17 @@ export default function Quiz({ mode }: Props): JSX.Element {
     void loadAllLessons().then((ls) => { if (alive) setLessons(ls); });
     return () => { alive = false; };
   }, []);
+
+  // 부록 vocab은 토글이 켜진 동안만 로드 (대부분의 사용자에게 기본 비활성)
+  useEffect(() => {
+    if (!fcAppendixVocab) {
+      setAppendixVocabs([]);
+      return;
+    }
+    let alive = true;
+    void loadAppendixVocabs().then((v) => { if (alive) setAppendixVocabs(v); });
+    return () => { alive = false; };
+  }, [fcAppendixVocab]);
 
   // 권별 그룹 (Flashcards와 동일 패턴)
   const lessonGroups = useMemo(() => {
@@ -94,22 +132,35 @@ export default function Quiz({ mode }: Props): JSX.Element {
     return shuffleSeeded(list, seed);
   }, [selectedLessons, lessonSel]);
 
-  // 대조쌍용 pairs
+  // 대조쌍용 pairs — fcPronInPairs 설정 시 발음표 단음절(PronRow)도 풀에 합친다.
+  // pron 항목은 SRS 카드가 없어 정답·오답 시 SRS 갱신을 스킵한다(onPairsResult 분기).
+  // 부록 vocab(fcAppendixVocab)도 lessonSel과 무관하게 항상 풀에 포함된다 — v: 카드로 SRS 갱신 정상.
   const pairs = useMemo(() => {
     const vs: Array<{ vocab: VocabEntry; lessonId: string }> = [];
-    for (const l of selectedLessons) for (const v of l.vocab) vs.push({ vocab: v, lessonId: l.id });
-    return extractMinimalPairs(vs);
-  }, [selectedLessons]);
+    const ps: Array<{ pron: PronRow; lessonId: string; idx: number }> = [];
+    for (const l of selectedLessons) {
+      for (const v of l.vocab) vs.push({ vocab: v, lessonId: l.id });
+      if (fcPronInPairs) {
+        l.pronunciation.forEach((p, i) => ps.push({ pron: p, lessonId: l.id, idx: i }));
+      }
+    }
+    for (const av of appendixVocabs) vs.push({ vocab: av.vocab, lessonId: av.lessonId });
+    return extractMinimalPairs(vs, ps);
+  }, [selectedLessons, fcPronInPairs, appendixVocabs]);
 
   // 4지선다용 prompts (vocab 전용, 선택 범위 기반 시드 셔플)
+  // 부록 vocab은 lessonSel과 무관하게 항상 포함 — distractor 풀도 함께 늘어 보기 다양성↑.
   const mcqPrompts = useMemo<McqPrompt[]>(() => {
     const out: McqPrompt[] = [];
     for (const l of selectedLessons) {
       for (const v of l.vocab) out.push({ vocab: v, lessonId: l.id, lessonTitleKo: l.titleKo });
     }
-    const seed = seedFromString(`mcq:${Array.from(lessonSel).sort().join(',')}`);
+    for (const av of appendixVocabs) {
+      out.push({ vocab: av.vocab, lessonId: av.lessonId, lessonTitleKo: av.lessonTitleKo });
+    }
+    const seed = seedFromString(`mcq:${Array.from(lessonSel).sort().join(',')}:app=${appendixVocabs.length}`);
     return shuffleSeeded(out, seed);
-  }, [selectedLessons, lessonSel]);
+  }, [selectedLessons, lessonSel, appendixVocabs]);
 
   // 오답노트 카드 ID 셋 (Flashcards와 동일 헬퍼)
   const mistakeIds = useMemo(
@@ -123,17 +174,15 @@ export default function Quiz({ mode }: Props): JSX.Element {
     return !c || new Date(c.due).getTime() <= Date.now();
   };
 
-  // 모드별 덱 필터 적용
+  // 모드별 덱 필터 적용 — 회화/시나리오/예문은 모두 고유 SRS 카드(d:/s:/v:)로 매핑되므로
+  // due·mistakes 덱에서도 정상 출제. grammarExample·question은 SRS 카드가 없어 'all' 전용.
   const filteredSentencePrompts = useMemo<SentencePrompt[]>(() => {
     if (inLapses) return lapsesSentence;
     if (deck === 'all') return prompts;
     if (deck === 'lapses') return lapsesSentence;
     return prompts.filter((p) => {
-      // dialog/verse는 SRS와 매핑 불가 → due/mistakes 덱에서는 제외
-      if (p.source !== 'example') return false;
-      const v = extractVocabIdFromExamplePromptId(p.id);
-      if (!v) return false;
-      const id = `v:${v}`;
+      const id = srsCardIdFromPromptId(p.id);
+      if (!id) return false;
       return deck === 'due' ? isDueId(id) : mistakeIds.has(id);
     });
   }, [inLapses, lapsesSentence, deck, prompts, cards, mistakeIds]);
@@ -152,8 +201,10 @@ export default function Quiz({ mode }: Props): JSX.Element {
     if (inLapses) return lapsesPairs;
     if (deck === 'all') return pairs;
     if (deck === 'lapses') return lapsesPairs;
+    // pron 항목은 SRS 카드가 없어 due/mistakes 판별에서 제외 (pron-only 그룹은 'all' 전용)
     return pairs.filter((g) =>
       g.items.some((it) => {
+        if (it.source !== 'vocab') return false;
         const id = `v:${it.vocabId}`;
         return deck === 'due' ? isDueId(id) : mistakeIds.has(id);
       }),
@@ -170,10 +221,8 @@ export default function Quiz({ mode }: Props): JSX.Element {
     if (mode === 'sentence') {
       let due = 0, mis = 0;
       for (const p of prompts) {
-        if (p.source !== 'example') continue;
-        const v = extractVocabIdFromExamplePromptId(p.id);
-        if (!v) continue;
-        const id = `v:${v}`;
+        const id = srsCardIdFromPromptId(p.id);
+        if (!id) continue;
         if (isDue(id)) due++;
         if (mistakeIds.has(id)) mis++;
       }
@@ -190,8 +239,10 @@ export default function Quiz({ mode }: Props): JSX.Element {
     }
     let due = 0, mis = 0;
     for (const g of pairs) {
-      if (g.items.some((it) => isDue(`v:${it.vocabId}`))) due++;
-      if (g.items.some((it) => mistakeIds.has(`v:${it.vocabId}`))) mis++;
+      // pron 항목은 SRS 카드가 없어 due/mistakes 카운트에서 제외
+      const vocabItems = g.items.filter((it) => it.source === 'vocab');
+      if (vocabItems.some((it) => isDue(`v:${it.vocabId}`))) due++;
+      if (vocabItems.some((it) => mistakeIds.has(`v:${it.vocabId}`))) mis++;
     }
     return { due, mistakes: mis, all: pairs.length };
   }, [mode, prompts, mcqPrompts, pairs, cards, mistakeIds]);
@@ -207,14 +258,18 @@ export default function Quiz({ mode }: Props): JSX.Element {
     if (mode === 'mcq') ensure(filteredMcqPrompts.map((p) => `v:${p.vocab.id}`));
     else if (mode === 'pairs') {
       const ids = new Set<string>();
-      for (const g of filteredPairs) for (const it of g.items) ids.add(`v:${it.vocabId}`);
+      for (const g of filteredPairs) {
+        for (const it of g.items) {
+          // pron 항목은 SRS 카드 없음 — ensure 대상 아님 (vocabId가 'pron:...' 형태)
+          if (it.source === 'vocab') ids.add(`v:${it.vocabId}`);
+        }
+      }
       ensure(Array.from(ids));
     } else if (mode === 'sentence') {
       const ids: string[] = [];
       for (const p of filteredSentencePrompts) {
-        if (p.source !== 'example') continue;
-        const v = extractVocabIdFromExamplePromptId(p.id);
-        if (v) ids.push(`v:${v}`);
+        const id = srsCardIdFromPromptId(p.id);
+        if (id) ids.push(id);
       }
       ensure(ids);
     }
@@ -233,21 +288,36 @@ export default function Quiz({ mode }: Props): JSX.Element {
       setLapsesMcq((prev) =>
         prev.some((x) => x.vocab.id === vocabId) ? prev : [...prev, hit],
       );
-    } else if (mode === 'pairs') {
-      const hit = pairs.find((g) => g.items.some((it) => it.vocabId === vocabId));
-      if (!hit) return;
-      setLapsesPairs((prev) =>
-        prev.some((g) => g.items.some((it) => it.vocabId === vocabId)) ? prev : [...prev, hit],
-      );
     }
     // sentence는 onSentenceResult에서 promptId로 직접 처리
+    // pairs는 onPairsResult에서 noEasy 캡과 함께 별도 처리
   };
 
+  // 대조쌍 전용 — 청해 변별 과제는 의미 회상이 아니므로 'easy' 승격을 막아
+  // SM-2 ease factor 가 청해 정답률만으로 과대 추정되는 것을 차단한다.
+  // pron 항목(vocabId가 'pron:...')은 SRS 카드가 없어 grade 호출은 건너뛰고
+  // 오답 누적(lapses)만 처리 — 같은 세션 내 재투입은 유지된다.
+  const onPairsResult = (vocabId: string, correct: boolean, rtMs?: number, signalLen?: number): void => {
+    const isPron = vocabId.startsWith('pron:');
+    if (!isPron) {
+      const g = estimateGrade({ correct, rtMs, signalLen, algorithm: fcAlgorithm, noEasy: true });
+      grade(`v:${vocabId}`, g, fcAlgorithm);
+    }
+    if (correct || inLapses) return;
+    const hit = pairs.find((p) => p.items.some((it) => it.vocabId === vocabId));
+    if (!hit) return;
+    setLapsesPairs((prev) =>
+      prev.some((p) => p.items.some((it) => it.vocabId === vocabId)) ? prev : [...prev, hit],
+    );
+  };
+
+  // 다중 소스 grade 라우팅 — example/dialog/scenario는 각각 v:/d:/s: 카드로 그레이딩,
+  // grammarExample/question은 SRS 카드가 없어 SRS 갱신은 건너뛰고 lapses 누적만 처리.
   const onSentenceResult = (promptId: string, correct: boolean, rtMs?: number, signalLen?: number): void => {
-    const v = extractVocabIdFromExamplePromptId(promptId);
-    if (v) {
+    const id = srsCardIdFromPromptId(promptId);
+    if (id) {
       const g = estimateGrade({ correct, rtMs, signalLen, algorithm: fcAlgorithm });
-      grade(`v:${v}`, g, fcAlgorithm);
+      grade(id, g, fcAlgorithm);
     }
     if (correct || inLapses) return;
     const hit = prompts.find((p) => p.id === promptId);
@@ -355,9 +425,9 @@ export default function Quiz({ mode }: Props): JSX.Element {
               <p className="text-fg font-semibold">문장 조립 퀴즈</p>
               <p className="text-sm text-muted">
                 한국어 뜻을 보고 중국어 단어 토큰을 순서대로 탭하여 문장을 만드세요.
-                일상 회화·전도 회화·단어 예문에서 출제됩니다 — 본문·성경 인용은 문어체라 제외.
+                일상 회화·전도 회화·단어 예문·실전 시나리오·어법 예문·본문 질문에서 출제됩니다 — 본문·성경 인용은 문어체라 제외.
                 {(deck === 'due' || deck === 'mistakes') && !inLapses && (
-                  <> · <b className="text-fg">{deck === 'due' ? '복습 대상' : '오답노트'}</b> 모드에서는 예문만 출제됩니다 (회화는 단어 단위 SRS와 매핑 불가).</>
+                  <> · <b className="text-fg">{deck === 'due' ? '복습 대상' : '오답노트'}</b> 모드는 SRS 카드가 있는 항목(예문·회화·시나리오)에서만 출제됩니다 — 어법 예문·본문 질문은 전체 덱에서만 풀 수 있어요.</>
                 )}
               </p>
               <p className="text-xs text-muted">
@@ -455,7 +525,7 @@ export default function Quiz({ mode }: Props): JSX.Element {
           ttsRate={ttsRate}
           ttsVoiceURI={ttsVoiceURI}
           onExit={() => setPlaying(false)}
-          onResult={onVocabResult}
+          onResult={onPairsResult}
         />
       )}
     </div>

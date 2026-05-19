@@ -28,6 +28,7 @@ import {
   Layers,
   HardDrive,
   Info,
+  GraduationCap,
 } from 'lucide-react';
 import AppleLogo from '@/components/AppleLogo';
 import AndroidLogo from '@/components/AndroidLogo';
@@ -83,6 +84,13 @@ const GUIDES: Guide[] = [
     subtitle: '화면 · 음성 · 플래시카드 · 저장 공간 안내.',
     keywords: '설정 화면 테마 다크 라이트 시스템 글자 크기 폰트 한자 병음 한국어 표시 토글 재생 방식 음성 속도 빠르게 느리게 플래시카드 알고리즘 leitner sm2 채점 카드 종류 자동 재생 마라톤 일일 학습 목표 저장 공간 캐시 비우기 초기화 전체 초기화 정보',
     Body: SettingsOverviewGuide,
+  },
+  {
+    id: 'learn-sources',
+    title: <><GraduationCap size={18} aria-hidden /> 학습 모드별 자료 매핑</>,
+    subtitle: '플래시카드 · 문장 조립 · 4지선다 · 대조쌍 · 마라톤이 어떤 자료를 쓰는지.',
+    keywords: '학습 모드 플래시카드 문장 조립 4지선다 대조쌍 마라톤 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 발음표 부록',
+    Body: LearnSourcesGuide,
   },
   {
     id: 'tts',
@@ -851,6 +859,126 @@ function SettingsOverviewGuide(): JSX.Element {
           <b className="text-accent"> "전체 초기화"</b> 한 가지만 조심하시면 됩니다.
           헷갈리시면 같은 자리에서 다시 원래대로 누르시면 돼요.
         </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 학습 모드별 기초자료 매핑
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LearnSourcesGuide(): JSX.Element {
+  // 각 행은 한 과(課)에 존재하는 자료 영역. 모드별 ◯/× 는 해당 영역을 학습 풀에 포함하는지.
+  // 코드 출처:
+  //   - 플래시카드: lib/flashcard-items.ts buildAllCardSources
+  //   - 문장 조립: lib/sentence-builder.ts buildAllPrompts (헤더 주석)
+  //   - 4지선다:   pages/Quiz.tsx mcqPrompts (vocab만)
+  //   - 대조쌍:    lib/minimal-pairs.ts extractMinimalPairs (vocab + 옵션 발음표)
+  //   - 마라톤:    lib/flashcard-items.ts buildMarathonSources
+  const rows: Array<{
+    area: string;
+    desc: string;
+    flashcard: 'yes' | 'no' | 'opt';
+    sentence: 'yes' | 'no' | 'opt';
+    mcq: 'yes' | 'no' | 'opt';
+    pairs: 'yes' | 'no' | 'opt';
+    marathon: 'yes' | 'no' | 'opt';
+  }> = [
+    { area: '본문',       desc: '本文 — 레슨 본문 문장',          flashcard: 'no',  sentence: 'no',  mcq: 'no',  pairs: 'no',  marathon: 'opt' },
+    { area: '단어',       desc: '主要词汇 — 주요 어휘',           flashcard: 'yes', sentence: 'no',  mcq: 'yes', pairs: 'yes', marathon: 'opt' },
+    { area: '단어 예문',  desc: 'vocab.example — 어휘 예문',      flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
+    { area: '발음표',     desc: '发音点 — 단음절 발음표',         flashcard: 'no',  sentence: 'no',  mcq: 'no',  pairs: 'opt', marathon: 'no'  },
+    { area: '어법 예문',  desc: '语法点 — 어법 예문',             flashcard: 'no',  sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'no'  },
+    { area: '성경 구절',  desc: '圣经引用 — 성경 인용',           flashcard: 'yes', sentence: 'no',  mcq: 'no',  pairs: 'no',  marathon: 'opt' },
+    { area: '응용 회화',  desc: '应用会话 — 일상 회화 라인',      flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
+    { area: '전도 회화',  desc: '传福音会话 — 전도 회화 라인',    flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
+    { area: '시나리오',   desc: '场景 — 실전 상황 verse 세그먼트', flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
+    { area: '본문 질문',  desc: '本文问题 — 본문 이해 질문',      flashcard: 'no',  sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'no'  },
+    { area: '부록 단어',  desc: '附录 — 부록1 기독교 용어',       flashcard: 'opt', sentence: 'no',  mcq: 'opt', pairs: 'opt', marathon: 'no'  },
+  ];
+
+  const cell = (v: 'yes' | 'no' | 'opt'): JSX.Element => {
+    if (v === 'yes') return <span className="text-primary font-bold" aria-label="포함">◯</span>;
+    if (v === 'opt') return <span className="text-accent font-bold" aria-label="설정에 따라 포함">△</span>;
+    return <span className="text-muted" aria-label="제외">×</span>;
+  };
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-xs text-muted">
+        한 과(課)에 들어 있는 자료 영역이 학습 모드별로 어떻게 쓰이는지 알려드려요.
+      </p>
+      <ul className="text-xs text-muted list-disc pl-5 space-y-0.5">
+        <li><span className="text-primary font-bold">◯</span> 포함 — 해당 모드의 학습 풀에 항상 들어갑니다.</li>
+        <li><span className="text-accent font-bold">△</span> 옵션 — 설정 토글로 켤 수 있어요.</li>
+        <li><span className="text-muted">×</span> 제외 — 해당 모드에서 쓰지 않습니다.</li>
+      </ul>
+
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="text-fg">
+              <th className="text-left p-2 border-b border-divider whitespace-nowrap">자료 영역</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">플래시<br/>카드</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">문장<br/>조립</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">4지<br/>선다</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">대조쌍</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">마라톤</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.area} className="align-top">
+                <td className="p-2 border-b border-divider">
+                  <div className="font-semibold text-fg">{r.area}</div>
+                  <div className="text-[10px] text-muted">{r.desc}</div>
+                </td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.flashcard)}</td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.sentence)}</td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.mcq)}</td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.pairs)}</td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.marathon)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="rounded-xl border border-accent/40 bg-accent-soft p-3 space-y-2">
+        <p className="text-fg/90 text-xs">
+          <b className="text-accent">△ 옵션 토글은 어디에서 켜나요?</b>
+        </p>
+        <ul className="list-disc pl-5 space-y-1.5 text-xs text-fg/90">
+          <li>
+            <b>마라톤의 본문/단어/예문/구절/회화/시나리오</b> —{' '}
+            <Link to="/learn?mode=marathon" className="text-primary font-semibold underline">학습 → 마라톤</Link> 화면의{' '}
+            <b>영역</b> 섹션에서 원하는 영역만 켜세요. 그 영역만 권/과 순서로 재생합니다.
+          </li>
+          <li>
+            <b>대조쌍의 발음표</b> —{' '}
+            <Link to="/settings" className="text-primary font-semibold underline">설정</Link> 페이지 →{' '}
+            <b>"대조쌍에 발음표 단음절 포함"</b> 토글을 켜면 单字 발음표도 풀에 들어갑니다.
+          </li>
+          <li>
+            <b>부록 단어 (플래시카드 · 4지선다 · 대조쌍)</b> —{' '}
+            <Link to="/settings" className="text-primary font-semibold underline">설정</Link> 페이지 →{' '}
+            <b>"부록1 기독교 용어 학습 포함"</b> 토글을 켜면 부록1의 기독교 용어 80+개가 학습 풀에 합류해요.
+          </li>
+        </ul>
+      </div>
+
+      <div className="rounded-xl border border-divider p-3 bg-bg space-y-2">
+        <p className="text-fg/90 text-xs">
+          <b>모드별 한 줄 요약</b>
+        </p>
+        <ul className="list-disc pl-5 space-y-1 text-xs text-muted">
+          <li><b className="text-fg">플래시카드</b> — 단어 · 예문 · 구절 · 회화 · 시나리오를 카드 한 장씩 넘기며 외워요.</li>
+          <li><b className="text-fg">문장 조립</b> — 회화체 문장(회화·예문·시나리오·어법 예문·본문 질문)을 토큰으로 흩어 놓고 다시 맞춰요. <i>본문·구절은 문어체라 제외.</i></li>
+          <li><b className="text-fg">4지선다</b> — 주요 어휘(단어)만 출제. 4개 보기 중 한국어 뜻을 고르거나 한자/병음을 맞춰요.</li>
+          <li><b className="text-fg">대조쌍</b> — 헷갈리기 쉬운 발음을 짝지어 듣고 골라요. 단어 풀에서 자동 추출, 설정에서 발음표 단음절도 켤 수 있어요.</li>
+          <li><b className="text-fg">마라톤</b> — 선택한 영역(본문·단어·예문·구절·회화·시나리오)을 권/과 순서대로 끝까지 재생만 해요. 채점 없음.</li>
+        </ul>
+      </div>
     </div>
   );
 }

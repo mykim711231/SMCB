@@ -402,6 +402,63 @@ function parseScenarios(section: Section | undefined): Scenario[] {
   return scenarios;
 }
 
+/**
+ * 부록(특히 부록1) 표에서 VocabEntry를 추출.
+ *
+ * 부록1 표는 섹션마다 컬럼이 다르다:
+ *   - 1~5: `중국어 | 병음 | 음성 | 한국어 | 사용 맥락` 또는 `... | 비고`
+ *   - 6:   `중국어 | 병음 | 음성 | 한국어`
+ *   - 7:   `중국어 | 음성 | 한국어` (병음 없음)
+ *   - 8:   `개신교 | 음성 | 천주교 | 음성 | 한국어` — 좌·우 단어 모두 1~4에 이미
+ *          나오므로 중복 방지 차원에서 스킵.
+ *
+ * 처리: 헤더 행에서 컬럼 인덱스를 동적 매핑. 음성 컬럼(TTS 마크업)은 무시.
+ * 합성 단어(예: `信徒 / 基督徒`)는 첫 토큰만 word로 채택 — TTS와 SRS가 단일
+ * 한자열을 가정하기 때문.
+ */
+function parseAppendixVocab(markdown: string, appendixId: string): VocabEntry[] {
+  const sections = splitSections(markdown);
+  const out: VocabEntry[] = [];
+  let idx = 0;
+  const splitRow = (line: string): string[] =>
+    line.split('|').slice(1, -1).map((c) => c.trim());
+  for (const sec of sections) {
+    if (/개신교\s*vs/i.test(sec.heading)) continue; // 8번 섹션 — 중복
+    const tableLines = sec.lines.filter((l) => l.trim().startsWith('|'));
+    if (tableLines.length < 2) continue;
+    const headerCells = splitRow(tableLines[0]);
+    const zhCol = headerCells.findIndex((c) => /중국어/.test(c));
+    const pyCol = headerCells.findIndex((c) => /병음/.test(c));
+    const koCol = headerCells.findIndex((c) => /한국어/.test(c));
+    const noteCol = headerCells.findIndex((c) => /사용 맥락|비고/.test(c));
+    if (zhCol < 0 || koCol < 0) continue;
+    for (let r = 1; r < tableLines.length; r++) {
+      const cells = splitRow(tableLines[r]);
+      if (cells.length === 0) continue;
+      if (cells.every((c) => /^[-:\s]+$/.test(c))) continue; // 구분선
+      const wordRaw = cells[zhCol] ?? '';
+      const koRaw = cells[koCol] ?? '';
+      if (!wordRaw || !koRaw) continue;
+      const pyRaw = pyCol >= 0 ? (cells[pyCol] ?? '') : '';
+      const noteRaw = noteCol >= 0 ? (cells[noteCol] ?? '') : '';
+      const word = wordRaw.split(/[/／]/)[0].trim();
+      const pinyin = pyRaw.split(/[/／]/)[0].trim();
+      if (!word || !HAS_CJK.test(word)) continue;
+      const entry: VocabEntry = {
+        id: `${appendixId}_v${idx}`,
+        word,
+        pinyin,
+        pos: '',
+        meaning: koRaw.replace(/\*\*/g, '').trim(),
+      };
+      if (noteRaw) entry.hanjaNote = noteRaw;
+      out.push(entry);
+      idx += 1;
+    }
+  }
+  return out;
+}
+
 /** Questions: numbered list with zh / pinyin / ko triplets */
 function parseQuestions(section: Section | undefined): Question[] {
   if (!section) return [];
@@ -538,16 +595,19 @@ function main() {
     const f = appendixFiles[i];
     const md = readFileSync(join(DOC_DIR, f), 'utf-8');
     const { title, body } = extractTitleAndBody(md, f);
-    appendices.push({
-      id: `appendix${i + 1}`,
-      category: 'appendix',
-      title,
-      markdown: body,
-    });
+    const id = `appendix${i + 1}`;
+    const appendix: Appendix = { id, category: 'appendix', title, markdown: body };
+    // 부록1만 표 파싱 → 학습용 vocab. 다른 부록은 설명 위주라 표 행이 단어 단위가 아님.
+    if (/附录1_/.test(f)) {
+      const vocab = parseAppendixVocab(md, id);
+      if (vocab.length > 0) appendix.vocab = vocab;
+    }
+    appendices.push(appendix);
   }
 
   writeFileSync(join(OUT_DIR, 'appendices.json'), JSON.stringify(appendices));
-  console.log(`  appendices.json  (${appendices.length} items: ${pronFiles.length} pronunciation + ${appendixFiles.length} appendix)`);
+  const totalAppendixVocab = appendices.reduce((s, a) => s + (a.vocab?.length ?? 0), 0);
+  console.log(`  appendices.json  (${appendices.length} items: ${pronFiles.length} pronunciation + ${appendixFiles.length} appendix, ${totalAppendixVocab} appendix vocab)`);
 
   // 중국어 토큰 매니페스트 — 빌드타임에 모든 zh 문자열을 토큰화하여 저장.
   // Why: 런타임의 Intl.Segmenter('zh','word')는 브라우저 ICU 버전에 따라 결과가
@@ -577,6 +637,17 @@ function main() {
     for (const d of l.dialogDaily) for (const ln of d.lines) addZh(ln.zh);
     for (const d of l.dialogGospel) for (const ln of d.lines) addZh(ln.zh);
     for (const q of l.questions) addZh(q.zh);
+    // 실전 시나리오의 verse trio도 sentence-builder 출제 대상이 되므로 토큰 매니페스트에 포함.
+    for (const s of l.scenarios) {
+      for (const seg of s.segments) {
+        if (seg.kind === 'verse') addZh(seg.verse.zh);
+      }
+    }
+  }
+  // 부록 vocab의 word도 한자 토큰 매니페스트에 포함 — Flashcards/Quiz의 zh 토크나이저가 필요.
+  for (const a of appendices) {
+    if (!a.vocab) continue;
+    for (const v of a.vocab) addZh(v.word);
   }
   const tokenManifest: Record<string, string[]> = {};
   for (const zh of zhSet) {

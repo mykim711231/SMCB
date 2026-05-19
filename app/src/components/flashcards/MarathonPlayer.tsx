@@ -5,7 +5,7 @@
  *   - 일시정지/이전/다음/속도 조절.
  *
  * 이용:
- *   {fcAudioMarathon && <MarathonPlayer cards={filtered} ttsRate={...} ttsVoiceURI={...} />}
+ *   Learn 페이지의 '마라톤' 탭(Marathon.tsx)에서 사용한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pause, Play, SkipBack, SkipForward, Square } from 'lucide-react';
@@ -20,9 +20,24 @@ type Props = {
   ttsRate: number;
   ttsVoiceURI: string | null;
   onExit: () => void;
+  /** 표시 토글 — 모두 false면 진행 정보만 표시 (TTS는 zh로 항상 재생). 기본값: 모두 true. */
+  show?: { zh: boolean; pinyin: boolean; ko: boolean };
 };
 
-export default function MarathonPlayer({ cards, ttsRate, ttsVoiceURI, onExit }: Props): JSX.Element {
+type CardTexts = { zh: string; pinyin: string; ko: string };
+
+function cardTextsOf(s: CardSource): CardTexts {
+  if (s.kind === 'vocab') return { zh: s.vocab.word, pinyin: s.vocab.pinyin, ko: s.vocab.meaning };
+  if (s.kind === 'example' && s.vocab.example) return { ...s.vocab.example };
+  if (s.kind === 'verse') return { ...s.verse.text };
+  if (s.kind === 'dialog' || s.kind === 'scenario' || s.kind === 'body') return { ...s.verse };
+  return { zh: '', pinyin: '', ko: '' };
+}
+
+export default function MarathonPlayer({
+  cards, ttsRate, ttsVoiceURI, onExit,
+  show = { zh: true, pinyin: true, ko: true },
+}: Props): JSX.Element {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [pauseBetweenMs, setPauseBetweenMs] = useState(1200);
@@ -147,16 +162,23 @@ export default function MarathonPlayer({ cards, ttsRate, ttsVoiceURI, onExit }: 
         {done ? (
           <p className="text-fg font-semibold">재생 완료</p>
         ) : current ? (
-          <div>
-            <p className="text-xs text-muted">{current.lessonTitleKo} · {idx + 1}/{cards.length}</p>
-            <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{speakTextOf(current)}</p>
-            <p className="text-xs text-muted mt-1" key={cardIdOf(current)}>
-              {current.kind === 'vocab' ? current.vocab.meaning
-                : current.kind === 'example' && current.vocab.example ? current.vocab.example.ko
-                : current.kind === 'verse' ? current.verse.text.ko
-                : ''}
-            </p>
-          </div>
+          (() => {
+            const t = cardTextsOf(current);
+            return (
+              <div key={cardIdOf(current)}>
+                <p className="text-xs text-muted">{current.lessonTitleKo} · {idx + 1}/{cards.length}</p>
+                {show.zh && (
+                  <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{t.zh}</p>
+                )}
+                {show.pinyin && t.pinyin && (
+                  <p className="text-pinyin font-pinyin text-sm mt-1">{t.pinyin}</p>
+                )}
+                {show.ko && t.ko && (
+                  <p className="text-fg text-base mt-1">{t.ko}</p>
+                )}
+              </div>
+            );
+          })()
         ) : (
           <p className="text-muted">재생할 카드가 없습니다</p>
         )}

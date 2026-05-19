@@ -77,14 +77,22 @@ export default function SentenceBuilderGame({ prompts, ttsRate, ttsVoiceURI, onE
   const [picked, setPicked] = useState<Token[]>([]);
   const [remaining, setRemaining] = useState<Token[]>(bank);
 
+  // reveal 단계에서 onResult(grade) 호출이 부모 store 를 변경 → prompts 재계산
+  // → current 가 다른 카드로 바뀌어 reveal 패널이 사라지는 회귀를 막기 위해,
+  // 채점 결과는 ref 에 보관하고 "다음 문제" 진행 시점에 한 번만 flush 한다.
+  const pendingResultRef = useRef<{ id: string; correct: boolean; rtMs?: number; charLen?: number } | null>(null);
+
   // 카드 전환 시 상태 리셋 + RT 타이머 리셋
+  // 의존성을 current?.id 로 고정 — 부모 리렌더로 인한 bank 배열 참조 변동이
+  // 정답 확인 직후 revealed 를 되돌리는 버그를 방지한다.
   useEffect(() => {
     setPicked([]);
     setRemaining(bank);
     setRevealed(false);
     setHinted(false);
     shownAtRef.current = performance.now();
-  }, [bank]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
 
   useEffect(() => () => { ttsStop(); }, []);
 
@@ -121,7 +129,8 @@ export default function SentenceBuilderGame({ prompts, ttsRate, ttsVoiceURI, onE
     setRevealed(true);
     if (current) {
       const rtMs = Math.max(0, performance.now() - shownAtRef.current);
-      onResult?.(current.id, result.correct, rtMs, current.zh.length);
+      // grade 는 next() 에서 flush — 지금 호출하면 reveal 도중 prompts 재정렬로 화면이 깜빡임.
+      pendingResultRef.current = { id: current.id, correct: result.correct, rtMs, charLen: current.zh.length };
     }
     if (result.correct) {
       // 정답일 때만 자동 음성 재생 (학습 강화)
@@ -132,11 +141,24 @@ export default function SentenceBuilderGame({ prompts, ttsRate, ttsVoiceURI, onE
   const skip = (): void => {
     setScore((s) => ({ ...s, wrong: s.wrong + 1 }));
     setRevealed(true);
-    // 건너뛰기는 RT 신호 의미 없음 — rtMs 없이 호출 → 자동으로 'again'(SM-2)/wrong(Leitner) 처리
-    if (current) onResult?.(current.id, false);
+    // 건너뛰기는 RT 신호 의미 없음 — rtMs 없이 grade → 자동으로 'again'(SM-2)/wrong(Leitner) 처리.
+    // submit 과 동일하게 next() 에서 flush.
+    if (current) {
+      pendingResultRef.current = { id: current.id, correct: false };
+    }
+  };
+
+  const flushPendingResult = (): void => {
+    const pending = pendingResultRef.current;
+    pendingResultRef.current = null;
+    if (pending) {
+      onResult?.(pending.id, pending.correct, pending.rtMs, pending.charLen);
+    }
   };
 
   const next = (): void => {
+    // grade 를 먼저 적용 → 다음 카드는 갱신된 SRS 상태를 반영한 prompts 에서 선택된다.
+    flushPendingResult();
     setCursor((c) => c + 1);
   };
 
@@ -145,7 +167,7 @@ export default function SentenceBuilderGame({ prompts, ttsRate, ttsVoiceURI, onE
     setScore({ correct: 0, wrong: 0 });
   };
 
-  const exit = (): void => { ttsStop(); onExit(); };
+  const exit = (): void => { ttsStop(); flushPendingResult(); onExit(); };
 
   if (prompts.length === 0) {
     return (

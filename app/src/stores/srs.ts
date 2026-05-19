@@ -2,9 +2,13 @@
  * SRS for flashcards — Leitner 5-box + optional SM-2.
  *
  * Card id scheme (v2):
- *   v:{vocabId}            단어 카드           e.g. v:vol1_01_v1
- *   e:{vocabId}            예문 카드           e.g. e:vol1_01_v1
- *   b:{lessonId}:{idx}     성경 구절 카드      e.g. b:vol1_01:0
+ *   v:{vocabId}                       단어 카드           e.g. v:vol1_01_v1
+ *   e:{vocabId}                       예문 카드           e.g. e:vol1_01_v1
+ *   b:{lessonId}:{idx}                성경 구절 카드      e.g. b:vol1_01:0
+ *   d:{lessonId}:{dd|dg}:{di}:{li}    회화 라인 카드      e.g. d:vol1_01:dd:0:1
+ *     - dd = dialogDaily(응용회화), dg = dialogGospel(전도회화)
+ *   s:{lessonId}:{i}:{j}              실전 시나리오 카드  e.g. s:vol1_01:0:3
+ *     - i = scenarios index, j = segments index (kind='verse'인 segment만)
  *
  * v1 호환: 접두어 없는 키(`vol1_01_v1`)는 hydrate 시 'v:' 접두어를 붙여 자동 마이그레이션.
  *
@@ -27,7 +31,7 @@ import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
 
 export type SRSBox = 1 | 2 | 3 | 4 | 5;
-export type CardKind = 'vocab' | 'example' | 'verse';
+export type CardKind = 'vocab' | 'example' | 'verse' | 'dialog' | 'scenario';
 export type SRSGrade = 'again' | 'hard' | 'good' | 'easy';
 export type SRSAlgorithm = 'leitner' | 'sm2';
 
@@ -86,6 +90,8 @@ function todayStr(now = new Date()): string {
 export function cardKind(id: string): CardKind {
   if (id.startsWith('e:')) return 'example';
   if (id.startsWith('b:')) return 'verse';
+  if (id.startsWith('d:')) return 'dialog';
+  if (id.startsWith('s:')) return 'scenario';
   return 'vocab';
 }
 
@@ -95,7 +101,13 @@ export function isNewCard(c: SRSCard | undefined): boolean {
 }
 
 function normalizeId(id: string): string {
-  if (id.startsWith('v:') || id.startsWith('e:') || id.startsWith('b:')) return id;
+  if (
+    id.startsWith('v:') ||
+    id.startsWith('e:') ||
+    id.startsWith('b:') ||
+    id.startsWith('d:') ||
+    id.startsWith('s:')
+  ) return id;
   return `v:${id}`;
 }
 

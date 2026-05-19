@@ -1,6 +1,6 @@
 /**
  * 최소 대조쌍(Minimal Pairs) 추출.
- *   - 입력: 모든 vocab 카드 풀.
+ *   - 입력: vocab 카드 풀 + (옵션) 발음표(PronRow) 풀.
  *   - 출력: 듣기 게임에 쓸 후보 페어 리스트.
  *
  * 페어 기준 (우선순위):
@@ -10,8 +10,11 @@
  * 단순화:
  *   - 단음절 단어만 사용 (한자 1글자, pinyin에 공백 없음).
  *     다음절은 비교 잡음이 크고 게임 의도(성조 변별)에서 벗어남.
+ *
+ * 발음표 항목은 SRS 카드가 없으므로 PairItem.source = 'pron'으로 표시하고,
+ * Quiz.tsx onPairsResult에서 source==='pron'이면 SRS 그레이딩을 스킵한다.
  */
-import type { VocabEntry } from '@/types/lesson';
+import type { PronRow, VocabEntry } from '@/types/lesson';
 
 const TONE_MAP: Record<string, string> = {
   ā: 'a', á: 'a', ǎ: 'a', à: 'a',
@@ -37,12 +40,11 @@ export function stripTone(pinyin: string): string {
     .join('');
 }
 
-/** 단어가 단음절(공백 없는 pinyin 1글자 한자)인지. */
-function isMonosyllable(v: VocabEntry): boolean {
-  if (!v.pinyin) return false;
-  if (v.pinyin.trim().includes(' ')) return false;
-  // word가 1 한자(또는 알파벳 1글자)
-  return Array.from(v.word).length === 1;
+/** word/pinyin이 단음절(공백 없는 pinyin 1글자 한자)인지. */
+function isMonosyllableRaw(word: string, pinyin: string): boolean {
+  if (!pinyin) return false;
+  if (pinyin.trim().includes(' ')) return false;
+  return Array.from(word).length === 1;
 }
 
 /** pinyin에서 첫 번째 성조 마크의 번호(1~4)를 추출. 없으면 0(輕聲). */
@@ -59,8 +61,14 @@ export type PairItem = {
   pinyin: string;     // 성조 포함
   meaning: string;
   tone: 0 | 1 | 2 | 3 | 4;
+  /**
+   * SRS 매핑용 id.
+   *   - source 'vocab': vocab.id (Quiz.tsx에서 `v:${vocabId}`로 변환됨)
+   *   - source 'pron' : `pron:${lessonId}:${idx}` (SRS 카드 없음 — 그레이딩 스킵)
+   */
   vocabId: string;
   lessonId: string;
+  source: 'vocab' | 'pron';
 };
 
 export type MinimalPair = {
@@ -69,15 +77,19 @@ export type MinimalPair = {
 };
 
 /**
- * vocab 풀에서 동일 무성조 pinyin을 공유하는 단음절 단어들을 그룹화.
+ * vocab + pronunciation 풀에서 동일 무성조 pinyin을 공유하는 단음절 항목을 그룹화.
  * 항목이 2개 이상인 그룹만 반환.
+ *
+ * pron은 옵셔널 — 호출처에서 발음표 단음절 옵션을 켤지 결정한다.
+ * 동일 한자가 vocab과 pron 양쪽에 있으면 vocab 우선(SRS 카드가 있음).
  */
 export function extractMinimalPairs(
   vocabs: Array<{ vocab: VocabEntry; lessonId: string }>,
+  prons: Array<{ pron: PronRow; lessonId: string; idx: number }> = [],
 ): MinimalPair[] {
   const groups = new Map<string, PairItem[]>();
   for (const { vocab, lessonId } of vocabs) {
-    if (!isMonosyllable(vocab)) continue;
+    if (!isMonosyllableRaw(vocab.word, vocab.pinyin)) continue;
     const key = stripTone(vocab.pinyin);
     if (!key) continue;
     const item: PairItem = {
@@ -87,10 +99,31 @@ export function extractMinimalPairs(
       tone: toneOf(vocab.pinyin),
       vocabId: vocab.id,
       lessonId,
+      source: 'vocab',
     };
     const list = groups.get(key);
     if (list) {
-      // 동일 단어(중복 등록) 방지
+      if (!list.some((p) => p.word === item.word)) list.push(item);
+    } else {
+      groups.set(key, [item]);
+    }
+  }
+  for (const { pron, lessonId, idx } of prons) {
+    if (!isMonosyllableRaw(pron.hanzi, pron.pinyin)) continue;
+    const key = stripTone(pron.pinyin);
+    if (!key) continue;
+    const item: PairItem = {
+      word: pron.hanzi,
+      pinyin: pron.pinyin,
+      meaning: pron.ko,
+      tone: toneOf(pron.pinyin),
+      vocabId: `pron:${lessonId}:${idx}`,
+      lessonId,
+      source: 'pron',
+    };
+    const list = groups.get(key);
+    if (list) {
+      // 동일 한자가 이미 들어있으면(주로 vocab) 추가 안 함 — vocab 우선
       if (!list.some((p) => p.word === item.word)) list.push(item);
     } else {
       groups.set(key, [item]);

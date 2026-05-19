@@ -29,18 +29,23 @@ export type EstimateInput = {
   /** 신호 길이(보통 표시되는 문자열의 문자 수). 0 또는 미정이면 길이 보정 없이 최소값만 적용. */
   signalLen?: number;
   algorithm: SRSAlgorithm;
+  /**
+   * 'easy' 승격 차단 — 청해(대조쌍) 같이 의미 회상이 아닌 변별 과제에서 사용.
+   * SM-2 ease factor 가 과제 신호의 약함을 반영하지 못한 채 자기조정되는 것을 막는다.
+   */
+  noEasy?: boolean;
 };
 
 /**
  * RT + correct → 4단계 SRSGrade 추정.
  * - Leitner: correct → good, wrong → again (기존 동작 유지)
  * - SM-2: wrong → again
- *         correct + RT < fast → easy
+ *         correct + RT < fast → easy (noEasy=true 면 good 으로 캡)
  *         correct + RT > slow → hard
  *         그 외 correct → good
  *   RT 없으면 correct → good (보수적 fallback)
  */
-export function estimateGrade({ correct, rtMs, signalLen = 0, algorithm }: EstimateInput): SRSGrade {
+export function estimateGrade({ correct, rtMs, signalLen = 0, algorithm, noEasy }: EstimateInput): SRSGrade {
   if (!correct) return 'again';
   if (algorithm !== 'sm2') return 'good';
   if (typeof rtMs !== 'number' || rtMs <= 0) return 'good';
@@ -48,7 +53,7 @@ export function estimateGrade({ correct, rtMs, signalLen = 0, algorithm }: Estim
   const fast = Math.max(FAST_MIN_MS, signalLen * FAST_PER_CHAR_MS);
   const slow = Math.max(SLOW_MIN_MS, signalLen * SLOW_PER_CHAR_MS);
 
-  if (rtMs < fast) return 'easy';
   if (rtMs > slow) return 'hard';
+  if (!noEasy && rtMs < fast) return 'easy';
   return 'good';
 }

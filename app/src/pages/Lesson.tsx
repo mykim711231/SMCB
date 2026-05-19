@@ -151,11 +151,32 @@ export default function LessonPage(): JSX.Element {
         <section>
           <SectionHeader title="本文问题 본문질문" />
           <ol className="list-decimal pl-5 space-y-2">
-            {lesson.questions.map((q, i) => (
-              <li key={i}>
-                <VerseRow verse={q} />
-              </li>
-            ))}
+            {lesson.questions.map((q, i) => {
+              const k = favKey(lesson.id, 'question', i);
+              const starred = favHas(k);
+              return (
+                <li key={i}>
+                  <div className="flex items-start gap-1">
+                    <div className="flex-1 min-w-0">
+                      <VerseRow verse={q} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => favToggle(k)}
+                      aria-label={starred ? '질문 즐겨찾기 해제' : '질문 즐겨찾기'}
+                      aria-pressed={starred}
+                      className="w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-primary-soft shrink-0"
+                    >
+                      {starred ? (
+                        <Star size={14} className="text-accent fill-current" />
+                      ) : (
+                        <StarOff size={14} className="text-muted" aria-hidden />
+                      )}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </section>
       )}
@@ -265,9 +286,30 @@ export default function LessonPage(): JSX.Element {
                 <p className="text-sm text-muted mt-0.5">{g.meaningKo}</p>
                 {g.examples.length > 0 && (
                   <div className="mt-2 divide-y divide-divider">
-                    {g.examples.map((ex, j) => (
-                      <VerseRow key={j} verse={ex} />
-                    ))}
+                    {g.examples.map((ex, j) => {
+                      const exK = favKey(lesson.id, 'grammarExample', `${i}:${j}`);
+                      const exStarred = favHas(exK);
+                      return (
+                        <div key={j} className="flex items-start gap-1">
+                          <div className="flex-1 min-w-0">
+                            <VerseRow verse={ex} />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => favToggle(exK)}
+                            aria-label={exStarred ? '예문 즐겨찾기 해제' : '예문 즐겨찾기'}
+                            aria-pressed={exStarred}
+                            className="w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-primary-soft shrink-0 self-center"
+                          >
+                            {exStarred ? (
+                              <Star size={14} className="text-accent fill-current" />
+                            ) : (
+                              <StarOff size={14} className="text-muted" aria-hidden />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {g.note && <p className="text-xs text-muted mt-2">{g.note}</p>}

@@ -84,4 +84,11 @@ export type Appendix = {
   category: AppendixCategory;
   title: string;
   markdown: string;
+  /**
+   * 부록에서 추출한 학습 가능 단어 목록.
+   *   - 부록1(기독교 용어집): 표 행을 파싱하여 80+ 항목.
+   *   - 다른 부록은 비어있음.
+   * Flashcards/Quiz/SRS는 lessonId 자리에 Appendix.id(예: "appendix1")를 사용한다.
+   */
+  vocab?: VocabEntry[];
 };

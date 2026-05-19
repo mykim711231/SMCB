@@ -56,7 +56,10 @@ export default function Settings(): JSX.Element {
       <section>
         <SectionHeader title="화면" />
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
-          <Row label="테마">
+          <Row
+            label="테마"
+            description="라이트는 흰 배경, 다크는 검은 배경, 시스템은 단말기 설정을 따라요."
+          >
             <Segmented
               value={s.theme}
               options={[
@@ -67,7 +70,7 @@ export default function Settings(): JSX.Element {
               onChange={(v) => s.setTheme(v as Theme)}
             />
           </Row>
-          <Row label="글자 크기">
+          <Row label="글자 크기" description="본문 전체의 글자 크기예요.">
             <Segmented
               value={s.fontSize}
               options={[
@@ -78,16 +81,19 @@ export default function Settings(): JSX.Element {
               onChange={(v) => s.setFontSize(v as FontSize)}
             />
           </Row>
-          <Row label="한자 표시">
+          <Row label="한자 표시" description="예문의 한자(中文)를 보여줄지 결정합니다.">
             <Toggle on={s.showHanzi} onClick={s.toggleHanzi} />
           </Row>
-          <Row label="병음 표시">
+          <Row label="병음 표시" description="한자 발음(pīnyīn)을 보여줍니다.">
             <Toggle on={s.showPinyin} onClick={s.togglePinyin} />
           </Row>
-          <Row label="글자별 병음">
+          <Row
+            label="글자별 병음"
+            description="한자 한 글자 위에 작게 발음을 표시합니다. 끄면 한 줄로 모아 보여줘요."
+          >
             <Toggle on={s.rubyPinyin} onClick={s.toggleRubyPinyin} />
           </Row>
-          <Row label="한국어 표시">
+          <Row label="한국어 표시" description="한국어 뜻을 함께 보여줍니다.">
             <Toggle on={s.showKorean} onClick={s.toggleKorean} />
           </Row>
         </div>
@@ -99,7 +105,10 @@ export default function Settings(): JSX.Element {
           subtitle="기기에 설치된 음성을 쓸지, 미리 녹음된 음성을 받아 쓸지 고를 수 있어요."
         />
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
-          <Row label="재생 방식">
+          <Row
+            label="재생 방식"
+            description="기기 음성은 단말기 음성팩을, 녹음 음성은 미리 녹음된 mp3를 사용합니다. 잘 모르겠으면 '녹음 음성'을 권해요."
+          >
             <Segmented
               value={s.userMode ?? 'recorded'}
               options={[
@@ -201,7 +210,10 @@ export default function Settings(): JSX.Element {
       <section>
         <SectionHeader title="플래시카드" subtitle="복습 알고리즘과 일일 학습량을 조절합니다." />
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
-          <Row label="채점 단계">
+          <Row
+            label="채점 단계"
+            description="2단계는 '알아요/몰라요' 두 버튼, 4단계는 '다시·어려움·괜찮음·쉬움' 네 버튼으로 더 정교하게 채점해요."
+          >
             <Segmented
               value={String(s.fcGrades)}
               options={[
@@ -211,7 +223,10 @@ export default function Settings(): JSX.Element {
               onChange={(v) => s.setFcGrades(Number(v) as FlashcardGrades)}
             />
           </Row>
-          <Row label="알고리즘">
+          <Row
+            label="알고리즘"
+            description="복습 간격을 정하는 방식이에요. Leitner는 간단·고정 간격, SM-2는 답한 난이도에 따라 간격이 늘어나고 줄어요."
+          >
             <Segmented
               value={s.fcAlgorithm}
               options={[
@@ -221,7 +236,10 @@ export default function Settings(): JSX.Element {
               onChange={(v) => s.setFcAlgorithm(v as SRSAlgorithm)}
             />
           </Row>
-          <Row label="문제 방향(기본)">
+          <Row
+            label="문제 방향(기본)"
+            description="中→韓: 한자 보고 뜻 맞히기 · 韓→中: 뜻 보고 한자 떠올리기 · 혼합: 둘을 섞어서 출제."
+          >
             <Segmented
               value={s.fcDirection}
               options={[
@@ -232,10 +250,17 @@ export default function Settings(): JSX.Element {
               onChange={(v) => s.setFcDirection(v as FlashcardDirection)}
             />
           </Row>
-          <Row label="카드 종류 (기본)">
+          <Row
+            label="카드 종류 (기본)"
+            description="플래시카드 풀에 넣을 자료 종류를 고르세요. 학습 시작 화면에서 다시 변경할 수 있어요."
+          >
             <div className="flex flex-wrap gap-1.5">
-              {(['vocab', 'example', 'verse'] as const).map((k) => {
-                const label = k === 'vocab' ? '단어' : k === 'example' ? '예문' : '구절';
+              {(['vocab', 'example', 'verse', 'dialog', 'scenario'] as const).map((k) => {
+                const label =
+                  k === 'vocab' ? '단어' :
+                  k === 'example' ? '예문' :
+                  k === 'verse' ? '구절' :
+                  k === 'dialog' ? '회화' : '시나리오';
                 const on = s.fcCardTypes[k];
                 return (
                   <button
@@ -254,13 +279,28 @@ export default function Settings(): JSX.Element {
               })}
             </div>
           </Row>
-          <Row label="자동 음성 재생">
+          <Row
+            label="자동 음성 재생"
+            description="카드가 바뀌면 자동으로 중국어 음성이 한 번 재생돼요."
+          >
             <Toggle on={s.fcAutoplay} onClick={() => s.setFcAutoplay(!s.fcAutoplay)} />
           </Row>
-          <Row label="오디오 마라톤 모드">
-            <Toggle on={s.fcAudioMarathon} onClick={() => s.setFcAudioMarathon(!s.fcAudioMarathon)} />
+          <Row
+            label="대조쌍에 발음표 단음절 포함"
+            description="대조쌍 모드에서 한 글자(단음절) 발음 카드도 함께 출제해요."
+          >
+            <Toggle on={s.fcPronInPairs} onClick={() => s.setFcPronInPairs(!s.fcPronInPairs)} />
           </Row>
-          <Row label={`일일 학습 목표: ${s.fcDailyGoal === 0 ? '비활성' : `${s.fcDailyGoal}장`}`}>
+          <Row
+            label="부록1 기독교 용어 학습 포함"
+            description="예수·하나님 같은 부록1의 기독교 핵심 용어 80여 개를 학습 풀에 넣어요."
+          >
+            <Toggle on={s.fcAppendixVocab} onClick={() => s.setFcAppendixVocab(!s.fcAppendixVocab)} />
+          </Row>
+          <Row
+            label={`일일 학습 목표: ${s.fcDailyGoal === 0 ? '비활성' : `${s.fcDailyGoal}장`}`}
+            description="하루에 풀고 싶은 카드 수예요. 0으로 두면 목표 없이 학습합니다."
+          >
             <input
               type="range"
               min={0}
@@ -487,11 +527,23 @@ function StatusBadge({ status }: { status: ReturnType<typeof useSettings.getStat
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+function Row({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  /** 어르신 친화적인 보조 설명. 라벨 아래 작은 회색 텍스트로 표시. */
+  description?: string;
+  children: React.ReactNode;
+}): JSX.Element {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-3">
-      <span className="text-fg">{label}</span>
-      <div>{children}</div>
+      <div className="min-w-0 flex-1">
+        <span className="text-fg">{label}</span>
+        {description && <p className="text-xs text-muted mt-0.5 leading-snug">{description}</p>}
+      </div>
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }

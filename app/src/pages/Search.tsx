@@ -102,7 +102,11 @@ export default function SearchPage(): JSX.Element {
         {filtered.map((h) => (
           <li key={h.id}>
             <Link
-              to={`/lesson/${h.lessonId}`}
+              to={
+                h.lessonId.startsWith('appendix')
+                  ? `/appendix/${h.lessonId}`
+                  : `/lesson/${h.lessonId}`
+              }
               className="block px-4 py-3 active:bg-primary-soft/40"
             >
               <div className="flex items-center gap-2 text-xs">

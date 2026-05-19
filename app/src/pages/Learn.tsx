@@ -11,15 +11,16 @@
  */
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BarChart3, Layers, ArrowLeftRight, ListChecks, Headphones } from 'lucide-react';
+import { BarChart3, Layers, ArrowLeftRight, ListChecks, Headphones, Radio } from 'lucide-react';
 import Flashcards from './Flashcards';
 import Quiz, { type QuizMode } from './Quiz';
+import Marathon from './Marathon';
 import StatsPanel from '@/components/flashcards/StatsPanel';
 import { cn } from '@/lib/cn';
 
-type LearnMode = 'flashcard' | QuizMode; // 'flashcard' | 'sentence' | 'mcq' | 'pairs'
+type LearnMode = 'flashcard' | QuizMode | 'marathon'; // 'flashcard' | 'sentence' | 'mcq' | 'pairs' | 'marathon'
 
-const VALID_MODES: readonly LearnMode[] = ['flashcard', 'sentence', 'mcq', 'pairs'] as const;
+const VALID_MODES: readonly LearnMode[] = ['flashcard', 'sentence', 'mcq', 'pairs', 'marathon'] as const;
 const isValidMode = (v: string | null): v is LearnMode =>
   v != null && (VALID_MODES as readonly string[]).includes(v);
 
@@ -44,6 +45,7 @@ export default function Learn(): JSX.Element {
         { v: 'sentence' as const, label: '문장 조립', icon: <ArrowLeftRight size={14} aria-hidden /> },
         { v: 'mcq' as const, label: '4지선다', icon: <ListChecks size={14} aria-hidden /> },
         { v: 'pairs' as const, label: '대조쌍', icon: <Headphones size={14} aria-hidden /> },
+        { v: 'marathon' as const, label: '마라톤', icon: <Radio size={14} aria-hidden /> },
       ] satisfies ReadonlyArray<{ v: LearnMode; label: string; icon: JSX.Element }>,
     [],
   );
@@ -90,9 +92,9 @@ export default function Learn(): JSX.Element {
 
       {/* 모드별 콘텐츠 — key로 모드 전환 시 내부 상태 리셋 */}
       <div role="tabpanel">
-        {mode === 'flashcard' ? (
-          <Flashcards key="flashcard" />
-        ) : (
+        {mode === 'flashcard' && <Flashcards key="flashcard" />}
+        {mode === 'marathon' && <Marathon key="marathon" />}
+        {(mode === 'sentence' || mode === 'mcq' || mode === 'pairs') && (
           <Quiz key={mode} mode={mode} />
         )}
       </div>

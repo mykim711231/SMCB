@@ -108,6 +108,11 @@ export default function McqGame({ prompts, direction, ttsRate, ttsVoiceURI, onEx
   const choiceRefs = useRef<Array<HTMLButtonElement | null>>([]);
   // 카드 노출 시각 — select 시점에 RT 계산. cursor 전환마다 갱신.
   const shownAtRef = useRef<number>(performance.now());
+  // SentenceBuilder와 동일한 deferred-grade 패턴 —
+  // select() 즉시 onResult 를 호출하면 부모 store mutation 으로 prompts 가 reshuffle 되어
+  // current.id 가 바뀌고, useEffect([cursor]) 가 다시 돌면서 picked 가 초기화되어
+  // 정답 패널이 사라지는 회귀를 막는다. 결과는 ref 에 보관 후 next()/exit() 에서 flush.
+  const pendingResultRef = useRef<{ id: string; correct: boolean; rtMs?: number; signalLen?: number } | null>(null);
 
   const current = prompts[cursor];
   const pool = distractorPool && distractorPool.length >= 4 ? distractorPool : prompts;
@@ -148,9 +153,12 @@ export default function McqGame({ prompts, direction, ttsRate, ttsVoiceURI, onEx
     const ok = opt === answerText(current.vocab, direction);
     setScore((s) => ({ correct: s.correct + (ok ? 1 : 0), wrong: s.wrong + (ok ? 0 : 1) }));
     const rtMs = Math.max(0, performance.now() - shownAtRef.current);
-    // 신호 길이: 문제(question)의 문자 수 — zh2ko는 단어, ko2zh는 뜻
-    const signalLen = questionText(current.vocab, direction).length;
-    onResult?.(current.vocab.id, ok, rtMs, signalLen);
+    // 신호 길이: 단어 자체의 문자 수 — 한국어 뜻 길이는 임계값 비례화에 부적합
+    // (예: "축복" 2자 vs "축복하다(동사)" 가 임계값 차이를 만들면 안 된다).
+    // 단어를 보고 뜻을 회상하든 뜻을 보고 단어를 회상하든, 회상 대상은 항상 단어이므로
+    // 단어 길이로 통일한다.
+    const signalLen = current.vocab.word.length;
+    pendingResultRef.current = { id: current.vocab.id, correct: ok, rtMs, signalLen };
   };
 
   // ARIA APG Radio Pattern keydown 처리:
@@ -186,9 +194,14 @@ export default function McqGame({ prompts, direction, ttsRate, ttsVoiceURI, onEx
     }
   };
 
-  const next = (): void => setCursor((c) => c + 1);
-  const restart = (): void => { setCursor(0); setScore({ correct: 0, wrong: 0 }); setPicked(null); };
-  const exit = (): void => { ttsStop(); onExit(); };
+  const flushPendingResult = (): void => {
+    const pending = pendingResultRef.current;
+    pendingResultRef.current = null;
+    if (pending) onResult?.(pending.id, pending.correct, pending.rtMs, pending.signalLen);
+  };
+  const next = (): void => { flushPendingResult(); setCursor((c) => c + 1); };
+  const restart = (): void => { pendingResultRef.current = null; setCursor(0); setScore({ correct: 0, wrong: 0 }); setPicked(null); };
+  const exit = (): void => { ttsStop(); flushPendingResult(); onExit(); };
 
   // 전역 단축키: 입력 필드 아님 + 모달 아님일 때만 동작.
   //   - 1-4: 해당 보기 선택 (한 손으로 연속 풀이 가능)

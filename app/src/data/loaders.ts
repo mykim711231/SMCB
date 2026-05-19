@@ -8,7 +8,7 @@
  *
  * In-memory cache prevents re-parsing across navigations within a session.
  */
-import type { Lesson, LessonMeta, Appendix } from '@/types/lesson';
+import type { Lesson, LessonMeta, Appendix, VocabEntry } from '@/types/lesson';
 import metaJson from './lessons-meta.json';
 
 export const META: LessonMeta[] = metaJson as LessonMeta[];
@@ -51,4 +51,23 @@ export async function loadAppendix(id: string): Promise<Appendix | undefined> {
 export async function loadAllLessons(): Promise<Lesson[]> {
   const [v1, v2, v3] = await Promise.all([loadVolume(1), loadVolume(2), loadVolume(3)]);
   return [...v1, ...v2, ...v3];
+}
+
+/**
+ * 부록에서 추출한 학습용 vocab을 lessonId 단위로 평탄화하여 반환.
+ *   - lessonId 자리에 Appendix.id(예: "appendix1")를 사용 → Quiz/Flashcards가
+ *     기존 (vocab, lessonId) 쌍 인터페이스와 충돌 없이 합칠 수 있음.
+ *   - lessonTitleKo는 Appendix.title(예: "附录1 中文基督教词汇表") — 카드 헤더 표시용.
+ *   - 부록1만 vocab을 가지고 다른 부록은 빈 배열.
+ */
+export async function loadAppendixVocabs(): Promise<
+  Array<{ vocab: VocabEntry; lessonId: string; lessonTitleKo: string }>
+> {
+  const apps = await loadAppendices();
+  const out: Array<{ vocab: VocabEntry; lessonId: string; lessonTitleKo: string }> = [];
+  for (const a of apps) {
+    if (!a.vocab) continue;
+    for (const v of a.vocab) out.push({ vocab: v, lessonId: a.id, lessonTitleKo: a.title });
+  }
+  return out;
 }

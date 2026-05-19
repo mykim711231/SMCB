@@ -14,7 +14,13 @@ export type FontSize = 'md' | 'lg' | 'xl';
 
 export type FlashcardDirection = 'zh2ko' | 'ko2zh' | 'mixed';
 export type FlashcardGrades = 2 | 4;
-export type FlashcardCardTypes = { vocab: boolean; example: boolean; verse: boolean };
+export type FlashcardCardTypes = {
+  vocab: boolean;
+  example: boolean;
+  verse: boolean;
+  dialog: boolean;
+  scenario: boolean;
+};
 
 /**
  * 음성 재생 방식.
@@ -59,7 +65,23 @@ export type SettingsState = {
   fcAutoplay: boolean;
   fcCardTypes: FlashcardCardTypes;
   fcDailyGoal: number; // 일일 학습 목표 카드 수 (0 = 비활성)
-  fcAudioMarathon: boolean;
+  /**
+   * 최소 대조쌍 듣기 게임에서 발음표(lesson.pronunciation) 단음절도 풀에 포함할지.
+   * default false — 기본은 vocab만. 발음 변별을 더 폭넓게 연습하고 싶을 때 켠다.
+   * pron 항목은 SRS 카드가 없어 그레이딩되지 않고 게임 풀에만 들어간다.
+   */
+  fcPronInPairs: boolean;
+  /**
+   * 부록1(中文基督教词汇表)의 80+ 기독교 용어를 Flashcards/Quiz 학습 풀에 포함할지.
+   * default false — 65과의 본 vocab만 우선. 켜면 부록 vocab도 SRS 카드(lessonId="appendix1")로
+   * 동일하게 그레이딩되어 통상 학습 흐름에 합류한다.
+   */
+  fcAppendixVocab: boolean;
+  // 마라톤 모드 (Learn/?mode=marathon)
+  /** 마라톤 재생 대상 영역. 권/과 순서로 모아 zh를 순차 재생한다. */
+  marathonAreas: { body: boolean; vocab: boolean; example: boolean; bible: boolean; dialog: boolean; scenario: boolean };
+  /** 마라톤 화면에서 한자/병음/한국어 표시 여부. TTS는 항상 zh로 재생. */
+  marathonShow: { zh: boolean; pinyin: boolean; ko: boolean };
   // 사용 방식 + 음성 일괄 다운로드
   userMode: UserMode;
   ttsBulkStatus: TTSBulkStatus;
@@ -80,7 +102,10 @@ export type SettingsState = {
   setFcAutoplay: (b: boolean) => void;
   setFcCardTypes: (t: FlashcardCardTypes) => void;
   setFcDailyGoal: (n: number) => void;
-  setFcAudioMarathon: (b: boolean) => void;
+  setFcPronInPairs: (b: boolean) => void;
+  setFcAppendixVocab: (b: boolean) => void;
+  setMarathonAreas: (a: SettingsState['marathonAreas']) => void;
+  setMarathonShow: (s: SettingsState['marathonShow']) => void;
   setUserMode: (m: UserMode) => void;
   setTTSBulkStatus: (s: TTSBulkStatus) => void;
   setTTSBulkProgress: (p: { done: number; total: number }) => void;
@@ -103,9 +128,12 @@ const DEFAULTS = {
   fcGrades: 2 as FlashcardGrades,
   fcDirection: 'zh2ko' as FlashcardDirection,
   fcAutoplay: false,
-  fcCardTypes: { vocab: true, example: false, verse: false } as FlashcardCardTypes,
+  fcCardTypes: { vocab: true, example: false, verse: false, dialog: false, scenario: false } as FlashcardCardTypes,
   fcDailyGoal: 20,
-  fcAudioMarathon: false,
+  fcPronInPairs: false,
+  fcAppendixVocab: false,
+  marathonAreas: { body: true, vocab: true, example: true, bible: true, dialog: true, scenario: true },
+  marathonShow: { zh: true, pinyin: true, ko: true },
   userMode: null as UserMode,
   ttsBulkStatus: 'idle' as TTSBulkStatus,
   ttsBulkProgress: { done: 0, total: 0 } as { done: number; total: number },
@@ -119,7 +147,8 @@ type Persisted = Omit<
   | 'setTTSRate' | 'setTTSVoiceURI'
   | 'setFcAlgorithm' | 'setFcGrades' | 'setFcDirection' | 'setFcAutoplay'
   | 'setFcCardTypes' | 'setFcDailyGoal'
-  | 'setFcAudioMarathon'
+  | 'setFcPronInPairs' | 'setFcAppendixVocab'
+  | 'setMarathonAreas' | 'setMarathonShow'
   | 'setUserMode' | 'setTTSBulkStatus' | 'setTTSBulkProgress'
   | 'hydrate'
 >;
@@ -140,7 +169,10 @@ function pickPersisted(s: SettingsState): Persisted {
     fcAutoplay: s.fcAutoplay,
     fcCardTypes: s.fcCardTypes,
     fcDailyGoal: s.fcDailyGoal,
-    fcAudioMarathon: s.fcAudioMarathon,
+    fcPronInPairs: s.fcPronInPairs,
+    fcAppendixVocab: s.fcAppendixVocab,
+    marathonAreas: s.marathonAreas,
+    marathonShow: s.marathonShow,
     userMode: s.userMode,
     ttsBulkStatus: s.ttsBulkStatus,
     ttsBulkProgress: s.ttsBulkProgress,
@@ -247,14 +279,25 @@ export const useSettings = create<SettingsState>((set, get) => ({
   setFcDirection: (d) => { set({ fcDirection: d }); void persist({ ...get(), fcDirection: d }); },
   setFcAutoplay: (b) => { set({ fcAutoplay: b }); void persist({ ...get(), fcAutoplay: b }); },
   setFcCardTypes: (t) => {
-    const safe: FlashcardCardTypes = (!t.vocab && !t.example && !t.verse)
-      ? { vocab: true, example: false, verse: false }
-      : t;
+    // 모든 종류가 꺼지면 학습 불가 → vocab을 강제로 켜는 안전 가드.
+    const anyOn = t.vocab || t.example || t.verse || t.dialog || t.scenario;
+    const safe: FlashcardCardTypes = anyOn
+      ? t
+      : { vocab: true, example: false, verse: false, dialog: false, scenario: false };
     set({ fcCardTypes: safe });
     void persist({ ...get(), fcCardTypes: safe });
   },
   setFcDailyGoal: (n) => { const v = Math.max(0, Math.floor(n)); set({ fcDailyGoal: v }); void persist({ ...get(), fcDailyGoal: v }); },
-  setFcAudioMarathon: (b) => { set({ fcAudioMarathon: b }); void persist({ ...get(), fcAudioMarathon: b }); },
+  setFcPronInPairs: (b) => { set({ fcPronInPairs: b }); void persist({ ...get(), fcPronInPairs: b }); },
+  setFcAppendixVocab: (b) => { set({ fcAppendixVocab: b }); void persist({ ...get(), fcAppendixVocab: b }); },
+  setMarathonAreas: (a) => {
+    // 모든 영역이 꺼지면 풀이 비어 진행이 막힘 → 본문을 강제로 켜는 안전 가드.
+    const anyOn = a.body || a.vocab || a.example || a.bible || a.dialog || a.scenario;
+    const safe = anyOn ? a : { ...a, body: true };
+    set({ marathonAreas: safe });
+    void persist({ ...get(), marathonAreas: safe });
+  },
+  setMarathonShow: (s2) => { set({ marathonShow: s2 }); void persist({ ...get(), marathonShow: s2 }); },
   setUserMode: (m) => {
     // 모드 전환 시 진행 중인 음성/오디오를 즉시 종료한다.
     //   - 직전 utterance가 살아남아 새 모드와 다른 경로에서 끝나면

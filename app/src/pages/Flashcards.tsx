@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Check, X, RotateCcw, Star, ArrowLeftRight, BookOpen, MessageSquareText, Layers, AlertTriangle, Headphones, ChevronDown,
+  Check, X, RotateCcw, Star, ArrowLeftRight, BookOpen, MessageSquareText, Layers, AlertTriangle, ChevronDown,
 } from 'lucide-react';
-import { loadAllLessons, META } from '@/data/loaders';
+import { loadAllLessons, loadAppendixVocabs, META } from '@/data/loaders';
 import type { VocabEntry } from '@/types/lesson';
 import { useSRS, BOX_DAYS, type SRSGrade } from '@/stores/srs';
 import { useFavorites } from '@/stores/favorites';
@@ -14,7 +14,6 @@ import { speak, unlock, isSupported as ttsSupported } from '@/lib/tts';
 import {
   type CardSource, buildAllCardSources, cardIdOf, favKeyOf, speakTextOf,
 } from '@/lib/flashcard-items';
-import MarathonPlayer from '@/components/flashcards/MarathonPlayer';
 import { pickMistakeCards } from '@/lib/srs-stats';
 import { cn } from '@/lib/cn';
 
@@ -29,14 +28,18 @@ export default function Flashcards(): JSX.Element {
   const [lapses, setLapses] = useState<CardSource[]>([]);
   const [inLapses, setInLapses] = useState(false);
   // session-local card type overrides (initialized from settings on mount)
-  const [typeFilter, setTypeFilter] = useState({ vocab: true, example: true, verse: true });
+  const [typeFilter, setTypeFilter] = useState({
+    vocab: true,
+    example: true,
+    verse: true,
+    dialog: true,
+    scenario: true,
+  });
   // session-local direction (overrides settings within the page)
   const [direction, setDirection] = useState<FlashcardDirection>('zh2ko');
   // 레슨 필터 (빈 Set = 전체, 그 외 = 선택된 lessonId만 표시) — Quiz와 공유
   const lessonSel = useLearnScope((s) => s.lessonSel);
   const setLessonSel = useLearnScope((s) => s.setLessonSel);
-  // 마라톤 모드 활성 여부 (설정 fcAudioMarathon이 켜져 있어야 시작 가능)
-  const [marathonOn, setMarathonOn] = useState(false);
 
   const cards = useSRS((s) => s.cards);
   const ensure = useSRS((s) => s.ensure);
@@ -48,7 +51,7 @@ export default function Flashcards(): JSX.Element {
   const fcDirectionSetting = useSettings((s) => s.fcDirection);
   const fcAutoplay = useSettings((s) => s.fcAutoplay);
   const fcCardTypes = useSettings((s) => s.fcCardTypes);
-  const fcAudioMarathon = useSettings((s) => s.fcAudioMarathon);
+  const fcAppendixVocab = useSettings((s) => s.fcAppendixVocab);
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
 
@@ -59,21 +62,38 @@ export default function Flashcards(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // load lessons + ensure SRS records exist
+  // load lessons (+ optional appendix vocab) + ensure SRS records exist
   useEffect(() => {
     let alive = true;
-    void loadAllLessons().then((lessons) => {
+    const tasks: [Promise<unknown>, ...Promise<unknown>[]] = [loadAllLessons()];
+    if (fcAppendixVocab) tasks.push(loadAppendixVocabs());
+    void Promise.all(tasks).then((results) => {
       if (!alive) return;
-      const out = buildAllCardSources(lessons);
+      const lessons = results[0] as Awaited<ReturnType<typeof loadAllLessons>>;
+      const appendixVocabs = fcAppendixVocab
+        ? (results[1] as Awaited<ReturnType<typeof loadAppendixVocabs>>)
+        : [];
+      const out = buildAllCardSources(lessons, appendixVocabs);
       setSources(out);
       ensure(out.map(cardIdOf));
     });
     return () => { alive = false; };
-  }, [ensure]);
+  }, [ensure, fcAppendixVocab]);
 
   // apply card-type + lesson filter
+  // 부록 vocab(lessonId가 "appendix"로 시작)은 lesson 멀티 필터의 범위 밖에 있으므로
+  // lessonSel이 비어있지 않더라도 항상 포함된다 (사용자가 토글로 켰을 때 항상 학습 대상).
   const typeFiltered = useMemo(
-    () => sources.filter((s) => typeFilter[s.kind] && (lessonSel.size === 0 || lessonSel.has(s.lessonId))),
+    () =>
+      sources.filter(
+        (s) =>
+          // body 카드는 마라톤 전용이므로 플래시카드 풀에는 들지 않는다 — 타입 안전성 가드.
+          s.kind !== 'body' &&
+          typeFilter[s.kind] &&
+          (lessonSel.size === 0 ||
+            lessonSel.has(s.lessonId) ||
+            s.lessonId.startsWith('appendix')),
+      ),
     [sources, typeFilter, lessonSel],
   );
 
@@ -279,6 +299,14 @@ export default function Flashcards(): JSX.Element {
           on={typeFilter.verse} onClick={() => setTypeFilter((t) => ({ ...t, verse: !t.verse }))}
           label="구절" icon={<Layers size={12} aria-hidden />}
         />
+        <TypeChip
+          on={typeFilter.dialog} onClick={() => setTypeFilter((t) => ({ ...t, dialog: !t.dialog }))}
+          label="회화" icon={<MessageSquareText size={12} aria-hidden />}
+        />
+        <TypeChip
+          on={typeFilter.scenario} onClick={() => setTypeFilter((t) => ({ ...t, scenario: !t.scenario }))}
+          label="시나리오" icon={<Layers size={12} aria-hidden />}
+        />
         <span className="mx-1 text-divider">|</span>
         <button
           type="button"
@@ -292,17 +320,6 @@ export default function Flashcards(): JSX.Element {
           <ArrowLeftRight size={12} aria-hidden />
           {direction === 'zh2ko' ? '中→韓' : direction === 'ko2zh' ? '韓→中' : '혼합'}
         </button>
-        {fcAudioMarathon && !marathonOn && filtered.length > 0 && (
-          <button
-            type="button"
-            onClick={() => { unlock(); setMarathonOn(true); }}
-            className="inline-flex items-center gap-1 rounded-full bg-primary-soft text-primary border border-primary/30 px-3 py-1 font-semibold"
-            aria-label="오디오 마라톤 시작"
-            title="현재 덱을 순서대로 들으며 듣기 집중 모드 시작"
-          >
-            <Headphones size={12} aria-hidden /> 마라톤
-          </button>
-        )}
       </div>
 
       <p className="text-sm text-muted">
@@ -315,20 +332,11 @@ export default function Flashcards(): JSX.Element {
 
       {sources.length === 0 && <p className="text-muted">불러오는 중…</p>}
 
-      {sources.length > 0 && filtered.length === 0 && !sessionEnded && !marathonOn && (
+      {sources.length > 0 && filtered.length === 0 && !sessionEnded && (
         <EmptyState deck={deck} onStartLapses={startLapses} hasLapses={lapses.length > 0} />
       )}
 
-      {marathonOn && (
-        <MarathonPlayer
-          cards={filtered}
-          ttsRate={ttsRate}
-          ttsVoiceURI={ttsVoiceURI}
-          onExit={() => setMarathonOn(false)}
-        />
-      )}
-
-      {!marathonOn && current && !sessionEnded && (
+      {current && !sessionEnded && (
         <CardView
           source={current}
           revealed={revealed}
@@ -339,7 +347,7 @@ export default function Flashcards(): JSX.Element {
         />
       )}
 
-      {!marathonOn && current && !sessionEnded && revealed && (
+      {current && !sessionEnded && revealed && (
         <GradeButtons
           grades={fcGrades}
           onGrade={onGrade}
@@ -348,7 +356,7 @@ export default function Flashcards(): JSX.Element {
         />
       )}
 
-      {!marathonOn && sessionEnded && (
+      {sessionEnded && (
         <div className="rounded-2xl border border-divider bg-surface p-6 text-center">
           <p className="text-fg font-semibold">{inLapses ? '오답 재투입 완료!' : '세션 완료!'}</p>
           <p className="text-muted text-sm mt-1">
@@ -469,9 +477,16 @@ function CardView({
   intervalDays: number;
   onReveal: () => void;
 }): JSX.Element {
-  const lessonLink = `/lesson/${source.lessonId}`;
+  const lessonLink = source.lessonId.startsWith('appendix')
+    ? `/appendix/${source.lessonId}`
+    : `/lesson/${source.lessonId}`;
   const intervalLabel = intervalDays > 0 ? `${intervalDays}일` : `${BOX_DAYS[1]}일`;
-  const headerLabel = source.kind === 'vocab' ? '단어' : source.kind === 'example' ? '예문' : '구절';
+  const headerLabel =
+    source.kind === 'vocab' ? '단어'
+    : source.kind === 'example' ? '예문'
+    : source.kind === 'verse' ? '구절'
+    : source.kind === 'dialog' ? (source.dialogKind === 'dg' ? '복음 회화' : '일상 회화')
+    : '시나리오';
 
   return (
     <div className="rounded-2xl border border-divider bg-surface p-6 sm:p-8 text-center select-none">
@@ -492,6 +507,22 @@ function CardView({
         )}
         {source.kind === 'verse' && (
           <VerseFront quote={source.verse} direction={direction} revealed={revealed} />
+        )}
+        {source.kind === 'dialog' && (
+          <LineFront
+            verse={source.verse}
+            caption={source.role ? `역할: ${source.role}` : undefined}
+            direction={direction}
+            revealed={revealed}
+          />
+        )}
+        {source.kind === 'scenario' && (
+          <LineFront
+            verse={source.verse}
+            caption={`상황: ${source.title}`}
+            direction={direction}
+            revealed={revealed}
+          />
         )}
       </div>
 
@@ -637,6 +668,48 @@ function VerseFront({
   );
 }
 
+function LineFront({
+  verse, caption, direction, revealed,
+}: {
+  verse: { zh: string; pinyin: string; ko: string };
+  caption?: string;
+  direction: 'zh2ko' | 'ko2zh';
+  revealed: boolean;
+}): JSX.Element {
+  return (
+    <>
+      {caption && <p className="text-xs text-muted mb-2">{caption}</p>}
+      {direction === 'zh2ko' ? (
+        <>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-xl sm:text-2xl font-semibold text-fg">{verse.zh}</p>
+            <TTSButton text={verse.zh} />
+          </div>
+          {revealed && (
+            <>
+              <p className="text-pinyin font-pinyin text-sm mt-3">{verse.pinyin}</p>
+              <p className="text-fg text-base mt-3">{verse.ko}</p>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-lg sm:text-xl font-semibold text-fg">{verse.ko}</p>
+          {revealed && (
+            <>
+              <div className="flex items-center justify-center gap-2 mt-5">
+                <p className="text-xl sm:text-2xl font-semibold text-fg">{verse.zh}</p>
+                <TTSButton text={verse.zh} />
+              </div>
+              <p className="text-pinyin font-pinyin text-sm mt-2">{verse.pinyin}</p>
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function GradeButtons({
   grades, onGrade, algorithm, card,
 }: {
@@ -721,7 +794,7 @@ function GradeBtn({ label, sub, cls, fallbackCls, onClick }: { label: string; su
  * - 선택 0개 = 전체 (필터 미적용)
  * - 권 전체 체크 = 해당 권의 모든 과를 selected에 추가/제거
  */
-function LessonMultiFilter({
+export function LessonMultiFilter({
   groups,
   selected,
   onChange,

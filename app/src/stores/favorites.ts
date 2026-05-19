@@ -11,7 +11,10 @@ export type FavoriteKind =
   | 'bible'
   | 'dialogDaily'
   | 'dialogGospel'
-  | 'scenario';
+  | 'scenario'
+  | 'grammarExample'
+  | 'question'
+  | 'body';
 
 export type FavoritesState = {
   items: Record<string, true>;

@@ -4,6 +4,9 @@
  * 입력 소스:
  *   - 회화(dialogDaily, dialogGospel)의 lines — 모두 북경 표준어, 선교 목적의 전도 회화 포함
  *   - 단어 예문(vocab.example)
+ *   - 실전 시나리오(scenarios)의 verse 세그먼트 — 실제 전도 상황에서 사용되는 인용 문장
+ *   - 어법 예문(grammar.examples) — 패턴 학습 후 변형 출력
+ *   - 본문 질문(questions) — 본문 이해 확인용 회화체 질문
  *
  * 제외 대상:
  *   - 본문(lesson.body), 성경 인용(lesson.bible) — 문어체·고전 표현이라 회화 조립 학습 가치 ↓
@@ -17,6 +20,14 @@
  * 채점:
  *   - 사용자가 만든 토큰 시퀀스의 join("")을 정답 join("")과 비교.
  *   - 양쪽 모두 구두점/공백/한글병기 제거 후 비교.
+ *
+ * 프롬프트 ID 형식 (Quiz.tsx srsCardIdFromPromptId 와 동기화 필수):
+ *   - `{lessonId}:dd:{di}:{li}` — 응용 회화         → SRS `d:{lessonId}:dd:{di}:{li}`
+ *   - `{lessonId}:dg:{di}:{li}` — 전도 회화         → SRS `d:{lessonId}:dg:{di}:{li}`
+ *   - `{lessonId}:ex:{vocabId}` — 단어 예문         → SRS `v:{vocabId}`
+ *   - `{lessonId}:sc:{si}:{sj}` — 실전 시나리오     → SRS `s:{lessonId}:{si}:{sj}`
+ *   - `{lessonId}:ge:{gi}:{ei}` — 어법 예문         → SRS 카드 없음 (전체 덱 한정)
+ *   - `{lessonId}:q:{qi}`       — 본문 질문         → SRS 카드 없음 (전체 덱 한정)
  */
 import type { Lesson, Verse } from '@/types/lesson';
 import {
@@ -35,7 +46,7 @@ export type SentencePrompt = {
   id: string;             // 안정 ID (lessonId + 종류 + 인덱스)
   lessonId: string;
   lessonTitleKo: string;
-  source: 'dialog' | 'example' | 'verse';
+  source: 'dialog' | 'example' | 'verse' | 'scenario' | 'grammarExample' | 'question';
   ko: string;             // 한국어 단서
   zh: string;             // 정답 중국어 원문
   pinyin: string;         // 정답 병음 (reveal/도움말용)
@@ -134,6 +145,39 @@ export function buildPromptsFromLesson(l: Lesson): SentencePrompt[] {
     pushVerseIf(out, v.example, {
       id: `${l.id}:ex:${v.id}`,
       source: 'example',
+      ...meta,
+    });
+  });
+  // 실전 시나리오: kind='verse' 세그먼트의 zh/ko/pinyin 트리오를 그대로 출제.
+  // 시나리오 제목은 화자/맥락 단서로 speakers에 노출.
+  l.scenarios?.forEach((sc, si) => {
+    sc.segments.forEach((seg, sj) => {
+      if (seg.kind !== 'verse') return;
+      pushVerseIf(out, seg.verse, {
+        id: `${l.id}:sc:${si}:${sj}`,
+        source: 'scenario',
+        speakers: sc.title,
+        ...meta,
+      });
+    });
+  });
+  // 어법 예문: 패턴 학습 직후 토큰 조합으로 산출 연습.
+  // SRS 카드는 없음(전체 덱 한정) — Quiz.tsx srsCardIdFromPromptId가 null 반환.
+  l.grammar?.forEach((g, gi) => {
+    g.examples?.forEach((e, ei) => {
+      pushVerseIf(out, e, {
+        id: `${l.id}:ge:${gi}:${ei}`,
+        source: 'grammarExample',
+        speakers: g.pattern,
+        ...meta,
+      });
+    });
+  });
+  // 본문 질문: 본문 이해 확인용 회화체 질문. SRS 카드 없음(전체 덱 한정).
+  l.questions?.forEach((q, qi) => {
+    pushVerseIf(out, { ko: q.ko, zh: q.zh, pinyin: q.pinyin }, {
+      id: `${l.id}:q:${qi}`,
+      source: 'question',
       ...meta,
     });
   });
