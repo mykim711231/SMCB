@@ -29,12 +29,13 @@
 
 📖 SMCB — 중국어 성경 학습 앱
 
-아래 링크를 휴대폰 브라우저(Chrome / Safari)에서 열어 주세요.
+아래 링크를 휴대폰 또는 PC 브라우저(Chrome / Safari / Edge)에서 열어 주세요.
 👉 https://mykim711231.github.io/SMCB/
 
 [설치 방법]
 • Android : 메뉴(︙) → "홈 화면에 추가"
 • iPhone  : 공유(􀈂) → "홈 화면에 추가"
+• PC (Windows/Mac) : Chrome/Edge 주소창 오른쪽 끝의 설치 아이콘(⊕) 클릭 → "설치"
 
 설치하시면 오프라인에서도 모든 본문과 발음(TTS)을 들을 수 있습니다.
 주님 안에서 함께 배우는 기쁨이 있기를 바랍니다. 🙏

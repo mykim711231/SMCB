@@ -25,19 +25,20 @@ Built for the Saemunan Church Mandarin class, optimized for mobile, offline-capa
 Use this snippet when sharing the app with class members:
 
 ```
-새문안교회 중국어 성경반 PWA 안내
+Saemunan Church Mandarin Bible Class PWA
 
-📖 SMCB — 중국어 성경 학습 앱
+📖 SMCB — Mandarin Bible Learning App
 
-아래 링크를 휴대폰 브라우저(Chrome / Safari)에서 열어 주세요.
+Open the link below in your mobile or PC browser (Chrome / Safari / Edge).
 👉 https://mykim711231.github.io/SMCB/
 
-[설치 방법]
-• Android : 메뉴(︙) → "홈 화면에 추가"
-• iPhone  : 공유(􀈂) → "홈 화면에 추가"
+[How to Install]
+• Android : Menu (︙) → "Add to Home screen"
+• iPhone  : Share (􀈂) → "Add to Home Screen"
+• PC (Windows/Mac) : Click the install icon (⊕) at the right end of the Chrome/Edge address bar → "Install"
 
-설치하시면 오프라인에서도 모든 본문과 발음(TTS)을 들을 수 있습니다.
-주님 안에서 함께 배우는 기쁨이 있기를 바랍니다. 🙏
+Once installed, you can read every lesson and hear the pronunciation (TTS) fully offline.
+May we share the joy of learning together in the Lord. 🙏
 ```
 
 ---
