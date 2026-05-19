@@ -289,7 +289,6 @@ export default function LessonPage(): JSX.Element {
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-muted">
                       대화 {di + 1}
-                      {d.title ? <span className="text-fg font-medium ml-1">· {d.title}</span> : null}
                     </p>
                     <button
                       type="button"
@@ -329,7 +328,6 @@ export default function LessonPage(): JSX.Element {
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-muted">
                       전도 대화 {di + 1}
-                      {d.title ? <span className="text-fg font-medium ml-1">· {d.title}</span> : null}
                     </p>
                     <button
                       type="button"
