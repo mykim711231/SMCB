@@ -35,7 +35,7 @@
 ◇ 설치 후 인터넷 없이 사용 가능
 ◇ 데이터 걱정 없이 언제 어디서든
 
-↗ https://mykim711231.github.io/SMCB/
+↗ https://mykim711231.github.io/SMCB/?openExternalBrowser=1
 
 ▍설치 방법
 ① Android  ›  메뉴(⋮) → 홈 화면에 추가

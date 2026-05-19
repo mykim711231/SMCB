@@ -59,6 +59,7 @@ export default function Settings(): JSX.Element {
           <Row
             label="테마"
             description="라이트는 흰 배경, 다크는 검은 배경, 시스템은 단말기 설정을 따라요."
+            stack
           >
             <Segmented
               value={s.theme}
@@ -70,7 +71,7 @@ export default function Settings(): JSX.Element {
               onChange={(v) => s.setTheme(v as Theme)}
             />
           </Row>
-          <Row label="글자 크기" description="본문 전체의 글자 크기예요.">
+          <Row label="글자 크기" description="본문 전체의 글자 크기예요." stack>
             <Segmented
               value={s.fontSize}
               options={[
@@ -108,6 +109,7 @@ export default function Settings(): JSX.Element {
           <Row
             label="재생 방식"
             description="기기 음성은 단말기 음성팩을, 녹음 음성은 미리 녹음된 mp3를 사용합니다. 잘 모르겠으면 '녹음 음성'을 권해요."
+            stack
           >
             <Segmented
               value={s.userMode ?? 'recorded'}
@@ -213,6 +215,7 @@ export default function Settings(): JSX.Element {
           <Row
             label="채점 단계"
             description="2단계는 '알아요/몰라요' 두 버튼, 4단계는 '다시·어려움·괜찮음·쉬움' 네 버튼으로 더 정교하게 채점해요."
+            stack
           >
             <Segmented
               value={String(s.fcGrades)}
@@ -226,6 +229,7 @@ export default function Settings(): JSX.Element {
           <Row
             label="알고리즘"
             description="복습 간격을 정하는 방식이에요. Leitner는 간단·고정 간격, SM-2는 답한 난이도에 따라 간격이 늘어나고 줄어요."
+            stack
           >
             <Segmented
               value={s.fcAlgorithm}
@@ -239,6 +243,7 @@ export default function Settings(): JSX.Element {
           <Row
             label="문제 방향(기본)"
             description="中→韓: 한자 보고 뜻 맞히기 · 韓→中: 뜻 보고 한자 떠올리기 · 혼합: 둘을 섞어서 출제."
+            stack
           >
             <Segmented
               value={s.fcDirection}
@@ -253,6 +258,7 @@ export default function Settings(): JSX.Element {
           <Row
             label="카드 종류 (기본)"
             description="플래시카드 풀에 넣을 자료 종류를 고르세요. 학습 시작 화면에서 다시 변경할 수 있어요."
+            stack
           >
             <div className="flex flex-wrap gap-1.5">
               {(['vocab', 'example', 'verse', 'dialog', 'scenario'] as const).map((k) => {
@@ -300,6 +306,7 @@ export default function Settings(): JSX.Element {
           <Row
             label={`일일 학습 목표: ${s.fcDailyGoal === 0 ? '비활성' : `${s.fcDailyGoal}장`}`}
             description="하루에 풀고 싶은 카드 수예요. 0으로 두면 목표 없이 학습합니다."
+            stack
           >
             <input
               type="range"
@@ -568,19 +575,29 @@ function Row({
   label,
   description,
   children,
+  stack,
 }: {
   label: string;
   /** 어르신 친화적인 보조 설명. 라벨 아래 작은 회색 텍스트로 표시. */
   description?: string;
   children: React.ReactNode;
+  /** true면 좁은 화면(< sm)에서 컨트롤이 라벨 아래로 떨어진다. 칩이 여러 개라 옆에 두면 라벨이 깨질 때 사용. */
+  stack?: boolean;
 }): JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3">
+    <div
+      className={cn(
+        'gap-3 px-4 py-3',
+        stack
+          ? 'flex flex-col sm:flex-row sm:items-center sm:justify-between'
+          : 'flex items-center justify-between',
+      )}
+    >
       <div className="min-w-0 flex-1">
         <span className="text-fg">{label}</span>
         {description && <p className="text-xs text-muted mt-0.5 leading-snug">{description}</p>}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className={stack ? 'w-full sm:w-auto' : 'shrink-0'}>{children}</div>
     </div>
   );
 }

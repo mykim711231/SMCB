@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2 } from 'lucide-react';
+import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2, Copy, Check } from 'lucide-react';
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -19,6 +19,11 @@ function isInAppBrowser(): { kind: 'kakao' | 'naver' | 'line' | 'facebook' | 'in
   return { kind: null, label: null };
 }
 
+function isIOSDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent);
+}
+
 function isStandaloneMode(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia('(display-mode: standalone)').matches) return true;
@@ -26,19 +31,59 @@ function isStandaloneMode(): boolean {
 }
 
 function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const ios = isIOSDevice();
+  // 'Safari'는 받침 없음 → 를/로, 'Chrome'은 마지막 음 [m] 받침 → 을/으로
+  const browserName = ios ? 'Safari' : 'Chrome';
+  const objectParticle = ios ? '를' : '을';   // …을/를 열기
+  const directionParticle = ios ? '로' : '으로'; // …(으)로 열기
+
+  const copyUrl = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(INVITE_URL);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 3000);
+    } catch {
+      // 권한/지원 미흡 — 버튼은 그대로 두고, 사용자가 다시 시도 가능.
+    }
+  };
+
   return (
     <section className="rounded-2xl border-2 border-accent bg-accent/10 p-4 sm:p-5">
       <p className="font-bold text-fg inline-flex items-center gap-1.5">
         <AlertTriangle size={18} aria-hidden /> {label} 내장 브라우저로 열려 있어요
       </p>
       <p className="text-sm text-fg/90 mt-2">
-        이 화면에서는 <b>음성 재생·앱 설치·오프라인 사용</b>이 동작하지 않을 수 있습니다.
+        이 화면에서는 <b>음성 재생·앱 설치·오프라인 사용</b>이 동작하지 않습니다.
       </p>
-      <p className="text-sm text-fg mt-2 font-semibold">▸ 해결 방법</p>
-      <ul className="list-disc pl-5 text-sm text-fg/90 space-y-1 mt-1">
-        <li>화면 <b>오른쪽 위 ⋮ 메뉴</b> → <b>"기본 브라우저로 열기"</b> 또는 <b>"Safari/Chrome으로 열기"</b>.</li>
-        <li>메뉴가 없으면 페이지 주소를 길게 눌러 <b>"링크 복사"</b> → Safari(iPhone)·Chrome(Android)에 붙여넣기.</li>
-      </ul>
+
+      <p className="text-sm text-fg mt-3 font-semibold">▸ 이렇게 해주세요</p>
+      <ol className="list-decimal pl-5 text-sm text-fg/90 space-y-1 mt-1">
+        <li>아래 <b>주소 복사하기</b> 버튼을 누르세요.</li>
+        <li>홈 화면에서 <b>{browserName}</b>{ios ? ' (나침반 아이콘)' : ''}{objectParticle} 여세요.</li>
+        <li>{browserName} <b>주소창을 길게 눌러 → 붙여넣기 → 이동</b>.</li>
+      </ol>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void copyUrl()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent text-white text-sm font-semibold px-4 py-2"
+          aria-label="앱 주소를 클립보드에 복사"
+        >
+          {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />}
+          {copied ? '복사됨!' : '주소 복사하기'}
+        </button>
+        {copied && (
+          <span role="status" aria-live="polite" className="text-xs text-fg/80">
+            이제 {browserName}{objectParticle} 열어 주소창에 붙여넣어 주세요
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs text-muted mt-3">
+        또는 화면 <b>오른쪽 위 ⋮ 메뉴</b> → <b>"{browserName}{directionParticle} 열기"</b>를 눌러도 됩니다.
+      </p>
     </section>
   );
 }
@@ -52,6 +97,15 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
  * 사용자가 어디서 복사하든 같은 내용이 전달된다.
  */
 const INVITE_URL = 'https://mykim711231.github.io/SMCB/';
+/**
+ * 카카오톡 채팅방에서 누를 때 안드로이드 카카오톡 인앱 브라우저를 우회해
+ * Chrome(기본 브라우저)으로 자동 진입하도록 ?openExternalBrowser=1 쿼리를 붙인다.
+ *   - Android 카카오톡: 자동으로 외부 브라우저로 열림.
+ *   - iOS 카카오톡: 쿼리는 무시되며 인앱 브라우저로 열리지만, 그쪽은 배너의
+ *     "주소 복사하기" 버튼으로 Safari 이동을 유도한다.
+ *   - PWA 설치 후에는 쿼리 파라미터가 무관하므로 안전.
+ */
+const INVITE_URL_SHARE = `${INVITE_URL}?openExternalBrowser=1`;
 const INVITE_MESSAGE = `─────────────────
 ◈ 중국어 학습 앱 안내
 ─────────────────
@@ -62,7 +116,7 @@ const INVITE_MESSAGE = `─────────────────
 ◇ 설치 후 인터넷 없이 사용 가능
 ◇ 데이터 걱정 없이 언제 어디서든
 
-↗ ${INVITE_URL}
+↗ ${INVITE_URL_SHARE}
 
 ▍설치 방법
 ① Android  ›  메뉴(⋮) → 홈 화면에 추가
@@ -70,30 +124,20 @@ const INVITE_MESSAGE = `─────────────────
 ③ PC       ›  주소창 오른쪽 ⊕ → 설치
 ─────────────────`;
 
-async function shareInvite(): Promise<'shared' | 'copied' | 'failed'> {
+/**
+ * 시스템 공유 시트를 띄우지 않고 항상 클립보드에 복사한다.
+ * 어르신께 환경별로 다른 UX(시트/취소/실패)가 나타나면 혼란스럽기 때문에,
+ * 모바일·데스크탑 동일하게 "복사됨 토스트 + 본인이 카톡/문자에 붙여넣기" 흐름으로 통일.
+ */
+async function shareInvite(): Promise<'copied' | 'failed'> {
   const nav = typeof navigator !== 'undefined' ? navigator : null;
-  if (nav && typeof nav.share === 'function') {
-    try {
-      await nav.share({
-        title: '새문안 중국어 성경반 (중급)',
-        text: INVITE_MESSAGE,
-        url: INVITE_URL,
-      });
-      return 'shared';
-    } catch {
-      // 사용자 취소 또는 시스템 오류 — 폴백으로 시도하지 않고 그대로 반환.
-      return 'failed';
-    }
+  if (!nav?.clipboard?.writeText) return 'failed';
+  try {
+    await nav.clipboard.writeText(INVITE_MESSAGE);
+    return 'copied';
+  } catch {
+    return 'failed';
   }
-  if (nav?.clipboard?.writeText) {
-    try {
-      await nav.clipboard.writeText(INVITE_MESSAGE);
-      return 'copied';
-    } catch {
-      return 'failed';
-    }
-  }
-  return 'failed';
 }
 
 export default function Home(): JSX.Element {
@@ -110,10 +154,9 @@ export default function Home(): JSX.Element {
   const [inviteToast, setInviteToast] = useState<string | null>(null);
   const onShareClick = async (): Promise<void> => {
     const r = await shareInvite();
-    if (r === 'copied') setInviteToast('초청 메시지가 복사되었어요. 카카오톡 채팅방에 붙여넣어 주세요.');
-    else if (r === 'failed') setInviteToast('공유에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
-    // 'shared'는 시스템 공유 시트가 떴으므로 별도 토스트 없음.
-    if (r !== 'shared') window.setTimeout(() => setInviteToast(null), 4000);
+    if (r === 'copied') setInviteToast('초청 메시지가 복사되었어요. 원하는 곳에 붙여넣어 보내세요.');
+    else setInviteToast('복사에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
+    window.setTimeout(() => setInviteToast(null), 4000);
   };
 
   return (
@@ -150,10 +193,10 @@ export default function Home(): JSX.Element {
           <button
             type="button"
             onClick={() => void onShareClick()}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#FEE500] text-[#3C1E1E] text-sm font-semibold px-4 py-2"
-            aria-label="카카오톡으로 초청 메시지 공유"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
+            aria-label="초청 메시지 공유"
           >
-            <Share2 size={16} aria-hidden /> 카카오톡 초청 하기
+            <Share2 size={16} aria-hidden /> 초청 하기
           </button>
         </div>
         {inviteToast && (

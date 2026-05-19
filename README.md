@@ -33,7 +33,7 @@ Built on Beijing Standard Mandarin (普通话), with natural everyday Chinese ex
 Install once and use it offline anywhere, anytime — no internet required.
 
 Open the link below in your mobile or PC browser (Chrome / Safari / Edge).
-👉 https://mykim711231.github.io/SMCB/
+👉 https://mykim711231.github.io/SMCB/?openExternalBrowser=1
 
 [How to Install]
 • Android : Menu (︙) → "Add to Home screen"
