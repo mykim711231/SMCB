@@ -31,6 +31,23 @@ let unlocked = false;
 let cachedZhVoice: SpeechSynthesisVoice | null = null;
 let currentAudio: HTMLAudioElement | null = null;
 
+// Chrome/Edge 보이스 비동기 로드 워밍업.
+//  - 일부 Chromium 엔진은 `voiceschanged` 리스너가 한 번이라도 붙어 있어야
+//    실제로 이벤트를 발화한다. 모듈 로드 시 더미 리스너를 등록해 보장한다.
+//  - 동시에 getVoices()를 한 번 호출해 내부 voice 테이블 초기화를 nudge.
+//  - 이렇게 해도 첫 호출에서 빈 배열을 받는 케이스가 남으므로 speakSynth는
+//    별도로 awaitVoices()로 재시도한다.
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  try {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', () => {
+      /* nudge only — actual await happens in awaitVoices() */
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * 음성 출력 가능 여부.
  * 사전녹음 매니페스트가 비어있지 않으면 Web Speech 미지원 환경에서도
@@ -275,16 +292,42 @@ function speakSynth(text: string, opts: SpeakOptions): void {
     }
   }
   const voice = pickMandarinVoice(opts.voiceURI);
-  // zh voice가 없으면 합성 시도 자체를 차단한다.
-  // Windows SAPI5처럼 ko voice가 한자를 한국어 한자음으로 발음하는 폴백을 막기 위함.
-  // 호출자가 가이드(음성팩 설치 안내)를 띄울 수 있도록 onError를 'language-unavailable'로 통지.
+  // Chrome/Edge cold-start 회피:
+  //   getVoices()는 `voiceschanged` 이벤트가 발화되기 전까지 빈 배열을 반환한다.
+  //   페이지 로드 직후 첫 클릭이면 voice가 null이지만 음성팩은 설치돼 있을 수 있다.
+  //   이 시점에 곧장 language-unavailable로 에러내면 false-positive 다이얼로그를
+  //   띄우게 되므로, awaitVoices()로 한 번 더 기다린 뒤 재선택하여 폴백한다.
   if (!voice) {
-    if (opts.onError) {
-      const e = { error: 'language-unavailable' } as unknown as SpeechSynthesisErrorEvent;
-      opts.onError(e);
-    }
+    void awaitVoices().then((voices) => {
+      const retryVoice =
+        voices.length === 0
+          ? null
+          : pickMandarinVoice(opts.voiceURI);
+      if (!retryVoice) {
+        // 실제로 zh 음성이 없는 환경 — 가이드(음성팩 설치 안내)를 띄울 수 있도록
+        // language-unavailable로 통지. Windows SAPI5처럼 ko voice가 한자를
+        // 한국어 한자음으로 발음하는 폴백은 막아야 하므로 다른 음성으로의 임의
+        // 대체는 하지 않는다.
+        if (opts.onError) {
+          const e = { error: 'language-unavailable' } as unknown as SpeechSynthesisErrorEvent;
+          opts.onError(e);
+        }
+        return;
+      }
+      emitUtterance(text, opts, retryVoice);
+    });
     return;
   }
+  emitUtterance(text, opts, voice);
+}
+
+function emitUtterance(
+  text: string,
+  opts: SpeakOptions,
+  voice: SpeechSynthesisVoice,
+): void {
+  if (!isSupported()) return;
+  const synth = window.speechSynthesis;
   const u = new SpeechSynthesisUtterance(text);
   u.voice = voice;
   u.lang = voice.lang;
