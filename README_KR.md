@@ -36,6 +36,7 @@
 ◇ 데이터 걱정 없이 언제 어디서든
 
 ↗ https://mykim711231.github.io/SMCB/?openExternalBrowser=1
+※ iPhone에서 열리지 않으면 위 주소를 복사하여 Safari에 붙여넣어 여세요.
 
 ▍설치 방법
 ① Android  ›  메뉴(⋮) → 홈 화면에 추가

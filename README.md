@@ -34,6 +34,7 @@ Install once and use it offline anywhere, anytime — no internet required.
 
 Open the link below in your mobile or PC browser (Chrome / Safari / Edge).
 👉 https://mykim711231.github.io/SMCB/?openExternalBrowser=1
+※ If the link doesn't open on iPhone, copy the URL and paste it into Safari.
 
 [How to Install]
 • Android : Menu (︙) → "Add to Home screen"

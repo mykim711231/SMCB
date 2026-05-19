@@ -6,7 +6,7 @@
  *
  * URL: /hanzi
  */
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search as SearchIcon, Volume2, ArrowRight, X } from 'lucide-react';
 import { loadAllLessons } from '@/data/loaders';
@@ -59,12 +59,34 @@ function tierOf(count: number): 'high' | 'mid' | 'low' {
   return 'low';
 }
 
+/**
+ * 그리드 컬럼 수를 화면 폭에 맞춰 반환한다.
+ *   - Hanzi 카드 그리드는 grid-cols-4 / sm:grid-cols-6 / md:grid-cols-8.
+ *   - 클릭한 카드가 속한 "행 끝" 인덱스를 계산해 그 위치에 detail 패널을 끼워 넣기 위해 필요.
+ */
+function useColsPerRow(): number {
+  const get = (): number => {
+    if (typeof window === 'undefined') return 4;
+    if (window.innerWidth >= 768) return 8;
+    if (window.innerWidth >= 640) return 6;
+    return 4;
+  };
+  const [cols, setCols] = useState<number>(get);
+  useEffect(() => {
+    const onResize = (): void => setCols(get());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return cols;
+}
+
 export default function Hanzi(): JSX.Element {
   const [entries, setEntries] = useState<HanziEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'freq' | 'char'>('freq');
   const [activeChar, setActiveChar] = useState<string | null>(null);
+  const colsPerRow = useColsPerRow();
 
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
@@ -117,6 +139,11 @@ export default function Hanzi(): JSX.Element {
   };
 
   const activeEntry = activeChar ? entries.find((e) => e.char === activeChar) : null;
+  // 활성 한자가 속한 "행 끝" 인덱스 — 클릭한 카드의 행 다음에 detail 패널을 인라인 삽입할 위치
+  const activeIdxInFiltered = activeEntry ? filtered.findIndex((e) => e.char === activeEntry.char) : -1;
+  const inlineDetailAfterIdx = activeIdxInFiltered >= 0
+    ? Math.min(filtered.length - 1, Math.floor(activeIdxInFiltered / colsPerRow) * colsPerRow + colsPerRow - 1)
+    : -1;
 
   return (
     <div className="space-y-4">
@@ -203,102 +230,126 @@ export default function Hanzi(): JSX.Element {
 
       {!loading && filtered.length > 0 && (
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {filtered.map((e) => {
+          {filtered.map((e, i) => {
             const t = tierOf(e.count);
             const isActive = activeChar === e.char;
             return (
-              <button
-                key={e.char}
-                type="button"
-                onClick={() => setActiveChar(e.char)}
-                className={cn(
-                  'relative rounded-xl border p-3 text-center transition active:scale-[0.97]',
-                  t === 'high' && 'bg-primary text-white border-primary',
-                  t === 'mid' && 'bg-primary-soft text-fg border-primary/40',
-                  t === 'low' && 'bg-surface text-fg border-divider hover:border-primary',
-                  isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-bg',
-                )}
-                aria-label={`${e.char} 단어 ${e.count}개`}
-                aria-pressed={isActive}
-              >
-                <p className="text-3xl font-bold leading-none">{e.char}</p>
-                <span
+              <Fragment key={e.char}>
+                <button
+                  type="button"
+                  onClick={() => setActiveChar(isActive ? null : e.char)}
                   className={cn(
-                    'absolute top-1 right-1 text-[10px] font-semibold tabular-nums leading-none px-1.5 py-0.5 rounded-full',
-                    t === 'high' && 'bg-white/25 text-white',
-                    t === 'mid' && 'bg-white/70 text-primary',
-                    t === 'low' && 'bg-divider/60 text-muted',
+                    'relative rounded-xl border p-3 text-center transition active:scale-[0.97]',
+                    t === 'high' && 'bg-primary text-white border-primary',
+                    t === 'mid' && 'bg-primary-soft text-fg border-primary/40',
+                    t === 'low' && 'bg-surface text-fg border-divider hover:border-primary',
+                    isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-bg',
                   )}
+                  aria-label={`${e.char} 단어 ${e.count}개`}
+                  aria-pressed={isActive}
                 >
-                  {e.count}
-                </span>
-              </button>
+                  <p className="text-3xl font-bold leading-none">{e.char}</p>
+                  <span
+                    className={cn(
+                      'absolute top-1 right-1 text-[10px] font-semibold tabular-nums leading-none px-1.5 py-0.5 rounded-full',
+                      t === 'high' && 'bg-white/25 text-white',
+                      t === 'mid' && 'bg-white/70 text-primary',
+                      t === 'low' && 'bg-divider/60 text-muted',
+                    )}
+                  >
+                    {e.count}
+                  </span>
+                </button>
+                {i === inlineDetailAfterIdx && activeEntry && (
+                  <HanziDetailPanel
+                    entry={activeEntry}
+                    onClose={() => setActiveChar(null)}
+                    onSpeak={speakChar}
+                    className="col-span-full"
+                  />
+                )}
+              </Fragment>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
 
-      {activeEntry && (
-        <div
-          className="rounded-2xl border border-primary bg-primary-soft p-4 sm:p-5 space-y-3"
-          role="region"
-          aria-label={`${activeEntry.char} 상세`}
+function HanziDetailPanel({
+  entry,
+  onClose,
+  onSpeak,
+  className,
+}: {
+  entry: HanziEntry;
+  onClose: () => void;
+  onSpeak: (text: string) => void;
+  className?: string;
+}): JSX.Element {
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border border-primary bg-primary-soft p-4 sm:p-5 space-y-3',
+        className,
+      )}
+      role="region"
+      aria-label={`${entry.char} 상세`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <p className="text-5xl font-bold text-fg">{entry.char}</p>
+          <button
+            type="button"
+            onClick={() => onSpeak(entry.char)}
+            aria-label="발음 듣기"
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white"
+          >
+            <Volume2 size={16} aria-hidden />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="상세 닫기"
+          className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-surface border border-divider text-fg"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <p className="text-5xl font-bold text-fg">{activeEntry.char}</p>
+          <X size={16} aria-hidden />
+        </button>
+      </div>
+      <p className="text-xs text-muted">등장 단어 {entry.words.length}개 · ESC로 닫기</p>
+      <ul className="divide-y divide-divider/60 bg-bg rounded-xl border border-divider">
+        {entry.words.map((w, i) => (
+          <li key={`${w.vocab.id}-${i}`} className="p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-fg font-semibold truncate">
+                <span className="text-lg">{highlightChar(w.vocab.word, entry.char)}</span>
+                <span className="text-pinyin font-pinyin text-xs ml-2">{w.vocab.pinyin}</span>
+              </p>
+              <p className="text-xs text-muted truncate">{w.vocab.meaning}</p>
+              <p className="text-[10px] text-muted/80">{w.lessonTitleKo}</p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => speakChar(activeEntry.char)}
-                aria-label="발음 듣기"
-                className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white"
+                onClick={() => onSpeak(w.vocab.word)}
+                aria-label={`${w.vocab.word} 발음`}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-divider bg-surface text-primary"
               >
-                <Volume2 size={16} aria-hidden />
+                <Volume2 size={14} aria-hidden />
               </button>
+              <Link
+                to={`/lesson/${w.lessonId}`}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-divider bg-surface text-fg"
+                aria-label="레슨으로 이동"
+              >
+                <ArrowRight size={14} aria-hidden />
+              </Link>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveChar(null)}
-              aria-label="상세 닫기"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-surface border border-divider text-fg"
-            >
-              <X size={16} aria-hidden />
-            </button>
-          </div>
-          <p className="text-xs text-muted">등장 단어 {activeEntry.words.length}개 · ESC로 닫기</p>
-          <ul className="divide-y divide-divider/60 bg-bg rounded-xl border border-divider">
-            {activeEntry.words.map((w, i) => (
-              <li key={`${w.vocab.id}-${i}`} className="p-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-fg font-semibold truncate">
-                    <span className="text-lg">{highlightChar(w.vocab.word, activeEntry.char)}</span>
-                    <span className="text-pinyin font-pinyin text-xs ml-2">{w.vocab.pinyin}</span>
-                  </p>
-                  <p className="text-xs text-muted truncate">{w.vocab.meaning}</p>
-                  <p className="text-[10px] text-muted/80">{w.lessonTitleKo}</p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => speakChar(w.vocab.word)}
-                    aria-label={`${w.vocab.word} 발음`}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-divider bg-surface text-primary"
-                  >
-                    <Volume2 size={14} aria-hidden />
-                  </button>
-                  <Link
-                    to={`/lesson/${w.lessonId}`}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-divider bg-surface text-fg"
-                    aria-label="레슨으로 이동"
-                  >
-                    <ArrowRight size={14} aria-hidden />
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

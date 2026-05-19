@@ -30,6 +30,91 @@ function isStandaloneMode(): boolean {
   return (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
+/**
+ * 숨김 textarea + document.execCommand('copy') 폴백.
+ *   - iOS Safari/카톡 인앱 등 navigator.clipboard가 막힌 환경에서 동작.
+ *   - 반드시 사용자 제스처(click) 안에서 호출되어야 함.
+ */
+function legacyCopy(text: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  // 화면에는 보이지 않지만 select() 가 동작하도록 화면 안에는 두되 opacity 0
+  ta.style.position = 'fixed';
+  ta.style.top = '0';
+  ta.style.left = '0';
+  ta.style.width = '1px';
+  ta.style.height = '1px';
+  ta.style.opacity = '0';
+  ta.style.pointerEvents = 'none';
+  document.body.appendChild(ta);
+
+  // iOS Safari 는 textarea.select() 만으로 selection 이 안 잡혀, range 로 선택해야 함.
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    const range = document.createRange();
+    range.selectNodeContents(ta);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    ta.setSelectionRange(0, text.length);
+  } else {
+    ta.focus();
+    ta.select();
+  }
+
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+/**
+ * 클립보드 복사 — 두 단계 폴백:
+ *   1) navigator.clipboard.writeText (modern, HTTPS / secure context)
+ *   2) execCommand('copy') (legacy, 인앱 브라우저 호환)
+ *
+ * 하나라도 성공하면 'copied'. 사용자 제스처(click) 안에서 호출되어야 함.
+ */
+async function copyToClipboard(text: string): Promise<'copied' | 'failed'> {
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  if (nav?.clipboard?.writeText) {
+    try {
+      await nav.clipboard.writeText(text);
+      return 'copied';
+    } catch {
+      // fall through to legacy
+    }
+  }
+  if (legacyCopy(text)) return 'copied';
+  return 'failed';
+}
+
+/**
+ * "주소 복사하기" 버튼이 클립보드에 넣을 텍스트를 만든다.
+ *   - 일반 브라우저(PWA 포함): "Safari·Chrome 등 다른 브라우저 주소창에 붙여넣어 여세요." 안내 + URL.
+ *     받는 사람이 카톡으로 받아 인앱 브라우저로 열렸을 때도 다음 단계가 명확함.
+ *   - 카톡/네이버 등 인앱 브라우저: 강한 경고문("음성·설치 안 됨") + 디바이스 권장 브라우저 안내 + URL.
+ */
+function buildInviteUrlText(opts: { withGuide?: boolean; ios?: boolean } = {}): string {
+  if (opts.withGuide) {
+    const browser = opts.ios ? 'Safari' : 'Chrome';
+    const objectParticle = opts.ios ? '를' : '을';
+    return `※ 카카오톡 등 인앱 브라우저에서는 음성 재생·앱 설치가 동작하지 않습니다.
+${browser}${objectParticle} 열고 주소창에 아래 주소를 붙여넣어 여세요.
+
+${INVITE_URL}`;
+  }
+  return `Safari · Chrome 등 다른 브라우저 주소창에 붙여넣어 여세요.
+
+${INVITE_URL}`;
+}
+
 function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const ios = isIOSDevice();
@@ -39,13 +124,11 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
   const directionParticle = ios ? '로' : '으로'; // …(으)로 열기
 
   const copyUrl = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(INVITE_URL);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 3000);
-    } catch {
-      // 권한/지원 미흡 — 버튼은 그대로 두고, 사용자가 다시 시도 가능.
-    }
+    const text = buildInviteUrlText({ withGuide: true, ios });
+    const r = await copyToClipboard(text);
+    if (r !== 'copied') return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 3000);
   };
 
   return (
@@ -117,6 +200,7 @@ const INVITE_MESSAGE = `─────────────────
 ◇ 데이터 걱정 없이 언제 어디서든
 
 ↗ ${INVITE_URL_SHARE}
+※ iPhone에서 열리지 않으면 위 주소를 복사하여 Safari에 붙여넣어 여세요.
 
 ▍설치 방법
 ① Android  ›  메뉴(⋮) → 홈 화면에 추가
@@ -158,6 +242,16 @@ export default function Home(): JSX.Element {
     else setInviteToast('복사에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
     window.setTimeout(() => setInviteToast(null), 4000);
   };
+  const onCopyUrlClick = async (): Promise<void> => {
+    const inAppCtx = !!inApp.label;
+    const ios = isIOSDevice();
+    const text = buildInviteUrlText({ withGuide: inAppCtx, ios });
+    const r = await copyToClipboard(text);
+    if (r === 'copied') {
+      setInviteToast('안내 메시지와 주소가 복사되었어요. Safari · Chrome 등 다른 브라우저에 붙여넣어 여세요.');
+    } else setInviteToast('복사에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
+    window.setTimeout(() => setInviteToast(null), 4000);
+  };
 
   return (
     <div className="space-y-6">
@@ -177,7 +271,7 @@ export default function Home(): JSX.Element {
         <p className="text-sm opacity-90 mt-2">
           한자 · 병음 · 한국어 토글, 단말기 내장 TTS로 듣고 따라하기.
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <Link
             to={lastMeta ? `/lesson/${lastMeta.id}` : '/toc'}
             className="inline-flex items-center gap-1.5 rounded-full bg-white text-primary text-sm font-semibold px-4 py-2"
@@ -190,14 +284,24 @@ export default function Home(): JSX.Element {
           >
             전체 목차
           </Link>
-          <button
-            type="button"
-            onClick={() => void onShareClick()}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
-            aria-label="초청 메시지 공유"
-          >
-            <Share2 size={16} aria-hidden /> 초청 하기
-          </button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void onShareClick()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
+              aria-label="초청 메시지 공유"
+            >
+              <Share2 size={16} aria-hidden /> 초청 하기
+            </button>
+            <button
+              type="button"
+              onClick={() => void onCopyUrlClick()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
+              aria-label="앱 주소를 클립보드에 복사"
+            >
+              <Copy size={16} aria-hidden /> 주소 복사하기
+            </button>
+          </div>
         </div>
         {inviteToast && (
           <p
