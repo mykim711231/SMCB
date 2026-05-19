@@ -6,7 +6,7 @@ import type { SRSAlgorithm } from '@/stores/srs';
 import { useProgress } from '@/stores/progress';
 import { useFavorites } from '@/stores/favorites';
 import { useSRS } from '@/stores/srs';
-import { getStorageInfo, clearAllCaches, clearContentCaches, type StorageInfo } from '@/lib/storage';
+import { getStorageInfo, clearAllCaches, clearContentCaches, clearTTSAudioCache, type StorageInfo } from '@/lib/storage';
 import { dbClearAll } from '@/lib/db';
 import { awaitVoices, isSupported, isIOS, isStandalonePWA } from '@/lib/tts';
 import { bulkDownloadAll, getManifestSize } from '@/lib/ttsBulkDownload';
@@ -393,6 +393,7 @@ function TTSBulkCard(): JSX.Element {
 
   const total = stored.total || getManifestSize();
   const [running, setRunning] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [live, setLive] = useState<{ done: number; failed: number; total: number }>({
     done: stored.done,
     failed: 0,
@@ -431,6 +432,19 @@ function TTSBulkCard(): JSX.Element {
 
   const stop = (): void => {
     abortRef.current?.abort();
+  };
+
+  const remove = async (): Promise<void> => {
+    if (!confirm('받아둔 중국어 음성을 삭제하시겠어요?\n오프라인 재생이 불가해지며, 다시 들으려면 약 20~40MB를 새로 받아야 합니다.')) return;
+    setRemoving(true);
+    try {
+      await clearTTSAudioCache();
+      setStatus('idle');
+      setProgress({ done: 0, total: 0 });
+      setLive({ done: 0, failed: 0, total: getManifestSize() });
+    } finally {
+      setRemoving(false);
+    }
   };
 
   const pct = total ? Math.floor((live.done / total) * 100) : 0;
@@ -499,13 +513,36 @@ function TTSBulkCard(): JSX.Element {
           <button
             type="button"
             onClick={() => void start()}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-3 py-2"
+            disabled={removing}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-3 py-2',
+              removing && 'opacity-50',
+            )}
           >
             <Download size={14} aria-hidden />
             {status === 'done' ? '다시 받기' : status === 'partial' ? '재시도' : '지금 받기'}
           </button>
         )}
+        {!running && (status === 'done' || status === 'partial') && (
+          <button
+            type="button"
+            onClick={() => void remove()}
+            disabled={removing}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full bg-surface border border-divider text-fg text-sm font-semibold px-3 py-2',
+              removing && 'opacity-50',
+            )}
+            aria-label="받아둔 중국어 음성 삭제"
+          >
+            <Trash2 size={14} aria-hidden /> {removing ? '삭제 중…' : '삭제'}
+          </button>
+        )}
       </div>
+      {!running && (status === 'done' || status === 'partial') && (
+        <p className="text-xs text-muted leading-snug pt-1">
+          용량이 부족하면 받아둔 음성을 지울 수 있어요. 삭제 후에도 인터넷에 연결된 상태라면 들을 때마다 음성이 다시 받아집니다.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap } from 'lucide-react';
+import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2 } from 'lucide-react';
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -42,6 +43,59 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
   );
 }
 
+/**
+ * 카카오톡 등으로 공유할 초청 메시지.
+ *   - 모바일: Web Share API → 시스템 공유 시트(카카오톡 포함)
+ *   - 데스크탑/미지원: clipboard 복사 → 사용자가 카카오톡 PC 채팅창에 붙여넣기
+ *
+ * README의 "설치 초청 메시지" 본문과 동일하게 유지 — 두 곳을 같이 갱신해야
+ * 사용자가 어디서 복사하든 같은 내용이 전달된다.
+ */
+const INVITE_URL = 'https://mykim711231.github.io/SMCB/';
+const INVITE_MESSAGE = `─────────────────
+◈ 중국어 학습 앱 안내
+─────────────────
+
+북경 표준어(普通话) 기반
+본문 읽기 · 발음 듣기(TTS) 한 번에!
+
+◇ 설치 후 인터넷 없이 사용 가능
+◇ 데이터 걱정 없이 언제 어디서든
+
+↗ ${INVITE_URL}
+
+▍설치 방법
+① Android  ›  메뉴(⋮) → 홈 화면에 추가
+② iPhone   ›  공유(↑) → 홈 화면에 추가
+③ PC       ›  주소창 오른쪽 ⊕ → 설치
+─────────────────`;
+
+async function shareInvite(): Promise<'shared' | 'copied' | 'failed'> {
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  if (nav && typeof nav.share === 'function') {
+    try {
+      await nav.share({
+        title: '새문안 중국어 성경반 (중급)',
+        text: INVITE_MESSAGE,
+        url: INVITE_URL,
+      });
+      return 'shared';
+    } catch {
+      // 사용자 취소 또는 시스템 오류 — 폴백으로 시도하지 않고 그대로 반환.
+      return 'failed';
+    }
+  }
+  if (nav?.clipboard?.writeText) {
+    try {
+      await nav.clipboard.writeText(INVITE_MESSAGE);
+      return 'copied';
+    } catch {
+      return 'failed';
+    }
+  }
+  return 'failed';
+}
+
 export default function Home(): JSX.Element {
   const byId = useProgress((s) => s.byId);
   const lastId = useProgress((s) => s.lastLessonId);
@@ -52,6 +106,15 @@ export default function Home(): JSX.Element {
   const lastMeta = lastId ? META.find((m) => m.id === lastId) : undefined;
   const inApp = isInAppBrowser();
   const standalone = isStandaloneMode();
+
+  const [inviteToast, setInviteToast] = useState<string | null>(null);
+  const onShareClick = async (): Promise<void> => {
+    const r = await shareInvite();
+    if (r === 'copied') setInviteToast('초청 메시지가 복사되었어요. 카카오톡 채팅방에 붙여넣어 주세요.');
+    else if (r === 'failed') setInviteToast('공유에 실패했어요. 주소를 직접 알려 주세요: ' + INVITE_URL);
+    // 'shared'는 시스템 공유 시트가 떴으므로 별도 토스트 없음.
+    if (r !== 'shared') window.setTimeout(() => setInviteToast(null), 4000);
+  };
 
   return (
     <div className="space-y-6">
@@ -84,7 +147,24 @@ export default function Home(): JSX.Element {
           >
             전체 목차
           </Link>
+          <button
+            type="button"
+            onClick={() => void onShareClick()}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#FEE500] text-[#3C1E1E] text-sm font-semibold px-4 py-2"
+            aria-label="카카오톡으로 초청 메시지 공유"
+          >
+            <Share2 size={16} aria-hidden /> 카카오톡 초청 하기
+          </button>
         </div>
+        {inviteToast && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="mt-3 text-xs bg-white/15 border border-white/30 rounded-lg px-3 py-2"
+          >
+            {inviteToast}
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl bg-surface border border-divider p-4 sm:p-5">

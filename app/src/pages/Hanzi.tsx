@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, Volume2, SortAsc, ArrowRight } from 'lucide-react';
+import { Search as SearchIcon, Volume2, ArrowRight, X } from 'lucide-react';
 import { loadAllLessons } from '@/data/loaders';
 import type { Lesson, VocabEntry } from '@/types/lesson';
 import { speak, unlock, isSupported as ttsSupported } from '@/lib/tts';
@@ -47,6 +47,18 @@ function buildHanziIndex(lessons: Lesson[]): HanziEntry[] {
   return Array.from(map.values());
 }
 
+/**
+ * 빈도 티어 — 시각적 구분에만 사용.
+ *   - high: 10+ — primary 배경 강조
+ *   - mid : 4~9 — primary-soft 배경
+ *   - low : 1~3 — surface 기본
+ */
+function tierOf(count: number): 'high' | 'mid' | 'low' {
+  if (count >= 10) return 'high';
+  if (count >= 4) return 'mid';
+  return 'low';
+}
+
 export default function Hanzi(): JSX.Element {
   const [entries, setEntries] = useState<HanziEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +78,16 @@ export default function Hanzi(): JSX.Element {
     });
     return () => { alive = false; };
   }, []);
+
+  // Esc로 활성 패널 닫기
+  useEffect(() => {
+    if (!activeChar) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setActiveChar(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeChar]);
 
   const filtered = useMemo(() => {
     const q = query.trim();
@@ -100,7 +122,9 @@ export default function Hanzi(): JSX.Element {
     <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3">
         <h1 className="text-xl font-bold text-fg">한자 인덱스</h1>
-        <span className="text-xs text-muted">{entries.length}자</span>
+        <span className="text-xs text-muted">
+          {query.trim() ? `${filtered.length} / ${entries.length}자` : `${entries.length}자`}
+        </span>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
@@ -111,20 +135,65 @@ export default function Hanzi(): JSX.Element {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="한자/단어/병음/뜻 검색"
-            className="w-full rounded-xl border border-divider bg-bg text-fg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full rounded-xl border border-divider bg-bg text-fg pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label="한자 검색"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="검색어 지우기"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center rounded-full text-muted hover:bg-primary-soft"
+            >
+              <X size={14} aria-hidden />
+            </button>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => setSort((s) => (s === 'freq' ? 'char' : 'freq'))}
-          className="inline-flex items-center gap-1 rounded-xl border border-divider bg-surface text-fg px-3 py-2 text-sm font-semibold"
-          aria-label="정렬 전환"
+        <div
+          className="inline-flex rounded-xl border border-divider bg-bg p-0.5 self-stretch sm:self-auto"
+          role="tablist"
+          aria-label="정렬 방식"
         >
-          <SortAsc size={14} aria-hidden />
-          {sort === 'freq' ? '빈도순' : '한자순'}
-        </button>
+          <button
+            type="button"
+            onClick={() => setSort('freq')}
+            aria-pressed={sort === 'freq'}
+            className={cn(
+              'flex-1 sm:flex-none rounded-lg px-3 py-1.5 text-sm font-semibold',
+              sort === 'freq' ? 'bg-primary text-white' : 'text-muted',
+            )}
+          >
+            빈도순
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort('char')}
+            aria-pressed={sort === 'char'}
+            className={cn(
+              'flex-1 sm:flex-none rounded-lg px-3 py-1.5 text-sm font-semibold',
+              sort === 'char' ? 'bg-primary text-white' : 'text-muted',
+            )}
+          >
+            한자순
+          </button>
+        </div>
       </div>
+
+      {/* 빈도 범례 — 빈도순일 때만 표시 */}
+      {!loading && sort === 'freq' && filtered.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+          <span>빈도</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-sm bg-primary" /> 10+
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-sm bg-primary-soft border border-primary/40" /> 4–9
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-sm bg-surface border border-divider" /> 1–3
+          </span>
+        </div>
+      )}
 
       {loading && <p className="text-muted">불러오는 중…</p>}
 
@@ -134,26 +203,47 @@ export default function Hanzi(): JSX.Element {
 
       {!loading && filtered.length > 0 && (
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {filtered.map((e) => (
-            <button
-              key={e.char}
-              type="button"
-              onClick={() => setActiveChar(e.char)}
-              className={cn(
-                'rounded-xl border bg-surface text-fg p-3 text-center transition active:scale-[0.97]',
-                activeChar === e.char ? 'border-primary ring-2 ring-primary/30' : 'border-divider hover:border-primary',
-              )}
-              aria-label={`${e.char} ${e.count}개 단어`}
-            >
-              <p className="text-3xl font-bold">{e.char}</p>
-              <p className="text-[10px] text-muted mt-0.5">{e.count}개</p>
-            </button>
-          ))}
+          {filtered.map((e) => {
+            const t = tierOf(e.count);
+            const isActive = activeChar === e.char;
+            return (
+              <button
+                key={e.char}
+                type="button"
+                onClick={() => setActiveChar(e.char)}
+                className={cn(
+                  'relative rounded-xl border p-3 text-center transition active:scale-[0.97]',
+                  t === 'high' && 'bg-primary text-white border-primary',
+                  t === 'mid' && 'bg-primary-soft text-fg border-primary/40',
+                  t === 'low' && 'bg-surface text-fg border-divider hover:border-primary',
+                  isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-bg',
+                )}
+                aria-label={`${e.char} 단어 ${e.count}개`}
+                aria-pressed={isActive}
+              >
+                <p className="text-3xl font-bold leading-none">{e.char}</p>
+                <span
+                  className={cn(
+                    'absolute top-1 right-1 text-[10px] font-semibold tabular-nums leading-none px-1.5 py-0.5 rounded-full',
+                    t === 'high' && 'bg-white/25 text-white',
+                    t === 'mid' && 'bg-white/70 text-primary',
+                    t === 'low' && 'bg-divider/60 text-muted',
+                  )}
+                >
+                  {e.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
       {activeEntry && (
-        <div className="rounded-2xl border border-primary bg-primary-soft p-4 sm:p-5 space-y-3">
+        <div
+          className="rounded-2xl border border-primary bg-primary-soft p-4 sm:p-5 space-y-3"
+          role="region"
+          aria-label={`${activeEntry.char} 상세`}
+        >
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <p className="text-5xl font-bold text-fg">{activeEntry.char}</p>
@@ -169,18 +259,19 @@ export default function Hanzi(): JSX.Element {
             <button
               type="button"
               onClick={() => setActiveChar(null)}
-              className="text-sm text-primary font-semibold"
+              aria-label="상세 닫기"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-surface border border-divider text-fg"
             >
-              닫기
+              <X size={16} aria-hidden />
             </button>
           </div>
-          <p className="text-xs text-muted">등장 단어 {activeEntry.words.length}개</p>
+          <p className="text-xs text-muted">등장 단어 {activeEntry.words.length}개 · ESC로 닫기</p>
           <ul className="divide-y divide-divider/60 bg-bg rounded-xl border border-divider">
             {activeEntry.words.map((w, i) => (
               <li key={`${w.vocab.id}-${i}`} className="p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-fg font-semibold truncate">
-                    <span className="text-lg">{w.vocab.word}</span>
+                    <span className="text-lg">{highlightChar(w.vocab.word, activeEntry.char)}</span>
                     <span className="text-pinyin font-pinyin text-xs ml-2">{w.vocab.pinyin}</span>
                   </p>
                   <p className="text-xs text-muted truncate">{w.vocab.meaning}</p>
@@ -209,5 +300,20 @@ export default function Hanzi(): JSX.Element {
         </div>
       )}
     </div>
+  );
+}
+
+/** 단어 안에서 target 한자만 primary 색으로 강조. */
+function highlightChar(word: string, target: string): JSX.Element {
+  return (
+    <>
+      {Array.from(word).map((ch, i) =>
+        ch === target ? (
+          <span key={i} className="text-primary">{ch}</span>
+        ) : (
+          <span key={i}>{ch}</span>
+        ),
+      )}
+    </>
   );
 }

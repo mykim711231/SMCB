@@ -57,3 +57,17 @@ export async function clearContentCaches(): Promise<number> {
   await Promise.all(targets.map((n) => caches.delete(n)));
   return targets.length;
 }
+
+/**
+ * 사전 녹음 mp3 캐시만 삭제. 용량 부족한 단말기에서 사용자가
+ * 명시적으로 정리하고 싶을 때만 호출 — 호출 후 오프라인 음성 재생이
+ * 불가해진다. 호출자(Settings UI)는 ttsBulkStatus를 'idle'로 되돌려
+ * "지금 받기" 버튼을 다시 노출해야 한다.
+ */
+export async function clearTTSAudioCache(): Promise<number> {
+  if (typeof caches === 'undefined') return 0;
+  const names = await caches.keys();
+  const targets = names.filter((n) => n.includes('tts-audio'));
+  await Promise.all(targets.map((n) => caches.delete(n)));
+  return targets.length;
+}
