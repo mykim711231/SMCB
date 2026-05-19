@@ -10,15 +10,19 @@ import TTSButton from './TTSButton';
 import VerseRow from './VerseRow';
 import type { Verse } from '@/types/lesson';
 
+type VocabItem = { word: string; pinyin: string; meaning: string };
+
 type Block =
   | { kind: 'h'; level: 1 | 2 | 3; text: string }
   | { kind: 'p'; text: string }
   | { kind: 'ul'; items: string[] }
   | { kind: 'ol'; start: number; items: string[] }
   | { kind: 'table'; headers: string[]; rows: string[][] }
-  | { kind: 'verses'; items: Verse[] };
+  | { kind: 'verses'; items: Verse[] }
+  | { kind: 'vocab'; items: VocabItem[] };
 
 const VERSE_RE = /^\{\{verse:([^|}]+)\|([^|}]+)\|([^}]+)\}\}\s*$/;
+const VOCAB_RE = /^\{\{vocab:([^|}]+)\|([^|}]+)\|([^}]+)\}\}\s*$/;
 
 const OL_RE = /^\s*(\d+)\.\s+(.*)$/;
 
@@ -63,6 +67,20 @@ function parse(md: string): Block[] {
         i++;
       }
       blocks.push({ kind: 'verses', items });
+      continue;
+    }
+
+    // Vocab block: collect consecutive {{vocab:word|pinyin|meaning}} lines.
+    const vbm = line.match(VOCAB_RE);
+    if (vbm) {
+      const items: VocabItem[] = [];
+      while (i < lines.length) {
+        const m = lines[i].match(VOCAB_RE);
+        if (!m) break;
+        items.push({ word: m[1].trim(), pinyin: m[2].trim(), meaning: m[3].trim() });
+        i++;
+      }
+      blocks.push({ kind: 'vocab', items });
       continue;
     }
 
@@ -116,7 +134,8 @@ function parse(md: string): Block[] {
       !/^\s*[-*]\s+/.test(lines[i]) &&
       !OL_RE.test(lines[i]) &&
       !lines[i].trim().startsWith('|') &&
-      !VERSE_RE.test(lines[i])
+      !VERSE_RE.test(lines[i]) &&
+      !VOCAB_RE.test(lines[i])
     ) {
       buf.push(lines[i].trim());
       i++;
@@ -205,6 +224,26 @@ export default function Markdown({ source }: { source: string }): JSX.Element {
                 <VerseRow key={i2} verse={v} />
               ))}
             </div>
+          );
+        }
+        if (b.kind === 'vocab') {
+          return (
+            <ul key={idx} className="divide-y divide-divider">
+              {b.items.map((v, i2) => (
+                <li key={i2} className="py-3">
+                  <div className="flex items-start gap-3">
+                    <TTSButton text={v.word} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-2xl font-semibold text-fg">{v.word}</span>
+                        <span className="text-pinyin font-pinyin text-sm">{v.pinyin}</span>
+                      </div>
+                      <p className="text-fg/90 mt-1">{v.meaning}</p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           );
         }
         if (b.kind === 'ol') {

@@ -122,11 +122,14 @@ function collectAppendixTts(): Set<string> {
   const ttsRe = /\{\{tts:([^}]+)\}\}/g;
   // {{verse:zh|pinyin|ko}} — the zh portion needs an mp3 too (VerseRow renders TTSButton).
   const verseRe = /\{\{verse:([^|}]+)\|[^|}]+\|[^}]+\}\}/g;
+  // {{vocab:word|pinyin|meaning}} — word needs an mp3 (vocab card renders TTSButton).
+  const vocabRe = /\{\{vocab:([^|}]+)\|[^|}]+\|[^}]+\}\}/g;
   for (const it of items) {
     const md = it.markdown ?? '';
     let m;
     while ((m = ttsRe.exec(md)) !== null) set.add(m[1].trim());
     while ((m = verseRe.exec(md)) !== null) set.add(m[1].trim());
+    while ((m = vocabRe.exec(md)) !== null) set.add(m[1].trim());
   }
   set.delete('');
   return set;
