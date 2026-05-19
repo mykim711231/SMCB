@@ -96,7 +96,7 @@ const DEFAULTS = {
   showHanzi: true,
   showPinyin: true,
   showKorean: true,
-  rubyPinyin: false,
+  rubyPinyin: true,
   ttsRate: 0.95,
   ttsVoiceURI: null as string | null,
   fcAlgorithm: 'leitner' as SRSAlgorithm,
