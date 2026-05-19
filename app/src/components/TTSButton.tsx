@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Volume2, Square } from 'lucide-react';
-import { speak, stop, isSupported, unlock, isIOS, isStandalonePWA, getVoices } from '@/lib/tts';
+import { speak, stop, isSupported, unlock, isIOS, isStandalonePWA, awaitVoices, prefetchAudio } from '@/lib/tts';
 import { useSettings } from '@/stores/settings';
 import { cn } from '@/lib/cn';
 
@@ -27,7 +28,7 @@ function ttsErrorReason(code: string | undefined): string | null {
   }
 }
 
-function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): string {
+async function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): Promise<string> {
   const lines: string[] = ['중국어 음성을 재생할 수 없습니다.'];
   const reason = ttsErrorReason(err?.error);
   if (reason) {
@@ -46,7 +47,10 @@ function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): string {
     if (isStandalonePWA()) {
       lines.push(
         '',
-        '※ 홈 화면에 설치한 앱(PWA)에서는 iOS 17.4 미만에서 음성이 막힐 수 있습니다. Safari 탭으로 열어 보세요.',
+        '※ 홈 화면에 설치한 앱(PWA)에서는 다음 두 구간에서 음성이 막힐 수 있습니다.',
+        '  • iOS 17.4 미만 — Apple이 PWA SpeechSynthesis 버그를 17.4에서 수정',
+        '  • iOS 26.0 · 26.1 — 회귀 보고됨 (포럼 다수 사례, 26.2 이상에서 수정 예정)',
+        '안 들리면 페이지를 Safari 탭으로 열어 보세요.',
       );
     }
   } else {
@@ -55,9 +59,13 @@ function ttsErrorMessage(err: SpeechSynthesisErrorEvent | null): string {
       '단말기에 중국어(zh-CN) 음성이 설치되어 있는지 확인해 주세요.',
     );
   }
-  const zhVoices = getVoices().filter((v) => v.lang.toLowerCase().startsWith('zh'));
+  // voiceschanged 이벤트는 Chrome에서 비동기로 도착 — 동기 getVoices()는
+  // 음성팩이 실제로 설치돼 있어도 첫 호출에서 빈 배열을 반환할 수 있다.
+  // awaitVoices()로 확정한 뒤 표시해야 "감지된 중국어 음성: 0개" 오표시 회피.
+  const allVoices = await awaitVoices();
+  const zhVoices = allVoices.filter((v) => v.lang.toLowerCase().startsWith('zh'));
   lines.push('', `감지된 중국어 음성: ${zhVoices.length}개`);
-  lines.push('', '※ 자세한 진단은 도움말(?) 페이지를 확인하세요.');
+  lines.push('', '※ [확인]을 누르면 도움말 페이지로 이동해 자세한 진단을 볼 수 있어요.');
   return lines.join('\n');
 }
 
@@ -70,9 +78,13 @@ type Props = {
 
 export default function TTSButton({ text, label = '소리 듣기', size = 'md', className }: Props): JSX.Element | null {
   const [speaking, setSpeaking] = useState(false);
+  const navigate = useNavigate();
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
+  const userMode = useSettings((s) => s.userMode);
   const speakingRef = useRef(false);
+  // userMode null(미선택)은 'recorded'와 동일하게 처리 — 가장 안정적.
+  const voiceMode: 'device' | 'recorded' = userMode === 'device' ? 'device' : 'recorded';
 
   useEffect(() => {
     speakingRef.current = speaking;
@@ -86,6 +98,15 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
 
   if (!isSupported()) return null;
 
+  // 클릭 직전(mousedown/touchstart)에 mp3 prefetch — 첫 클릭에서
+  // play()가 cold network로 실패하던 문제를 줄인다.
+  // click 이벤트보다 50~150ms 빨리 발생하므로 그 사이 audio buffer 시작.
+  // device 모드는 mp3를 안 쓰므로 prefetchAudio가 내부 no-op.
+  const onPointerDown = (): void => {
+    if (speakingRef.current) return;
+    prefetchAudio(text, voiceMode);
+  };
+
   const onClick = (): void => {
     unlock();
     if (speaking) {
@@ -97,6 +118,7 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
     speak(text, {
       rate: ttsRate,
       voiceURI: ttsVoiceURI ?? undefined,
+      voiceMode,
       onEnd: () => setSpeaking(false),
       onError: (e) => {
         setSpeaking(false);
@@ -104,7 +126,13 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
         if (e?.error === 'canceled' || e?.error === 'interrupted') return;
         if (ttsErrorShown) return;
         ttsErrorShown = true;
-        alert(ttsErrorMessage(e));
+        // 비동기 — awaitVoices()로 voiceschanged 도착까지 대기 후 표시.
+        // 동기 alert가 즉시 뜨던 기존 흐름에서는 음성팩이 설치돼 있어도
+        // "0개"로 나오는 false-negative가 있었음.
+        void ttsErrorMessage(e).then((msg) => {
+          const goHelp = confirm(msg + '\n\n도움말 페이지로 이동할까요?');
+          if (goHelp) navigate('/help');
+        });
       },
     });
   };
@@ -114,6 +142,7 @@ export default function TTSButton({ text, label = '소리 듣기', size = 'md', 
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={onPointerDown}
       aria-label={label}
       aria-pressed={speaking}
       className={cn(

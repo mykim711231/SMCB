@@ -16,6 +16,33 @@
  *
  * Idempotent: 이미 합성된 파일이 있으면 skip.
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ⚠ 라이선스 주의 (License Notice — Reviewed 2026-05)
+ *
+ * msedge-tts는 Microsoft Edge "Read Aloud"의 비공개 WebSocket 엔드포인트
+ * (speech.platform.bing.com)를 호출하는 비공식 라이브러리입니다.
+ *
+ *   - Microsoft Azure Cognitive Services 약관은 "Edge Read Aloud용으로 노출된
+ *     음성을 별도 앱·서비스에 재배포(redistribute)하는 행위"를 명시적으로 허용하지
+ *     않습니다 (Microsoft Q&A 2024-09 답변 참조).
+ *   - 본 프로젝트는 비영리·교회 내부 학습용으로 약 2,500개 mp3를 합성·번들하므로
+ *     실무적 위험은 낮으나, 상업 배포·재배포 시 다음 대안으로 전환해야 합니다.
+ *
+ * 대안 (우선순위 순):
+ *   1. Piper TTS (MIT, https://github.com/rhasspy/piper)
+ *      - 로컬 합성, 명시적 OSS 라이선스, zh_CN-huayan-medium 등 제공
+ *      - 음질은 Edge Neural보다 약간 떨어지나 학습용으로 충분
+ *   2. Azure Speech Service F0 (무료 티어, 월 500K 자 / 5h 신경망 음성)
+ *      - 공식 라이선스 보장, 동일 Xiaoxiao 등 사용 가능
+ *      - 회사 키 발급 필요 (azure.microsoft.com/services/cognitive-services/speech-services)
+ *   3. Google Cloud TTS / Amazon Polly — 신경망 표준 보통화 음성 제공
+ *
+ * 마이그레이션 시 변경 지점:
+ *   - synthesizeOne(): TTS 클라이언트 교체 (인터페이스만 동일하게)
+ *   - DEFAULT_VOICE: 새 백엔드 음성명으로 변경
+ *   - 일관성 위해 새 백엔드로 전 mp3 재생성 권장 (단, 학습자에게는 음색 변화 안내 필요)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * Phase:
  *   1 (default): vocab.word — 단어 카드용. 가장 자주 호출되므로 우선.
  *   2: vocab.example.zh — 예문 발음.

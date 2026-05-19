@@ -85,6 +85,10 @@ function TTSDiagnostic(): JSX.Element {
   const iosOutdated =
     iosVer !== null &&
     (iosVer.major < 17 || (iosVer.major === 17 && iosVer.minor < 4));
+  // iOS 26.0 ~ 26.1: PWA 환경에서 SpeechSynthesis 회귀 보고 다수
+  // (MacRumors 포럼 등). Apple은 26.2 이상에서 수정 진행 중.
+  const ios26Regression =
+    iosVer !== null && iosVer.major === 26 && iosVer.minor < 2;
 
   const handleTest = (): void => {
     setTestStatus('playing');
@@ -105,23 +109,41 @@ function TTSDiagnostic(): JSX.Element {
         subtitle="원인을 자동으로 진단합니다."
       />
       <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+          <p className="text-sm font-bold text-fg inline-flex items-center gap-1.5">
+            <Volume2 size={16} aria-hidden /> 이 앱은 미리 녹음된 중국어 음성을 사용합니다
+          </p>
+          <p className="text-xs text-muted mt-1">
+            65과 본문·단어·회화의 중국어 발음 약 <b>2,500여 개</b>를 빌드 시점에
+            <b> Microsoft Edge Neural 음성(Xiaoxiao)</b>으로 미리 합성해 두었어요.
+            단말기에 중국어 <b>음성팩이 없어도</b> 정상적으로 들립니다.
+            처음 한 번만 인터넷이 필요하고, 그 이후에는 오프라인에서도 재생됩니다.
+          </p>
+          <p className="text-xs text-muted mt-2">
+            💡 미리 녹음된 음성이 없는 텍스트는 단말기 내장 <b>중국어</b> 음성으로 대체합니다.
+            한국어 음성으로 한자를 잘못 발음(한국어 한자음)하는 것을 막기 위해,
+            <b> 단말기에 중국어 음성팩이 없으면 재생을 시도하지 않습니다.</b>
+            이때만 아래 진단 결과가 의미가 있어요.
+          </p>
+        </div>
+
         {!supported ? (
           <Status
-            kind="bad"
-            title="이 브라우저는 음성을 지원하지 않습니다."
-            body="Safari(iPhone), Chrome(Android/PC), Edge(PC) 중 하나로 열어 주세요."
+            kind="warn"
+            title="이 브라우저는 단말기 음성 합성을 지원하지 않습니다."
+            body="미리 녹음된 음성은 그대로 재생됩니다. 다만 텍스트 직접 입력 등 일부 기능은 제한될 수 있어요."
           />
         ) : voices.length === 0 ? (
           <Status
-            kind="bad"
-            title="중국어 음성이 단말기에 설치되어 있지 않습니다."
-            body="아래 안내에 따라 중국어 음성팩을 다운로드해 주세요."
+            kind="warn"
+            title="단말기에 중국어 음성팩이 설치되어 있지 않습니다."
+            body="미리 녹음된 음성은 정상 재생됩니다. 단말기 음성도 쓰고 싶다면 아래 안내를 참고하세요."
           />
         ) : (
           <Status
             kind="good"
-            title={`중국어 음성 ${voices.length}개가 감지되었습니다.`}
-            body="아래 ‘테스트 재생’ 버튼으로 직접 들어 보세요."
+            title={`단말기 중국어 음성 ${voices.length}개가 감지되었습니다.`}
+            body="미리 녹음된 음성과 함께 단말기 내장 음성도 사용할 수 있어요."
           />
         )}
 
@@ -129,12 +151,20 @@ function TTSDiagnostic(): JSX.Element {
           <Status
             kind="warn"
             title="홈 화면 앱(PWA)으로 열려 있습니다."
-            body="iOS 17.4 미만에서는 음성이 막힐 수 있어요. 안 들리면 Safari 탭에서 다시 열어 보세요."
+            body={
+              ios26Regression
+                ? 'iOS 26.0 · 26.1 PWA 환경에서 음성 재생이 막히는 사례가 보고되었어요. 안 들리면 Safari 탭에서 다시 열거나 iOS 26.2 이상으로 업데이트하세요.'
+                : 'iOS 17.4 미만에서는 음성이 막힐 수 있어요. 안 들리면 Safari 탭에서 다시 열어 보세요.'
+            }
           />
         )}
 
         {iosOutdated && (
           <IOSUpdateGuide version={iosVer!} />
+        )}
+
+        {ios26Regression && (
+          <IOS26RegressionGuide version={iosVer!} />
         )}
 
         {supported && (
@@ -164,7 +194,7 @@ function TTSDiagnostic(): JSX.Element {
 
         {voices.length === 0 && supported && (
           <div className="pt-3 border-t border-divider">
-            {isIOS() ? <IOSVoicePackGuide /> : <AndroidVoicePackGuide />}
+            <VoicePackGuide />
           </div>
         )}
 
@@ -231,6 +261,41 @@ function IOSUpdateGuide({
   );
 }
 
+function IOS26RegressionGuide({
+  version,
+}: {
+  version: { major: number; minor: number };
+}): JSX.Element {
+  const verLabel = `iOS ${version.major}.${version.minor}`;
+  return (
+    <div className="rounded-xl border border-accent/40 bg-accent/10 p-3">
+      <p className="text-sm font-bold text-fg inline-flex items-center gap-1.5">
+        <AlertTriangle size={16} aria-hidden /> 현재 {verLabel} — 음성 재생 회귀 보고
+      </p>
+      <p className="text-xs text-muted mt-1 mb-2">
+        Apple <b>iOS 26.0 · 26.1</b>에서 홈 화면 앱(PWA)의 SpeechSynthesis가
+        중단되거나 무음으로 재생되는 사례가 다수 보고되었습니다.
+        Apple은 <b>iOS 26.2</b> 이상에서 수정 작업을 진행 중이에요.
+      </p>
+      <p className="text-sm font-semibold text-fg mb-1 inline-flex items-center gap-1.5"><Download size={14} aria-hidden /> 임시 해결책</p>
+      <ol className="list-decimal pl-5 space-y-1 text-sm text-fg">
+        <li>
+          <b>설정 → 일반 → 소프트웨어 업데이트</b>에서 iOS 26.2 이상이 보이면 업데이트.
+        </li>
+        <li>
+          업데이트가 아직 없으면 이 페이지를 <b>Safari 탭으로 직접 열기</b>:
+          홈 화면 앱이 아닌 Safari 주소창에서 페이지를 열면 음성이 정상 재생됩니다.
+        </li>
+        <li>또는 미리 녹음된 음성(앱 기본)이 정상 동작하는지 ▶ 버튼으로 다시 확인.</li>
+      </ol>
+      <p className="text-xs text-muted mt-2">
+        💡 이 앱의 본문·단어·회화 발음은 미리 녹음된 mp3로 재생되므로
+        SpeechSynthesis 회귀와 무관하게 들립니다. 단말기 음성 합성이 필요한 경우(직접 입력 등)만 영향을 받습니다.
+      </p>
+    </div>
+  );
+}
+
 function IOSVolumeGuide(): JSX.Element {
   return (
     <div className="text-sm space-y-3">
@@ -291,6 +356,113 @@ function IOSVolumeGuide(): JSX.Element {
   );
 }
 
+// 4종 OS 모두에 대해 중국어 음성팩 설치 가이드를 제공한다.
+// 기존엔 isIOS() ? iOS : Android 이분기였으나 Windows/Mac 사용자가
+// 잘못된 Android 가이드를 보던 문제를 해결.
+function VoicePackGuide(): JSX.Element {
+  const initial: Platform = isIOS()
+    ? 'ios'
+    : /Android/i.test(navigator.userAgent)
+      ? 'android'
+      : /Mac/i.test(navigator.userAgent)
+        ? 'mac'
+        : 'windows';
+  const [tab, setTab] = useState<Platform>(initial);
+
+  return (
+    <div>
+      <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5">
+        <Volume2 size={14} aria-hidden /> 중국어 음성팩 설치 가이드
+      </p>
+      <div role="tablist" className="flex flex-wrap gap-2 mb-3">
+        <TabBtn cur={tab} v="ios" onClick={setTab} icon={<AppleLogo size={12} />}>iPhone</TabBtn>
+        <TabBtn cur={tab} v="android" onClick={setTab} icon={<AndroidLogo size={14} />}>Android</TabBtn>
+        <TabBtn cur={tab} v="windows" onClick={setTab} icon={<Monitor size={14} />}>Windows</TabBtn>
+        <TabBtn cur={tab} v="mac" onClick={setTab} icon={<AppleLogo size={12} />}>Mac</TabBtn>
+      </div>
+      <div className="text-sm">
+        {tab === 'ios' && <IOSVoicePackGuide />}
+        {tab === 'android' && <AndroidVoicePackGuide />}
+        {tab === 'windows' && <WindowsVoicePackGuide />}
+        {tab === 'mac' && <MacVoicePackGuide />}
+      </div>
+    </div>
+  );
+}
+
+function WindowsVoicePackGuide(): JSX.Element {
+  return (
+    <div className="text-sm">
+      <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5"><Monitor size={14} aria-hidden /> Windows 중국어 음성팩 설치</p>
+      <p className="font-semibold text-fg mt-1 mb-1">▸ Windows 11 (대부분 권장)</p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li><b>설정</b> (Win + I) → <b>시간 및 언어</b> → <b>언어 및 지역</b></li>
+        <li>"선호하는 언어" → <b>+ 언어 추가</b> → <b>"中文 (中华人民共和国)"</b> 또는 <b>"Chinese (Simplified, China)"</b> 선택</li>
+        <li>"언어 기능 설치" 화면에서 <b>"음성"</b> 체크박스 활성 → <b>설치</b></li>
+        <li>설치 완료 후 <b>설정 → 접근성 → 내레이터 → 내레이터 음성 추가</b>에서 <b>中文</b> 음성 보임 확인</li>
+      </ol>
+      <p className="font-semibold text-fg mt-3 mb-1">▸ Windows 10</p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li><b>설정</b> → <b>시간 및 언어</b> → <b>언어</b> → <b>+ 기본 설정 언어 추가</b></li>
+        <li><b>中文(中国)</b> 선택 → 다음 → <b>"음성 인식"</b>·<b>"텍스트 음성 변환"</b> 체크 → 설치</li>
+      </ol>
+      <p className="font-semibold text-fg mt-3 mb-1">▸ Edge·Chrome 사용자 (앱 단독 음성)</p>
+      <ul className="list-disc pl-5 space-y-1 text-fg/90">
+        <li>Edge: 주소창에 <b>edge://settings/languages</b> → <b>"텍스트를 음성으로 변환"</b> 음성 추가</li>
+        <li>Chrome은 OS 음성을 그대로 사용 — 위 Windows 설정만 완료하면 됩니다.</li>
+      </ul>
+      <p className="text-fg mt-3">설치 후 <b>브라우저를 완전히 종료 후 다시 열어</b> 음성이 잡히는지 확인하세요.</p>
+      <p className="text-xs text-muted mt-2">
+        💡 음성 패키지가 보이지 않으면 <b>"Windows Update"</b>를 한 번 실행해 주세요. 옵션 기능이 비활성화돼 있을 수 있어요.
+      </p>
+    </div>
+  );
+}
+
+function MacVoicePackGuide(): JSX.Element {
+  return (
+    <div className="text-sm">
+      <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5"><AppleLogo size={14} /> Mac 중국어 음성팩 설치</p>
+
+      <p className="font-semibold text-fg mt-1 mb-1">▸ macOS 15 Sequoia (2024년 9월 이후)</p>
+      <p className="text-xs text-muted mb-1">
+        macOS Sequoia부터는 <b>"말하기 콘텐츠"</b> 화면에서 새 음성을 받을 수 없어요.
+        <b>VoiceOver 유틸리티</b>를 통해서만 신규 다운로드가 가능합니다.
+      </p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li><b>시스템 설정</b> → <b>손쉬운 사용</b> → <b>VoiceOver</b></li>
+        <li><b>"VoiceOver 유틸리티 열기…"</b> 버튼 클릭 (별도 창이 열립니다)</li>
+        <li>좌측 <b>음성</b> 카테고리 → <b>음성</b> 탭</li>
+        <li>"기본" 옆 음성 드롭다운 → 가장 아래 <b>사용자화…</b></li>
+        <li><b>中文 (中国 본토 · 보통화)</b> 섹션에서 <b>Tingting</b>·<b>Sinji</b>·<b>Meijia</b> 중 하나 체크 → <b>확인</b></li>
+        <li>다운로드(40~400MB) 완료 후 잠시 뒤 시스템 설정의 <b>말하기 콘텐츠 → 시스템 음성</b> 목록에도 자동으로 나타납니다.</li>
+      </ol>
+      <p className="text-xs text-muted mt-2">
+        💡 음성이 보이지 않거나 빈 사각형으로 표시되면 <b>Mac을 재시작</b>해 주세요. 색인이 부팅 시 갱신됩니다.
+      </p>
+
+      <p className="font-semibold text-fg mt-3 mb-1">▸ macOS 13 Ventura · 14 Sonoma</p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li><b>시스템 설정</b>(System Settings) → <b>손쉬운 사용</b>(Accessibility)</li>
+        <li><b>말하기 콘텐츠</b>(Spoken Content) → <b>시스템 음성</b>(System Voice) → <b>사용자화…</b>(Customize…)</li>
+        <li>아래로 스크롤 → <b>中文 (中国 본토)</b> 섹션에서 <b>Tingting</b>·<b>Sinji</b>·<b>Meijia</b> 중 하나 체크 → <b>확인</b></li>
+        <li>다운로드(40~400MB) 완료 시 진행률이 사라지면 준비 완료</li>
+      </ol>
+
+      <p className="font-semibold text-fg mt-3 mb-1">▸ macOS 12 Monterey 이전</p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li><b>시스템 환경설정</b> → <b>손쉬운 사용</b> → <b>말하기</b></li>
+        <li><b>시스템 음성</b> 드롭다운 → <b>사용자화…</b> → <b>中文</b> 음성 체크 → <b>확인</b></li>
+      </ol>
+
+      <p className="text-fg mt-3">다운로드 후 <b>Safari·Chrome을 완전히 종료한 다음 다시 열어</b> 이 페이지에서 테스트 재생을 눌러 보세요.</p>
+      <p className="text-xs text-muted mt-2">
+        💡 다운로드가 멈추거나 음성이 안 잡히면 <b>Mac을 재시작</b>한 뒤 다시 확인해 보세요. macOS는 음성 인덱스를 부팅 시 새로 읽습니다.
+      </p>
+    </div>
+  );
+}
+
 function IOSVoicePackGuide(): JSX.Element {
   return (
     <div className="text-sm">
@@ -324,7 +496,8 @@ function AndroidVoicePackGuide(): JSX.Element {
   return (
     <div className="text-sm">
       <p className="font-bold text-fg mb-2 inline-flex items-center gap-1.5"><AndroidLogo size={16} /> Android 중국어 음성팩 설치</p>
-      <p className="font-semibold text-fg mt-2 mb-1">▸ Samsung Galaxy 폰</p>
+
+      <p className="font-semibold text-fg mt-2 mb-1">▸ Samsung Galaxy 폰 (One UI 6 이하)</p>
       <ol className="list-decimal pl-5 space-y-1 text-fg">
         <li>
           <b>설정</b> → <b>일반 관리</b> → <b>언어 및 입력</b> → <b>음성</b>
@@ -336,15 +509,43 @@ function AndroidVoicePackGuide(): JSX.Element {
           <b>언어 설치</b> → <b>중국어(중국)</b> 체크 → 다운로드
         </li>
       </ol>
+
+      <p className="font-semibold text-fg mt-3 mb-1">▸ Samsung Galaxy (One UI 7 · Android 15)</p>
+      <p className="text-xs text-muted mb-1">
+        One UI 7부터 <b>Samsung TTS 엔진은 3rd-party 앱(브라우저 포함)에서 차단</b>됩니다.
+        Chrome으로 이 앱을 쓰려면 반드시 <b>Google TTS 엔진</b>을 활성화해야 해요.
+      </p>
+      <ol className="list-decimal pl-5 space-y-1 text-fg">
+        <li>
+          Play 스토어에서 <b>"Google 텍스트 음성 변환 엔진"</b>이 설치·업데이트되어 있는지 확인.
+        </li>
+        <li>
+          <b>설정</b> → <b>일반 관리</b> → <b>텍스트 음성 변환</b>
+        </li>
+        <li>
+          <b>기본 엔진</b>을 <b>Samsung TTS</b>가 아닌 <b>Google 텍스트 음성 변환 엔진</b>으로 변경.
+        </li>
+        <li>
+          엔진 옆 ⚙️ → <b>언어 설치</b> → <b>중국어(중국)</b> 다운로드.
+        </li>
+      </ol>
+
       <p className="font-semibold text-fg mt-3 mb-1">▸ Pixel · 기타 Android (대부분)</p>
       <ol className="list-decimal pl-5 space-y-1 text-fg">
         <li>
-          <b>설정</b> → <b>시스템</b> → <b>언어 및 입력</b> → <b>음성</b>
+          <b>설정</b> → <b>접근성</b> → <b>텍스트 음성 변환 출력</b> (공식 권장 경로)
         </li>
         <li>
-          <b>텍스트 음성 변환 출력</b> → <b>Google TTS 엔진</b>의 ⚙️ → <b>언어 설치</b> → <b>중국어(중국)</b>
+          기본 엔진이 <b>Google TTS 엔진</b>인지 확인 → 옆 ⚙️
+        </li>
+        <li>
+          <b>언어 설치</b> → <b>중국어(중국)</b> 체크 → 다운로드
         </li>
       </ol>
+      <p className="text-xs text-muted mt-1">
+        💡 일부 펌웨어는 <b>설정 → 시스템 → 언어 및 입력 → 음성 → 텍스트 음성 변환 출력</b> 경로를 사용합니다.
+      </p>
+
       <p className="text-fg mt-3">완료 후 이 앱을 완전 종료 → 다시 열기.</p>
       <p className="text-xs text-muted mt-3">
         💡 메뉴 이름이 위와 다르면 <b>설정 앱 검색창</b>에 <b>"음성"</b> 또는 <b>"TTS"</b>를 입력해 보세요. 일부 기기(샤오미·화웨이 등)는 <b>Samsung TTS</b>·<b>HMS TTS</b>를 쓰며 위치가 다릅니다.
@@ -879,6 +1080,43 @@ function TroubleshootSection(): JSX.Element {
         ),
       },
       {
+        q: <><Volume2 size={14} aria-hidden /> 미리 녹음된 발음(mp3)이 안 들려요.</>,
+        a: (
+          <>
+            <p className="mb-2">
+              이 앱은 본문·단어·회화 발음 약 <b>2,500개</b>를 미리 녹음한 mp3 파일로 재생합니다.
+              아래를 순서대로 확인해 주세요.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li>
+                기기 음량이 켜져 있는지 확인하고, 위쪽 <b>“음성이 안 들려요”</b>의
+                <b> ‘테스트 재생 (你好)’</b> 버튼을 먼저 눌러 보세요.
+              </li>
+              <li>
+                테스트는 들리는데 본문/단어 발음이 안 들리면 <b>네트워크</b>를 확인하세요.
+                첫 재생 시 mp3 한 개당 약 20KB를 다운로드합니다.
+              </li>
+              <li>
+                <b>오프라인 사용</b>: 비행기 모드 이전에 학습할 과를 한 번씩 열어
+                발음을 한 번 재생해 두면, 이후에는 인터넷 없이도 들을 수 있습니다.
+              </li>
+              <li>
+                그래도 안 되면 ⚙️ <b>설정 → 저장 공간 → 콘텐츠 캐시 비우기</b> 후
+                다시 열어 발음을 재생해 보세요.
+              </li>
+              <li>
+                미리 녹음되지 않은 텍스트(직접 입력 등)는 단말기 내장 음성으로 대체됩니다.
+                이때는 단말기 중국어 음성팩이 필요합니다.
+              </li>
+            </ol>
+            <p className="text-xs text-muted mt-2">
+              💡 mp3 파일은 <b>Microsoft Edge Neural TTS(Xiaoxiao)</b>로 만들었어요.
+              누가, 어떤 기기로 열어도 <b>동일한 음성</b>으로 들립니다.
+            </p>
+          </>
+        ),
+      },
+      {
         q: <><BatteryLow size={14} aria-hidden /> 배터리 절약 모드에서 음성이 끊기거나 멈춰요. (Android)</>,
         a: (
           <>
@@ -1022,11 +1260,18 @@ function FAQSection(): JSX.Element {
       {
         q: 'iPhone에서 음성이 자꾸 막혀요. 업데이트하면 좋아지나요?',
         a: (
-          <p>
-            네. Apple은 <b>iOS 17.4</b>부터 PWA 음성 재생 버그와 voiceschanged 이벤트 누락을 수정했어요.
-            <b>설정 → 일반 → 소프트웨어 업데이트</b>에서 최신 버전으로 올린 뒤 다시 시도해 보세요.
-            iPhone 8 이하 등 17을 지원하지 않는 기기는 가능한 최신 버전으로 올리고 Safari 탭에서 여세요.
-          </p>
+          <>
+            <p className="mb-2">
+              네. Apple은 <b>iOS 17.4</b>부터 PWA 음성 재생 버그와 voiceschanged 이벤트 누락을 수정했어요.
+              <b>설정 → 일반 → 소프트웨어 업데이트</b>에서 최신 버전으로 올린 뒤 다시 시도해 보세요.
+              iPhone 8 이하 등 17을 지원하지 않는 기기는 가능한 최신 버전으로 올리고 Safari 탭에서 여세요.
+            </p>
+            <p className="text-xs text-muted">
+              ⚠️ <b>iOS 26.0 · 26.1</b>에서는 PWA SpeechSynthesis 회귀가 다시 보고되었어요.
+              가능하면 <b>iOS 26.2 이상</b>으로 업데이트하고, 그 전이라면 Safari 탭으로 직접 열어 사용하세요.
+              미리 녹음된 mp3 음성은 이 회귀와 무관하게 정상 재생됩니다.
+            </p>
+          </>
         ),
       },
       {
@@ -1057,6 +1302,37 @@ function FAQSection(): JSX.Element {
         a: (
           <p>
             ⚙️ <b>설정 → 저장 공간 → 콘텐츠 캐시 비우기</b>를 누른 뒤 검색을 다시 사용하면 인덱스가 새로 받아집니다. (학습 진도는 유지됩니다.)
+          </p>
+        ),
+      },
+      {
+        q: '왜 모든 사람이 같은 음성으로 듣나요?',
+        a: (
+          <p>
+            이 앱은 본문·단어·회화 발음을 빌드 시점에 <b>Microsoft Edge Neural TTS</b>(여성, 표준 보통화)로
+            미리 녹음한 mp3로 재생합니다. 단말기·운영체제에 관계없이 <b>동일한 발음과 억양</b>을 듣게 되어
+            학습 일관성이 높아집니다.
+          </p>
+        ),
+      },
+      {
+        q: '단말기에 중국어 음성팩이 없어도 발음을 들을 수 있나요?',
+        a: (
+          <p>
+            네. 약 <b>2,500개</b>의 미리 녹음된 mp3 파일을 함께 배포합니다.
+            iPhone·Android·PC 어디서든 음성팩 다운로드 없이 바로 들립니다.
+            처음 한 번만 인터넷이 필요하고, 한 번 재생하면 단말기에 캐시되어 오프라인에서도 들을 수 있어요.
+            미리 녹음되지 않은 텍스트만 단말기 내장 음성으로 대체됩니다.
+          </p>
+        ),
+      },
+      {
+        q: '한국어 발음도 지원하나요?',
+        a: (
+          <p>
+            아니요. 이 앱은 <b>중국어 발음만</b> 제공합니다. 한국어 뜻 읽어주기는 지원하지 않아요.
+            또한 한국어 음성이 한자를 잘못 발음(한국어 한자음)하는 것을 막기 위해,
+            중국어 음성팩이 없는 단말에서는 음성 재생을 시도하지 않습니다.
           </p>
         ),
       },
