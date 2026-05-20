@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight, Download, Loader2, CheckCircle2, Upload, Save } from 'lucide-react';
 import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection } from '@/stores/settings';
 import type { SRSAlgorithm } from '@/stores/srs';
 import { useProgress } from '@/stores/progress';
 import { useFavorites } from '@/stores/favorites';
 import { useSRS } from '@/stores/srs';
 import { getStorageInfo, clearAllCaches, clearContentCaches, clearTTSAudioCache, type StorageInfo } from '@/lib/storage';
-import { dbClearAll } from '@/lib/db';
+import { dbClearAll, dbExportAll, dbImportAll, type DbBackup } from '@/lib/db';
 import { awaitVoices, isSupported, isIOS, isStandalonePWA } from '@/lib/tts';
 import { bulkDownloadAll, getManifestSize } from '@/lib/ttsBulkDownload';
 import { cn } from '@/lib/cn';
@@ -18,6 +18,8 @@ export default function Settings(): JSX.Element {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [backupMsg, setBackupMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isSupported()) {
@@ -36,6 +38,39 @@ export default function Settings(): JSX.Element {
     const n = await clearContentCaches();
     setMsg(`콘텐츠 캐시 ${n}개 삭제됨`);
     refreshStorage();
+  };
+
+  const onExportBackup = async (): Promise<void> => {
+    try {
+      const backup = await dbExportAll();
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `smcb-backup-${stamp}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setBackupMsg({ text: '백업 파일을 저장했습니다. 안전한 곳에 보관해 주세요.' });
+    } catch {
+      setBackupMsg({ text: '백업 파일을 만들지 못했습니다.', error: true });
+    }
+  };
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!confirm('백업 파일의 내용으로 현재 학습 기록을 덮어씁니다. 계속하시겠습니까?')) return;
+    try {
+      const backup = JSON.parse(await file.text()) as DbBackup;
+      const n = await dbImportAll(backup);
+      setBackupMsg({ text: `${n}개 항목을 복원했습니다. 잠시 후 앱을 새로 불러옵니다…` });
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : '파일을 읽을 수 없습니다.';
+      setBackupMsg({ text: `복원 실패: ${reason}`, error: true });
+    }
   };
 
   const onClearAll = async (): Promise<void> => {
@@ -319,6 +354,47 @@ export default function Settings(): JSX.Element {
               aria-label="일일 학습 목표"
             />
           </Row>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="학습 진행상황 백업"
+          subtitle="진도·즐겨찾기·플래시카드 기록을 파일로 저장하거나, 새 기기·재설치 후 복원할 수 있어요."
+        />
+        <div className="rounded-2xl border border-divider bg-surface p-4 space-y-3">
+          <p className="text-sm text-muted leading-snug">
+            기기를 바꾸거나 앱을 다시 설치하면 학습 기록이 사라질 수 있습니다.
+            가끔 백업 파일을 저장해 두면 안전합니다.
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={(e) => void onImportFile(e)}
+            className="hidden"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void onExportBackup()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary text-white text-sm font-semibold px-3 py-2"
+            >
+              <Save size={14} aria-hidden /> 백업 파일 저장
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-surface border border-divider text-fg text-sm font-semibold px-3 py-2"
+            >
+              <Upload size={14} aria-hidden /> 백업에서 복원
+            </button>
+          </div>
+          {backupMsg && (
+            <p className={cn('text-sm pt-1', backupMsg.error ? 'text-accent' : 'text-success')}>
+              {backupMsg.text}
+            </p>
+          )}
         </div>
       </section>
 

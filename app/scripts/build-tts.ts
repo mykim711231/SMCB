@@ -44,7 +44,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * Phase:
- *   1 (default): vocab.word — 단어 카드용. 가장 자주 호출되므로 우선.
+ *   1 (default): vocab.word + 단어를 이루는 단음절 한자 — 단어 카드 및 한자
+ *      인덱스(/hanzi) 페이지용. 가장 자주 호출되므로 우선.
  *   2: vocab.example.zh — 예문 발음.
  *   3: body / dialog / bible — 본문·회화·성경.
  *   all: 위 모두.
@@ -57,21 +58,13 @@
  * Note: msedge-tts는 ESM/CJS 둘 다 export. import만 하고 setMetadata로 음성 지정.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, createWriteStream } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
-import type { Lesson } from '../src/types/lesson';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const APP_DIR = resolve(__dirname, '..');
-const DATA_DIR = join(APP_DIR, 'src', 'data');
-const OUT_DIR = join(APP_DIR, 'public', 'tts');
-const MANIFEST_PATH = join(DATA_DIR, 'zh-tts-manifest.json');
+import {
+  type Phase, DATA_DIR, OUT_DIR, MANIFEST_PATH, loadLessons, collectZh, collectAppendixTts, hashName,
+} from './tts-texts';
 
 const DEFAULT_VOICE = 'zh-CN-XiaoxiaoNeural';
-
-type Phase = 1 | 2 | 3 | 'all';
 
 type Args = {
   voice: string;
@@ -101,87 +94,6 @@ function parseArgs(): Args {
     else if (k === '--concurrency') out.concurrency = Math.max(1, Number(a[++i]) || 1);
   }
   return out;
-}
-
-function loadLessons(): Lesson[] {
-  const all: Lesson[] = [];
-  for (const f of ['lessons-vol1.json', 'lessons-vol2.json', 'lessons-vol3.json']) {
-    const p = join(DATA_DIR, f);
-    if (!existsSync(p)) continue;
-    all.push(...(JSON.parse(readFileSync(p, 'utf8')) as Lesson[]));
-  }
-  return all;
-}
-
-/** Extract zh from {{tts:...}} placeholders in appendices.json markdown blobs. */
-function collectAppendixTts(): Set<string> {
-  const set = new Set<string>();
-  const p = join(DATA_DIR, 'appendices.json');
-  if (!existsSync(p)) return set;
-  const items = JSON.parse(readFileSync(p, 'utf8')) as { markdown: string }[];
-  const ttsRe = /\{\{tts:([^}]+)\}\}/g;
-  // {{verse:zh|pinyin|ko}} — the zh portion needs an mp3 too (VerseRow renders TTSButton).
-  const verseRe = /\{\{verse:([^|}]+)\|[^|}]+\|[^}]+\}\}/g;
-  // {{vocab:...}} — word needs an mp3; 8-field form also has example.zh that needs one.
-  const vocabRe = /\{\{vocab:([^}]+)\}\}/g;
-  for (const it of items) {
-    const md = it.markdown ?? '';
-    let m;
-    while ((m = ttsRe.exec(md)) !== null) set.add(m[1].trim());
-    while ((m = verseRe.exec(md)) !== null) set.add(m[1].trim());
-    while ((m = vocabRe.exec(md)) !== null) {
-      const parts = m[1].split('|').map((p) => p.trim());
-      if (parts[0]) set.add(parts[0]);            // word
-      if (parts.length >= 8 && parts[5]) set.add(parts[5]); // example.zh
-    }
-  }
-  set.delete('');
-  return set;
-}
-
-function collectZh(lessons: Lesson[], phase: Phase): Set<string> {
-  const set = new Set<string>();
-  const want = (n: number): boolean => phase === 'all' || phase === n;
-
-  for (const l of lessons) {
-    if (want(1)) {
-      for (const v of l.vocab ?? []) {
-        if (v.word) set.add(v.word.trim());
-      }
-    }
-    if (want(2)) {
-      for (const v of l.vocab ?? []) {
-        if (v.example?.zh) set.add(v.example.zh.trim());
-      }
-    }
-    if (want(3)) {
-      if (l.titleZh) set.add(l.titleZh.trim());
-      for (const b of l.body ?? []) if (b.zh) set.add(b.zh.trim());
-      for (const p of l.pronunciation ?? []) if (p.hanzi) set.add(p.hanzi.trim());
-      for (const g of l.grammar ?? []) {
-        for (const e of g.examples ?? []) if (e.zh) set.add(e.zh.trim());
-      }
-      for (const b of l.bible ?? []) if (b.text?.zh) set.add(b.text.zh.trim());
-      for (const d of l.dialogDaily ?? []) {
-        for (const ln of d.lines ?? []) if (ln.zh) set.add(ln.zh.trim());
-      }
-      for (const d of l.dialogGospel ?? []) {
-        for (const ln of d.lines ?? []) if (ln.zh) set.add(ln.zh.trim());
-      }
-      for (const q of l.questions ?? []) if (q.zh) set.add(q.zh.trim());
-      for (const sc of l.scenarios ?? []) {
-        for (const seg of sc.segments ?? []) {
-          if (seg.kind === 'verse' && seg.verse.zh) set.add(seg.verse.zh.trim());
-        }
-      }
-    }
-  }
-  set.delete('');
-  return set;
-}
-
-function hashName(text: string): string {
-  return createHash('sha1').update(text, 'utf8').digest('hex').slice(0, 12) + '.mp3';
 }
 
 /**

@@ -1,16 +1,18 @@
 /**
  * SRS for flashcards — Leitner 5-box + optional SM-2.
  *
- * Card id scheme (v2):
+ * Card id scheme (v3 — 콘텐츠 해시 기반):
  *   v:{vocabId}                       단어 카드           e.g. v:vol1_01_v1
  *   e:{vocabId}                       예문 카드           e.g. e:vol1_01_v1
- *   b:{lessonId}:{idx}                성경 구절 카드      e.g. b:vol1_01:0
- *   d:{lessonId}:{dd|dg}:{di}:{li}    회화 라인 카드      e.g. d:vol1_01:dd:0:1
+ *   b:{lessonId}:h{hash}              성경 구절 카드      e.g. b:vol1_01:h1a2b3c4d
+ *   d:{lessonId}:{dd|dg}:h{hash}      회화 라인 카드      e.g. d:vol1_01:dd:h1a2b3c4d
  *     - dd = dialogDaily(응용회화), dg = dialogGospel(전도회화)
- *   s:{lessonId}:{i}:{j}              실전 시나리오 카드  e.g. s:vol1_01:0:3
- *     - i = scenarios index, j = segments index (kind='verse'인 segment만)
+ *   s:{lessonId}:h{hash}              실전 시나리오 카드  e.g. s:vol1_01:h1a2b3c4d
+ *   키 생성기는 lib/flashcard-items.ts (verseCardId/dialogCardId/scenarioCardId).
  *
  * v1 호환: 접두어 없는 키(`vol1_01_v1`)는 hydrate 시 'v:' 접두어를 붙여 자동 마이그레이션.
+ * v2 → v3: 인덱스 기반 b:/d:/s: 키는 buildIdMigrationPairs + migrateIds 로 1회
+ *   rename. migrateIds 는 멱등 — 콘텐츠 로드 직후 호출하면 안전하게 반복 가능.
  *
  * Leitner box → 다음 복습 간격 (일):
  *   1 → 1, 2 → 3, 3 → 7, 4 → 14, 5 → 30
@@ -56,6 +58,7 @@ export type SRSState = {
   hydrated: boolean;
 
   ensure: (ids: string[]) => void;
+  migrateIds: (pairs: Array<[string, string]>) => void;
   grade: (id: string, grade: SRSGrade, algorithm: SRSAlgorithm) => void;
   dueIds: (now?: Date) => string[];
   reset: (id: string) => void;
@@ -199,6 +202,34 @@ export const useSRS = create<SRSState>((set, get) => ({
         next[id] = newCard(id);
         mutated = true;
       }
+    }
+    if (mutated) {
+      set({ cards: next });
+      void persist({ cards: next, newCardsByDate: get().newCardsByDate, reviewsByDate: get().reviewsByDate });
+    }
+  },
+
+  /**
+   * v2(인덱스) → v3(해시) 카드 ID rename. 각 쌍 [oldId, newId] 에 대해
+   * oldId 카드를 newId 로 옮기고 oldId 는 제거한다.
+   *  - newId 가 비어 있거나 아직 새 카드면 oldId 의 학습 기록으로 덮어쓴다.
+   *  - newId 에 이미 실제 기록이 있으면(다른 경로에서 먼저 채점됨) 보존한다.
+   * 멱등 — oldId 가 제거되므로 재호출해도 no-op. 콘텐츠 로드 후 매번 호출 가능.
+   */
+  migrateIds: (pairs) => {
+    const cur = get().cards;
+    const next = { ...cur };
+    let mutated = false;
+    for (const [oldId, newId] of pairs) {
+      if (oldId === newId) continue;
+      const old = next[oldId];
+      if (!old) continue;
+      const existing = next[newId];
+      if (!existing || (isNewCard(existing) && !isNewCard(old))) {
+        next[newId] = { ...old, id: newId };
+      }
+      delete next[oldId];
+      mutated = true;
     }
     if (mutated) {
       set({ cards: next });

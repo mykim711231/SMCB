@@ -12,6 +12,27 @@ export type StorageInfo = {
   supported: boolean;
 };
 
+/**
+ * 영구 저장소(persistent storage) 승격을 요청한다.
+ *
+ * 기본(best-effort) 저장소는 iOS Safari 에서 7일 미사용 시, 또는 디스크
+ * 부족 시 브라우저가 학습 진도·즐겨찾기·SRS 기록을 통째로 삭제할 수 있다.
+ * persist() 가 승인되면 사용자가 명시적으로 지울 때까지 보존된다.
+ *
+ * 멱등 — 이미 영구 저장소면 재요청하지 않는다. boot 시 1회 호출.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.persist) {
+    return false;
+  }
+  try {
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 export async function getStorageInfo(): Promise<StorageInfo> {
   if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.estimate) {
     return { usageBytes: 0, quotaBytes: 0, usageMB: 0, quotaMB: 0, percent: 0, supported: false };

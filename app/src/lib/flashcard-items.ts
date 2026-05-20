@@ -8,12 +8,18 @@
  *   dialog   — 회화 라인 (dialogDaily/dialogGospel)
  *   scenario — 실전 시나리오의 verse trio
  *
- * SRS 카드 키 형식:
+ * SRS 카드 키 형식 (v3 — 콘텐츠 해시 기반):
  *   v:{vocabId}                       (예: v:vol1_01_v1)
  *   e:{vocabId}                       (예: e:vol1_01_v1)
- *   b:{lessonId}:{idx}                (예: b:vol1_01:0)
- *   d:{lessonId}:{dd|dg}:{di}:{li}    (예: d:vol1_01:dd:0:1)
- *   s:{lessonId}:{i}:{j}              (예: s:vol1_01:0:3)
+ *   b:{lessonId}:h{hash}              (예: b:vol1_01:h1a2b3c4d)
+ *   d:{lessonId}:{dd|dg}:h{hash}      (예: d:vol1_01:dd:h1a2b3c4d)
+ *   s:{lessonId}:h{hash}              (예: s:vol1_01:h1a2b3c4d)
+ *
+ * v2 → v3: 과거에는 b:/d:/s: 키가 배열 인덱스를 썼다(b:vol1_01:0). 인덱스는
+ *   Markdown 에서 구절·회화를 중간에 삽입/재배열하면 통째로 밀려, 다른 카드의
+ *   SRS 기록이 조용히 뒤바뀌는 회귀를 낳았다. v3 는 구절 본문(zh/ref) 해시를
+ *   키에 박아 재배열에 면역이다. 기존 인덱스 키는 hydrate 시 1회 rename
+ *   마이그레이션( buildIdMigrationPairs → useSRS.migrateIds )으로 옮긴다.
  *
  * 즐겨찾기 키(favKey)도 함께 노출하여 Flashcards에서 일관되게 사용.
  */
@@ -48,13 +54,66 @@ export type CardSource =
   // 본문 — 마라톤 모드에서만 사용 (플래시카드/Quiz 풀에는 미포함)
   | { kind: 'body'; verse: Verse; idx: number; lessonId: string; lessonTitleKo: string };
 
+/**
+ * 콘텐츠 문자열 → 8자리 16진 해시 (FNV-1a 32-bit).
+ * 결정적이며 빌드·런타임 어디서 호출해도 같은 값. 카드 ID 의 안정 식별자.
+ */
+function contentHash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * b:/d:/s: 카드 ID 생성기 — Quiz(sentence-builder) 경로와 Flashcards 가 반드시
+ * 동일한 키를 만들도록 단일 진입점으로 공유한다. 같은 zh/ko 콘텐츠면 같은 키.
+ */
+export function verseCardId(lessonId: string, q: BibleQuote): string {
+  return `b:${lessonId}:h${contentHash(`${q.ref}|${q.text.zh}`)}`;
+}
+export function dialogCardId(lessonId: string, kind: DialogKind, v: Verse): string {
+  return `d:${lessonId}:${kind}:h${contentHash(`${v.zh}|${v.ko}`)}`;
+}
+export function scenarioCardId(lessonId: string, v: Verse): string {
+  return `s:${lessonId}:h${contentHash(`${v.zh}|${v.ko}`)}`;
+}
+
 export function cardIdOf(s: CardSource): string {
+  if (s.kind === 'vocab') return `v:${s.vocab.id}`;
+  if (s.kind === 'example') return `e:${s.vocab.id}`;
+  if (s.kind === 'verse') return verseCardId(s.lessonId, s.verse);
+  if (s.kind === 'dialog') return dialogCardId(s.lessonId, s.dialogKind, s.verse);
+  if (s.kind === 'scenario') return scenarioCardId(s.lessonId, s.verse);
+  return `t:${s.lessonId}:${s.idx}`;
+}
+
+/** v2 인덱스 기반 카드 ID — 마이그레이션( buildIdMigrationPairs )에서만 사용. */
+export function legacyCardIdOf(s: CardSource): string {
   if (s.kind === 'vocab') return `v:${s.vocab.id}`;
   if (s.kind === 'example') return `e:${s.vocab.id}`;
   if (s.kind === 'verse') return `b:${s.lessonId}:${s.idx}`;
   if (s.kind === 'dialog') return `d:${s.lessonId}:${s.dialogKind}:${s.dialogIdx}:${s.lineIdx}`;
   if (s.kind === 'scenario') return `s:${s.lessonId}:${s.scenarioIdx}:${s.segmentIdx}`;
   return `t:${s.lessonId}:${s.idx}`;
+}
+
+/**
+ * v2(인덱스) → v3(해시) 카드 ID rename 쌍 목록.
+ * useSRS.migrateIds 에 넘기면 기존 SRS 기록을 새 키로 옮긴다. vocab/example/body
+ * 는 키가 바뀌지 않으므로 제외 — b:/d:/s: 만 반환.
+ */
+export function buildIdMigrationPairs(lessons: Lesson[]): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  for (const s of buildAllCardSources(lessons)) {
+    if (s.kind !== 'verse' && s.kind !== 'dialog' && s.kind !== 'scenario') continue;
+    const oldId = legacyCardIdOf(s);
+    const newId = cardIdOf(s);
+    if (oldId !== newId) pairs.push([oldId, newId]);
+  }
+  return pairs;
 }
 
 export function favKeyOf(s: CardSource): string {

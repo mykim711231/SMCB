@@ -21,11 +21,13 @@
  *   - 사용자가 만든 토큰 시퀀스의 join("")을 정답 join("")과 비교.
  *   - 양쪽 모두 구두점/공백/한글병기 제거 후 비교.
  *
- * 프롬프트 ID 형식 (Quiz.tsx srsCardIdFromPromptId 와 동기화 필수):
- *   - `{lessonId}:dd:{di}:{li}` — 응용 회화         → SRS `d:{lessonId}:dd:{di}:{li}`
- *   - `{lessonId}:dg:{di}:{li}` — 전도 회화         → SRS `d:{lessonId}:dg:{di}:{li}`
+ * 프롬프트 ID 형식 (Quiz.tsx srsCardIdFromPrompt 와 동기화 필수):
+ *   프롬프트 ID 는 인덱스 기반이지만, SRS 카드 키는 콘텐츠 해시(v3)다.
+ *   Quiz.tsx srsCardIdFromPrompt 가 프롬프트의 zh/ko 본문에서 키를 산출한다.
+ *   - `{lessonId}:dd:{di}:{li}` — 응용 회화         → SRS `d:{lessonId}:dd:h{hash}`
+ *   - `{lessonId}:dg:{di}:{li}` — 전도 회화         → SRS `d:{lessonId}:dg:h{hash}`
  *   - `{lessonId}:ex:{vocabId}` — 단어 예문         → SRS `v:{vocabId}`
- *   - `{lessonId}:sc:{si}:{sj}` — 실전 시나리오     → SRS `s:{lessonId}:{si}:{sj}`
+ *   - `{lessonId}:sc:{si}:{sj}` — 실전 시나리오     → SRS `s:{lessonId}:h{hash}`
  *   - `{lessonId}:ge:{gi}:{ei}` — 어법 예문         → SRS 카드 없음 (전체 덱 한정)
  *   - `{lessonId}:q:{qi}`       — 본문 질문         → SRS 카드 없음 (전체 덱 한정)
  */

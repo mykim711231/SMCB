@@ -20,6 +20,7 @@ import McqGame, { type McqPrompt, type Direction } from '@/components/quiz/McqGa
 import {
   buildAllPrompts, shuffleSeeded, seedFromString, type SentencePrompt,
 } from '@/lib/sentence-builder';
+import { dialogCardId, scenarioCardId, buildIdMigrationPairs } from '@/lib/flashcard-items';
 import { extractMinimalPairs, type MinimalPair } from '@/lib/minimal-pairs';
 import { pickMistakeCards } from '@/lib/srs-stats';
 import { estimateGrade } from '@/lib/quiz-grade';
@@ -33,27 +34,27 @@ type Props = { mode: QuizMode };
 type Deck = 'due' | 'mistakes' | 'lapses' | 'all';
 
 /**
- * SentenceBuilder 프롬프트 id → SRS 카드 id 매핑.
+ * SentenceBuilder 프롬프트 → SRS 카드 id 매핑.
  *
- * sentence-builder.ts §프롬프트 ID 형식과 동기화 필수.
- *   `{lessonId}:dd:{di}:{li}` → `d:{lessonId}:dd:{di}:{li}`  (응용 회화)
- *   `{lessonId}:dg:{di}:{li}` → `d:{lessonId}:dg:{di}:{li}`  (전도 회화)
- *   `{lessonId}:ex:{vocabId}` → `v:{vocabId}`                (단어 예문)
- *   `{lessonId}:sc:{si}:{sj}` → `s:{lessonId}:{si}:{sj}`     (실전 시나리오)
- *   `{lessonId}:ge:...` / `:q:...` → null (SRS 카드 없음 → due/mistakes 덱 제외)
+ * 회화·시나리오는 콘텐츠 해시 기반 v3 키를 쓰므로 프롬프트의 zh/ko 본문에서
+ * flashcard-items 의 dialogCardId/scenarioCardId 로 키를 만든다 — Flashcards
+ * 경로와 반드시 동일한 키를 산출해야 같은 카드로 합쳐진다.
+ *   `{lessonId}:dd:…` → d:{lessonId}:dd:h{hash}  (응용 회화)
+ *   `{lessonId}:dg:…` → d:{lessonId}:dg:h{hash}  (전도 회화)
+ *   `{lessonId}:ex:{vocabId}` → v:{vocabId}        (단어 예문)
+ *   `{lessonId}:sc:…` → s:{lessonId}:h{hash}      (실전 시나리오)
+ *   `{lessonId}:ge:…` / `:q:…` → null (SRS 카드 없음 → due/mistakes 덱 제외)
  */
-function srsCardIdFromPromptId(promptId: string): string | null {
-  const parts = promptId.split(':');
+function srsCardIdFromPrompt(p: SentencePrompt): string | null {
+  const parts = p.id.split(':');
   if (parts.length < 3) return null;
   const lessonId = parts[0];
   const kind = parts[1];
   if (kind === 'dd' || kind === 'dg') {
-    if (parts.length < 4) return null;
-    return `d:${lessonId}:${kind}:${parts[2]}:${parts[3]}`;
+    return dialogCardId(lessonId, kind, { zh: p.zh, ko: p.ko, pinyin: p.pinyin });
   }
   if (kind === 'sc') {
-    if (parts.length < 4) return null;
-    return `s:${lessonId}:${parts[2]}:${parts[3]}`;
+    return scenarioCardId(lessonId, { zh: p.zh, ko: p.ko, pinyin: p.pinyin });
   }
   if (kind === 'ex') {
     const v = parts.slice(2).join(':');
@@ -90,13 +91,20 @@ export default function Quiz({ mode }: Props): JSX.Element {
   const fcAppendixVocab = useSettings((s) => s.fcAppendixVocab);
   const grade = useSRS((s) => s.grade);
   const ensure = useSRS((s) => s.ensure);
+  const migrateIds = useSRS((s) => s.migrateIds);
   const cards = useSRS((s) => s.cards);
 
   useEffect(() => {
     let alive = true;
-    void loadAllLessons().then((ls) => { if (alive) setLessons(ls); });
+    void loadAllLessons().then((ls) => {
+      if (!alive) return;
+      // v2(인덱스) → v3(해시) 카드 ID 마이그레이션 — 멱등. Flashcards 를 거치지
+      // 않고 Quiz 만 쓰는 사용자도 기존 SRS 기록이 새 키로 옮겨지도록 보장.
+      migrateIds(buildIdMigrationPairs(ls));
+      setLessons(ls);
+    });
     return () => { alive = false; };
-  }, []);
+  }, [migrateIds]);
 
   // 부록 vocab은 토글이 켜진 동안만 로드 (대부분의 사용자에게 기본 비활성)
   useEffect(() => {
@@ -181,7 +189,7 @@ export default function Quiz({ mode }: Props): JSX.Element {
     if (deck === 'all') return prompts;
     if (deck === 'lapses') return lapsesSentence;
     return prompts.filter((p) => {
-      const id = srsCardIdFromPromptId(p.id);
+      const id = srsCardIdFromPrompt(p);
       if (!id) return false;
       return deck === 'due' ? isDueId(id) : mistakeIds.has(id);
     });
@@ -221,7 +229,7 @@ export default function Quiz({ mode }: Props): JSX.Element {
     if (mode === 'sentence') {
       let due = 0, mis = 0;
       for (const p of prompts) {
-        const id = srsCardIdFromPromptId(p.id);
+        const id = srsCardIdFromPrompt(p);
         if (!id) continue;
         if (isDue(id)) due++;
         if (mistakeIds.has(id)) mis++;
@@ -268,7 +276,7 @@ export default function Quiz({ mode }: Props): JSX.Element {
     } else if (mode === 'sentence') {
       const ids: string[] = [];
       for (const p of filteredSentencePrompts) {
-        const id = srsCardIdFromPromptId(p.id);
+        const id = srsCardIdFromPrompt(p);
         if (id) ids.push(id);
       }
       ensure(ids);
@@ -314,13 +322,13 @@ export default function Quiz({ mode }: Props): JSX.Element {
   // 다중 소스 grade 라우팅 — example/dialog/scenario는 각각 v:/d:/s: 카드로 그레이딩,
   // grammarExample/question은 SRS 카드가 없어 SRS 갱신은 건너뛰고 lapses 누적만 처리.
   const onSentenceResult = (promptId: string, correct: boolean, rtMs?: number, signalLen?: number): void => {
-    const id = srsCardIdFromPromptId(promptId);
+    const hit = prompts.find((p) => p.id === promptId);
+    const id = hit ? srsCardIdFromPrompt(hit) : null;
     if (id) {
       const g = estimateGrade({ correct, rtMs, signalLen, algorithm: fcAlgorithm });
       grade(id, g, fcAlgorithm);
     }
     if (correct || inLapses) return;
-    const hit = prompts.find((p) => p.id === promptId);
     if (!hit) return;
     setLapsesSentence((prev) =>
       prev.some((x) => x.id === promptId) ? prev : [...prev, hit],

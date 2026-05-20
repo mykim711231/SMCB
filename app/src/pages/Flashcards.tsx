@@ -12,7 +12,7 @@ import { useLearnScope } from '@/stores/learnScope';
 import TTSButton from '@/components/TTSButton';
 import { speak, unlock, isSupported as ttsSupported } from '@/lib/tts';
 import {
-  type CardSource, buildAllCardSources, cardIdOf, favKeyOf, speakTextOf,
+  type CardSource, buildAllCardSources, buildIdMigrationPairs, cardIdOf, favKeyOf, speakTextOf,
 } from '@/lib/flashcard-items';
 import { pickMistakeCards } from '@/lib/srs-stats';
 import { cn } from '@/lib/cn';
@@ -43,6 +43,7 @@ export default function Flashcards(): JSX.Element {
 
   const cards = useSRS((s) => s.cards);
   const ensure = useSRS((s) => s.ensure);
+  const migrateIds = useSRS((s) => s.migrateIds);
   const grade = useSRS((s) => s.grade);
   const favItems = useFavorites((s) => s.items);
 
@@ -73,12 +74,15 @@ export default function Flashcards(): JSX.Element {
       const appendixVocabs = fcAppendixVocab
         ? (results[1] as Awaited<ReturnType<typeof loadAppendixVocabs>>)
         : [];
+      // v2(인덱스) → v3(해시) 카드 ID 마이그레이션 — ensure 보다 먼저 실행해야
+      // 기존 학습 기록이 새 키로 옮겨진 뒤 신규 카드 생성이 일어난다. 멱등.
+      migrateIds(buildIdMigrationPairs(lessons));
       const out = buildAllCardSources(lessons, appendixVocabs);
       setSources(out);
       ensure(out.map(cardIdOf));
     });
     return () => { alive = false; };
-  }, [ensure, fcAppendixVocab]);
+  }, [ensure, migrateIds, fcAppendixVocab]);
 
   // apply card-type + lesson filter
   // 부록 vocab(lessonId가 "appendix"로 시작)은 lesson 멀티 필터의 범위 밖에 있으므로

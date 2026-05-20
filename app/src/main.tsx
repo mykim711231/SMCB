@@ -7,6 +7,7 @@ import { useSettings } from './stores/settings';
 import { useProgress } from './stores/progress';
 import { useFavorites } from './stores/favorites';
 import { useSRS } from './stores/srs';
+import { requestPersistentStorage } from './lib/storage';
 import './styles/tokens.css';
 import './styles/index.css';
 
@@ -17,6 +18,10 @@ void useSettings.getState().hydrate();
 void useProgress.getState().hydrate();
 void useFavorites.getState().hydrate();
 void useSRS.getState().hydrate();
+
+// 학습 기록이 브라우저 자동 정리(iOS 7일 미사용 등)로 사라지지 않도록
+// 영구 저장소 승격을 요청한다. 멱등이므로 매 부팅 호출해도 무방.
+void requestPersistentStorage();
 
 const root = createRoot(document.getElementById('root') as HTMLElement);
 root.render(
