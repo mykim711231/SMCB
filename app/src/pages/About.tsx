@@ -89,6 +89,22 @@ export default function About(): JSX.Element {
           <p>· 오프라인 학습 지원 (PWA), 분석 도구 미사용</p>
         </div>
       </section>
+
+      <section>
+        <SectionHeader title="만든 사람 · 문의" />
+        <div className="rounded-2xl border border-divider bg-surface p-4 text-sm space-y-1 text-fg/90">
+          <p>· 새문안교회 중국어 성경반(중급)을 위해 제작했습니다.</p>
+          <p>
+            · 앱이 잘 안 될 때나 의견이 있으시면 아래로 알려 주세요 ·{' '}
+            <a
+              href="mailto:gababayo@gmail.com"
+              className="text-primary font-semibold underline break-all"
+            >
+              gababayo@gmail.com
+            </a>
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

@@ -834,7 +834,7 @@ function SettingsOverviewGuide(): JSX.Element {
       body: (
         <ul className="list-disc pl-5 space-y-1 text-fg/90">
           <li>
-            <b>앱 정보 · SMCB 소개</b>를 누르시면 <b>앱 버전</b>과 <b>만든 사람들</b> 안내가 나옵니다.
+            <b>앱 정보 · SMCB 소개</b>를 누르시면 <b>SMCB 이름의 뜻</b>, <b>콘텐츠 출처·이용 안내</b>, <b>설치 방법</b>, <b>앱 버전</b>, <b>만든 사람 연락처</b>가 나옵니다.
             <div className="text-xs text-muted mt-0.5">
               무언가 잘 안 될 때 도움을 청하시려면 여기 적힌 버전 번호를 함께 알려 주세요.
             </div>
