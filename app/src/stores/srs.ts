@@ -25,11 +25,6 @@
  *   good : reps==0→1, reps==1→6, else interval*=ease
  *   easy : interval *= ease * 1.3, ease += 0.15
  *   ease는 [1.3, 2.8]로 clamp.
- *
- * `newCardsByDate`: 새 카드(아직 한 번도 채점 안 된 카드)를 날짜별로 몇 장
- * 풀었는지 누적. Flashcards '복습 대상' 덱이 settings.fcDailyGoal(하루 새
- * 카드 한도)을 적용할 때 newCardsToday()로 오늘 소진량을 읽는다. 한도는
- * 새 카드에만 걸리고 복습 카드(이미 한 번 이상 채점된 카드)는 제한 없음.
  */
 import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
@@ -55,7 +50,6 @@ export type DailyStat = { reviewed: number; correct: number };
 
 export type SRSState = {
   cards: Record<string, SRSCard>;
-  newCardsByDate: Record<string, number>;
   reviewsByDate: Record<string, DailyStat>;
   hydrated: boolean;
 
@@ -65,7 +59,6 @@ export type SRSState = {
   dueIds: (now?: Date) => string[];
   reset: (id: string) => void;
   resetAll: () => void;
-  newCardsToday: () => number;
   reviewsToday: () => DailyStat;
   hydrate: () => Promise<void>;
 };
@@ -182,7 +175,6 @@ function applySM2(card: SRSCard, g: SRSGrade): { box: SRSBox; intervalDays: numb
 
 async function persist(state: {
   cards: SRSState['cards'];
-  newCardsByDate: SRSState['newCardsByDate'];
   reviewsByDate: SRSState['reviewsByDate'];
 }): Promise<void> {
   await dbSet(DB_KEY, state);
@@ -190,7 +182,6 @@ async function persist(state: {
 
 export const useSRS = create<SRSState>((set, get) => ({
   cards: {},
-  newCardsByDate: {},
   reviewsByDate: {},
   hydrated: false,
 
@@ -207,7 +198,7 @@ export const useSRS = create<SRSState>((set, get) => ({
     }
     if (mutated) {
       set({ cards: next });
-      void persist({ cards: next, newCardsByDate: get().newCardsByDate, reviewsByDate: get().reviewsByDate });
+      void persist({ cards: next, reviewsByDate: get().reviewsByDate });
     }
   },
 
@@ -235,14 +226,13 @@ export const useSRS = create<SRSState>((set, get) => ({
     }
     if (mutated) {
       set({ cards: next });
-      void persist({ cards: next, newCardsByDate: get().newCardsByDate, reviewsByDate: get().reviewsByDate });
+      void persist({ cards: next, reviewsByDate: get().reviewsByDate });
     }
   },
 
   grade: (rawId, g, algorithm) => {
     const id = normalizeId(rawId);
     const cur = get().cards[id] ?? newCard(id);
-    const wasNew = isNewCard(get().cards[id]);
     const now = new Date();
 
     const upd =
@@ -263,16 +253,14 @@ export const useSRS = create<SRSState>((set, get) => ({
 
     const nextCards = { ...get().cards, [id]: updated };
     const k = todayStr(now);
-    const nextDates = { ...get().newCardsByDate };
-    if (wasNew) nextDates[k] = (nextDates[k] ?? 0) + 1;
     const nextReviews = { ...get().reviewsByDate };
     const today = nextReviews[k] ?? { reviewed: 0, correct: 0 };
     nextReviews[k] = {
       reviewed: today.reviewed + 1,
       correct: today.correct + (correct ? 1 : 0),
     };
-    set({ cards: nextCards, newCardsByDate: nextDates, reviewsByDate: nextReviews });
-    void persist({ cards: nextCards, newCardsByDate: nextDates, reviewsByDate: nextReviews });
+    set({ cards: nextCards, reviewsByDate: nextReviews });
+    void persist({ cards: nextCards, reviewsByDate: nextReviews });
   },
 
   dueIds: (now = new Date()) => {
@@ -288,16 +276,12 @@ export const useSRS = create<SRSState>((set, get) => ({
     const next = { ...get().cards };
     delete next[id];
     set({ cards: next });
-    void persist({ cards: next, newCardsByDate: get().newCardsByDate, reviewsByDate: get().reviewsByDate });
+    void persist({ cards: next, reviewsByDate: get().reviewsByDate });
   },
 
   resetAll: () => {
-    set({ cards: {}, newCardsByDate: {}, reviewsByDate: {} });
-    void persist({ cards: {}, newCardsByDate: {}, reviewsByDate: {} });
-  },
-
-  newCardsToday: () => {
-    return get().newCardsByDate[todayStr()] ?? 0;
+    set({ cards: {}, reviewsByDate: {} });
+    void persist({ cards: {}, reviewsByDate: {} });
   },
 
   reviewsToday: () => {
@@ -307,13 +291,11 @@ export const useSRS = create<SRSState>((set, get) => ({
   hydrate: async () => {
     const v2 = await dbGet<{
       cards: SRSState['cards'];
-      newCardsByDate?: SRSState['newCardsByDate'];
       reviewsByDate?: SRSState['reviewsByDate'];
     }>(DB_KEY);
     if (v2 && v2.cards) {
       set({
         cards: v2.cards,
-        newCardsByDate: v2.newCardsByDate ?? {},
         reviewsByDate: v2.reviewsByDate ?? {},
         hydrated: true,
       });
@@ -335,11 +317,11 @@ export const useSRS = create<SRSState>((set, get) => ({
           reps: c.reps ?? (c.correctCount ?? 0),
         };
       }
-      set({ cards: migrated, newCardsByDate: {}, reviewsByDate: {}, hydrated: true });
-      void persist({ cards: migrated, newCardsByDate: {}, reviewsByDate: {} });
+      set({ cards: migrated, reviewsByDate: {}, hydrated: true });
+      void persist({ cards: migrated, reviewsByDate: {} });
       return;
     }
-    set({ cards: {}, newCardsByDate: {}, reviewsByDate: {}, hydrated: true });
+    set({ cards: {}, reviewsByDate: {}, hydrated: true });
   },
 }));
 

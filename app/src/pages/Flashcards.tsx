@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { loadAllLessons, loadAppendixVocabs, META } from '@/data/loaders';
 import type { VocabEntry } from '@/types/lesson';
-import { useSRS, BOX_DAYS, isNewCard, type SRSGrade } from '@/stores/srs';
+import { useSRS, BOX_DAYS, type SRSGrade } from '@/stores/srs';
 import { useFavorites } from '@/stores/favorites';
 import { useSettings, type FlashcardDirection } from '@/stores/settings';
 import { useLearnScope } from '@/stores/learnScope';
@@ -49,7 +49,6 @@ export default function Flashcards(): JSX.Element {
   const ensure = useSRS((s) => s.ensure);
   const migrateIds = useSRS((s) => s.migrateIds);
   const grade = useSRS((s) => s.grade);
-  const newDoneToday = useSRS((s) => s.newCardsToday());
   const favItems = useFavorites((s) => s.items);
 
   const fcAlgorithm = useSettings((s) => s.fcAlgorithm);
@@ -58,7 +57,6 @@ export default function Flashcards(): JSX.Element {
   const fcAutoplay = useSettings((s) => s.fcAutoplay);
   const fcCardTypes = useSettings((s) => s.fcCardTypes);
   const fcAppendixVocab = useSettings((s) => s.fcAppendixVocab);
-  const fcDailyGoal = useSettings((s) => s.fcDailyGoal);
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
 
@@ -129,27 +127,18 @@ export default function Flashcards(): JSX.Element {
     return ids;
   }, [cards]);
 
-  // 복습 대상 덱: 복습 시기가 된 카드 + 새 카드. 새 카드는 하루 한도(fcDailyGoal)
-  // 까지만 노출하고 초과분은 heldBack 으로 빼둔다 — 어르신이 첫 진입에서 수백 장에
-  // 짓눌리지 않도록 하는 SRS 안전장치. 복습 카드는 시기를 놓치면 안 되므로 한도 없음.
-  // fcDailyGoal === 0 이면 한도 비활성(전부 노출).
-  const dueComputed = useMemo<{ deck: CardSource[]; heldBack: number }>(() => {
-    if (typeFiltered.length === 0) return { deck: [], heldBack: 0 };
+  // 복습 대상 덱: 선택한 범위 안에서 복습 시기가 된 카드 + 새 카드 전부.
+  // 범위 미선택 시에는 비워서 사용자가 '범위'에서 학습할 과를 먼저 고르게
+  // 유도한다 — 전체 65과 새 카드가 한꺼번에 쏟아지지 않도록. 학습 분량은
+  // 인위적 일일 캡이 아니라 사용자가 정한 범위로 조절한다.
+  const dueDeck = useMemo<CardSource[]>(() => {
+    if (lessonSel.size === 0) return [];
     const now = Date.now();
-    let newBudget = fcDailyGoal > 0 ? Math.max(0, fcDailyGoal - newDoneToday) : Infinity;
-    const out: CardSource[] = [];
-    let heldBack = 0;
-    for (const s of typeFiltered) {
+    return typeFiltered.filter((s) => {
       const c = cards[cardIdOf(s)];
-      if (c && new Date(c.due).getTime() > now) continue; // 아직 복습 시기 아님
-      if (isNewCard(c)) {
-        if (newBudget <= 0) { heldBack += 1; continue; }
-        newBudget -= 1;
-      }
-      out.push(s);
-    }
-    return { deck: out, heldBack };
-  }, [typeFiltered, cards, fcDailyGoal, newDoneToday]);
+      return !c || new Date(c.due).getTime() <= now;
+    });
+  }, [typeFiltered, cards, lessonSel]);
 
   // 현재 덱 후보(실시간): 채점에 따라 매 렌더 재계산된다. 세션 중에는 직접
   // 쓰지 않고 sessionDeck 스냅샷의 원본으로만 쓴다. 오답 재투입(lapses)은
@@ -159,8 +148,8 @@ export default function Flashcards(): JSX.Element {
     if (deck === 'all') return typeFiltered;
     if (deck === 'favorites') return typeFiltered.filter((s) => favItems[favKeyOf(s)]);
     if (deck === 'mistakes') return typeFiltered.filter((s) => mistakeIds.has(cardIdOf(s)));
-    return dueComputed.deck;
-  }, [typeFiltered, deck, favItems, mistakeIds, dueComputed]);
+    return dueDeck;
+  }, [typeFiltered, deck, favItems, mistakeIds, dueDeck]);
 
   // 효과 안에서 최신 mainDeck를 읽되, mainDeck 변화 자체로는 효과를 재실행하지
   // 않으려고 ref로 우회한다 (채점 때마다 스냅샷이 갱신되면 안 됨).
@@ -204,8 +193,7 @@ export default function Flashcards(): JSX.Element {
     return () => window.clearTimeout(t);
   }, [current, effectiveDirection, revealed, fcAutoplay, ttsRate, ttsVoiceURI]);
 
-  const dueCount = dueComputed.deck.length;
-  const heldBackNew = dueComputed.heldBack;
+  const dueCount = dueDeck.length;
 
   const favCount = useMemo(
     () => typeFiltered.filter((s) => favItems[favKeyOf(s)]).length,
@@ -358,12 +346,6 @@ export default function Flashcards(): JSX.Element {
         {inLapses && <span className="ml-2 text-accent">(오답 재투입 중)</span>}
       </p>
 
-      {deck === 'due' && !inLapses && heldBackNew > 0 && sessionDeck.length > 0 && (
-        <p className="text-xs text-muted leading-snug">
-          새 카드는 하루 {fcDailyGoal}장까지 나와요. 나머지 {heldBackNew}장은 다음에 이어집니다.
-        </p>
-      )}
-
       {sources.length === 0 && <p className="text-muted">불러오는 중…</p>}
 
       {sources.length > 0 && sessionDeck.length === 0 && !sessionEnded && (
@@ -371,7 +353,7 @@ export default function Flashcards(): JSX.Element {
           deck={deck}
           onStartLapses={startLapses}
           hasLapses={lapses.length > 0}
-          heldBackNew={deck === 'due' && !inLapses ? heldBackNew : 0}
+          needsScope={deck === 'due' && !inLapses && lessonSel.size === 0}
         />
       )}
 
@@ -481,18 +463,17 @@ function TypeChip({
 }
 
 function EmptyState({
-  deck, onStartLapses, hasLapses, heldBackNew,
-}: { deck: Deck; onStartLapses: () => void; hasLapses: boolean; heldBackNew: number }): JSX.Element {
-  // 복습 대상 덱이 비었지만 새 카드가 한도 때문에 대기 중이면 안내 문구가 달라진다.
-  const dueHeldBack = deck === 'due' && heldBackNew > 0;
+  deck, onStartLapses, hasLapses, needsScope,
+}: { deck: Deck; onStartLapses: () => void; hasLapses: boolean; needsScope: boolean }): JSX.Element {
+  // 복습 대상 덱이 비었을 때, 범위 미선택이면 범위 선택을 유도하는 문구를 보인다.
   return (
     <div className="rounded-2xl border border-divider bg-surface p-6 text-center">
       <p className="text-fg font-semibold">
-        {dueHeldBack ? '오늘 학습을 마쳤습니다.' : '표시할 카드가 없습니다.'}
+        {needsScope ? '범위를 선택하세요' : '표시할 카드가 없습니다.'}
       </p>
       <p className="text-muted text-sm mt-1">
-        {deck === 'due' && (dueHeldBack
-          ? `오늘 새 카드 한도를 다 채웠어요. 새 카드 ${heldBackNew}장은 내일 이어서 나옵니다.`
+        {deck === 'due' && (needsScope
+          ? '위 ‘범위’에서 오늘 학습할 과를 고르면 복습 대상 카드가 나옵니다.'
           : '오늘 복습할 카드가 없어요. 잘하고 있습니다!')}
         {deck === 'favorites' && '아직 즐겨찾기한 항목이 없습니다.'}
         {deck === 'all' && '카드 종류 필터를 확인하세요.'}

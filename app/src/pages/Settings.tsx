@@ -94,7 +94,7 @@ export default function Settings(): JSX.Element {
     await dbClearAll();
     useProgress.setState({ byId: {}, lastLessonId: null });
     useFavorites.setState({ items: {} });
-    useSRS.setState({ cards: {}, newCardsByDate: {}, reviewsByDate: {} });
+    useSRS.setState({ cards: {}, reviewsByDate: {} });
     setMsg('모든 데이터가 초기화되었습니다.');
     refreshStorage();
   };
@@ -318,7 +318,7 @@ export default function Settings(): JSX.Element {
       </section>
 
       <section>
-        <SectionHeader title="플래시카드" subtitle="복습 알고리즘과 일일 학습량을 조절합니다." />
+        <SectionHeader title="플래시카드" subtitle="복습 알고리즘과 채점 방식을 조절합니다." />
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
           <Row
             label="채점 단계"
@@ -467,30 +467,6 @@ export default function Settings(): JSX.Element {
                     : '부록1 기독교 용어 80여 개를 학습에 넣었어요.',
                 );
               }}
-            />
-          </Row>
-          <Row
-            label={`하루 새 카드 한도: ${s.fcDailyGoal === 0 ? '한도 없음' : `${s.fcDailyGoal}장`}`}
-            description="‘복습 대상’에 하루 동안 새 카드가 몇 장까지 나올지 정해요. 이미 배운 복습 카드는 한도와 무관하게 모두 나옵니다. 0으로 두면 한도 없이 전부 나옵니다."
-            stack
-          >
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={s.fcDailyGoal}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                s.setFcDailyGoal(n);
-                showToast(
-                  n === 0
-                    ? '하루 새 카드 한도를 없앴어요. 새 카드가 모두 나와요.'
-                    : `하루 새 카드 한도를 ${n}장으로 맞췄어요.`,
-                );
-              }}
-              className="w-32"
-              aria-label="하루 새 카드 한도"
             />
           </Row>
         </div>

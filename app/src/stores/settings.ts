@@ -64,7 +64,6 @@ export type SettingsState = {
   fcDirection: FlashcardDirection;
   fcAutoplay: boolean;
   fcCardTypes: FlashcardCardTypes;
-  fcDailyGoal: number; // 하루 새 카드 한도 (0 = 한도 없음). Flashcards '복습 대상' 덱이 신규 카드 노출 수를 이 값으로 제한.
   /**
    * 최소 대조쌍 듣기 게임에서 발음표(lesson.pronunciation) 단음절도 풀에 포함할지.
    * default false — 기본은 vocab만. 발음 변별을 더 폭넓게 연습하고 싶을 때 켠다.
@@ -101,7 +100,6 @@ export type SettingsState = {
   setFcDirection: (d: FlashcardDirection) => void;
   setFcAutoplay: (b: boolean) => void;
   setFcCardTypes: (t: FlashcardCardTypes) => void;
-  setFcDailyGoal: (n: number) => void;
   setFcPronInPairs: (b: boolean) => void;
   setFcAppendixVocab: (b: boolean) => void;
   setMarathonAreas: (a: SettingsState['marathonAreas']) => void;
@@ -129,7 +127,6 @@ const DEFAULTS = {
   fcDirection: 'zh2ko' as FlashcardDirection,
   fcAutoplay: false,
   fcCardTypes: { vocab: true, example: false, verse: false, dialog: false, scenario: false } as FlashcardCardTypes,
-  fcDailyGoal: 20,
   fcPronInPairs: false,
   fcAppendixVocab: false,
   marathonAreas: { body: true, vocab: true, example: true, bible: true, dialog: true, scenario: true },
@@ -146,7 +143,7 @@ type Persisted = Omit<
   | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean' | 'toggleRubyPinyin'
   | 'setTTSRate' | 'setTTSVoiceURI'
   | 'setFcAlgorithm' | 'setFcGrades' | 'setFcDirection' | 'setFcAutoplay'
-  | 'setFcCardTypes' | 'setFcDailyGoal'
+  | 'setFcCardTypes'
   | 'setFcPronInPairs' | 'setFcAppendixVocab'
   | 'setMarathonAreas' | 'setMarathonShow'
   | 'setUserMode' | 'setTTSBulkStatus' | 'setTTSBulkProgress'
@@ -168,7 +165,6 @@ function pickPersisted(s: SettingsState): Persisted {
     fcDirection: s.fcDirection,
     fcAutoplay: s.fcAutoplay,
     fcCardTypes: s.fcCardTypes,
-    fcDailyGoal: s.fcDailyGoal,
     fcPronInPairs: s.fcPronInPairs,
     fcAppendixVocab: s.fcAppendixVocab,
     marathonAreas: s.marathonAreas,
@@ -287,7 +283,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
     set({ fcCardTypes: safe });
     void persist({ ...get(), fcCardTypes: safe });
   },
-  setFcDailyGoal: (n) => { const v = Math.max(0, Math.floor(n)); set({ fcDailyGoal: v }); void persist({ ...get(), fcDailyGoal: v }); },
   setFcPronInPairs: (b) => { set({ fcPronInPairs: b }); void persist({ ...get(), fcPronInPairs: b }); },
   setFcAppendixVocab: (b) => { set({ fcAppendixVocab: b }); void persist({ ...get(), fcAppendixVocab: b }); },
   setMarathonAreas: (a) => {
