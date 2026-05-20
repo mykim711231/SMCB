@@ -19,7 +19,7 @@ import { tokenizeChinese } from '../src/lib/zh-tokenize';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..');
-const DOC_DIR = join(ROOT, 'Doc');
+const DOC_DIR = join(ROOT, 'Doc', 'Markdown');
 const OUT_DIR = join(__dirname, '..', 'src', 'data');
 
 if (!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
