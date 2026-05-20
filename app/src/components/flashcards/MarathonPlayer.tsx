@@ -143,7 +143,7 @@ export default function MarathonPlayer({
     <div className="rounded-2xl border border-primary bg-primary-soft p-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-primary inline-flex items-center gap-2">
-          🎧 오디오 마라톤
+          🎧 이어듣기
         </p>
         <button
           type="button"

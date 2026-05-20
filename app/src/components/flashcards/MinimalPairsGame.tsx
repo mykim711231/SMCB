@@ -194,7 +194,7 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
   if (pairs.length === 0) {
     return (
       <div className="rounded-2xl border border-divider bg-surface p-6 text-center space-y-3">
-        <p className="text-fg font-semibold">대조쌍을 만들 단음절 단어가 부족합니다.</p>
+        <p className="text-fg font-semibold">듣기 테스트를 만들 단음절 단어가 부족합니다.</p>
         <p className="text-sm text-muted">레슨 범위를 넓히거나 단음절 단어가 더 많은 과를 선택해 주세요.</p>
         <button
           type="button"
@@ -239,7 +239,7 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
     <div className="rounded-2xl border border-primary bg-primary-soft p-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-primary inline-flex items-center gap-2">
-          <Headphones size={14} aria-hidden /> 최소 대조쌍 ({cursor + 1}/{sequence.length})
+          <Headphones size={14} aria-hidden /> 듣기 테스트 ({cursor + 1}/{sequence.length})
         </p>
         <div className="flex items-center gap-3 text-xs text-muted">
           <span className="text-success font-semibold">{score.correct}</span>
@@ -270,7 +270,7 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
         <p className="text-[11px] text-muted">탭하여 다시 듣기 · 무성조 키: <b className="text-fg">{round.options[0] && stripped(round.options[0].pinyin)}</b></p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="대조쌍 보기">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="듣기 테스트 보기">
         {round.options.map((opt, i) => {
           const isAnswer = opt.word === round.answer.word;
           const isPicked = picked?.word === opt.word;

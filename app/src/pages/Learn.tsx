@@ -1,7 +1,7 @@
 /**
  * 통합 학습 페이지 (/learn).
  *   - 상단: 학습 통계 (collapsible)
- *   - 중단: 모드 탭 (플래시카드 / 문장 조립 / 4지선다 / 최소 대조쌍)
+ *   - 중단: 모드 탭 (플래시카드 / 4지선다 / 문장 조립 / 이어듣기 / 듣기 테스트)
  *   - 하단: 선택된 모드의 콘텐츠 (Flashcards 또는 Quiz mode=...)
  *
  * URL ?mode=flashcard|sentence|mcq|pairs 로 초기 모드 결정 (북마크 호환).
@@ -20,7 +20,7 @@ import { cn } from '@/lib/cn';
 
 type LearnMode = 'flashcard' | QuizMode | 'marathon'; // 'flashcard' | 'sentence' | 'mcq' | 'pairs' | 'marathon'
 
-const VALID_MODES: readonly LearnMode[] = ['flashcard', 'sentence', 'mcq', 'pairs', 'marathon'] as const;
+const VALID_MODES: readonly LearnMode[] = ['flashcard', 'mcq', 'sentence', 'marathon', 'pairs'] as const;
 const isValidMode = (v: string | null): v is LearnMode =>
   v != null && (VALID_MODES as readonly string[]).includes(v);
 
@@ -42,10 +42,10 @@ export default function Learn(): JSX.Element {
     () =>
       [
         { v: 'flashcard' as const, label: '플래시카드', icon: <Layers size={14} aria-hidden /> },
-        { v: 'sentence' as const, label: '문장 조립', icon: <ArrowLeftRight size={14} aria-hidden /> },
         { v: 'mcq' as const, label: '4지선다', icon: <ListChecks size={14} aria-hidden /> },
-        { v: 'pairs' as const, label: '대조쌍', icon: <Headphones size={14} aria-hidden /> },
-        { v: 'marathon' as const, label: '마라톤', icon: <Radio size={14} aria-hidden /> },
+        { v: 'sentence' as const, label: '문장 조립', icon: <ArrowLeftRight size={14} aria-hidden /> },
+        { v: 'marathon' as const, label: '이어듣기', icon: <Radio size={14} aria-hidden /> },
+        { v: 'pairs' as const, label: '듣기 테스트', icon: <Headphones size={14} aria-hidden /> },
       ] satisfies ReadonlyArray<{ v: LearnMode; label: string; icon: JSX.Element }>,
     [],
   );

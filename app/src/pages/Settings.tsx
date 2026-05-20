@@ -20,6 +20,21 @@ export default function Settings(): JSX.Element {
   const [msg, setMsg] = useState<string | null>(null);
   const [backupMsg, setBackupMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
+
+  const showToast = (text: string): void => {
+    setToast(text);
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+  };
+
+  useEffect(
+    () => () => {
+      if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (isSupported()) {
@@ -103,7 +118,14 @@ export default function Settings(): JSX.Element {
                 { v: 'dark', l: '다크' },
                 { v: 'system', l: '시스템' },
               ]}
-              onChange={(v) => s.setTheme(v as Theme)}
+              onChange={(v) => {
+                s.setTheme(v as Theme);
+                showToast(
+                  v === 'light' ? '밝은 흰 배경으로 바꿨어요.'
+                  : v === 'dark' ? '어두운 검은 배경으로 바꿨어요.'
+                  : '단말기 설정에 따라 밝기가 자동으로 바뀌어요.',
+                );
+              }}
             />
           </Row>
           <Row label="글자 크기" description="본문 전체의 글자 크기예요." stack>
@@ -114,23 +136,54 @@ export default function Settings(): JSX.Element {
                 { v: 'lg', l: '크게' },
                 { v: 'xl', l: '아주 크게' },
               ]}
-              onChange={(v) => s.setFontSize(v as FontSize)}
+              onChange={(v) => {
+                s.setFontSize(v as FontSize);
+                showToast(
+                  v === 'md' ? '글자 크기를 보통으로 맞췄어요.'
+                  : v === 'lg' ? '글자 크기를 크게 키웠어요.'
+                  : '글자 크기를 아주 크게 키웠어요.',
+                );
+              }}
             />
           </Row>
           <Row label="한자 표시" description="예문의 한자(中文)를 보여줄지 결정합니다.">
-            <Toggle on={s.showHanzi} onClick={s.toggleHanzi} />
+            <Toggle
+              on={s.showHanzi}
+              onClick={() => {
+                s.toggleHanzi();
+                showToast(s.showHanzi ? '한자(中文)를 화면에서 숨겼어요.' : '본문·예문에 한자(中文)를 다시 표시해요.');
+              }}
+            />
           </Row>
           <Row label="병음 표시" description="한자 발음(pīnyīn)을 보여줍니다.">
-            <Toggle on={s.showPinyin} onClick={s.togglePinyin} />
+            <Toggle
+              on={s.showPinyin}
+              onClick={() => {
+                s.togglePinyin();
+                showToast(s.showPinyin ? '한자 발음(병음)을 화면에서 숨겼어요.' : '한자 발음(병음)을 다시 표시해요.');
+              }}
+            />
           </Row>
           <Row
             label="글자별 병음"
             description="한자 한 글자 위에 작게 발음을 표시합니다. 끄면 한 줄로 모아 보여줘요."
           >
-            <Toggle on={s.rubyPinyin} onClick={s.toggleRubyPinyin} />
+            <Toggle
+              on={s.rubyPinyin}
+              onClick={() => {
+                s.toggleRubyPinyin();
+                showToast(s.rubyPinyin ? '병음을 한 줄로 모아 표시해요.' : '병음을 한자 글자 위에 표시해요.');
+              }}
+            />
           </Row>
           <Row label="한국어 표시" description="한국어 뜻을 함께 보여줍니다.">
-            <Toggle on={s.showKorean} onClick={s.toggleKorean} />
+            <Toggle
+              on={s.showKorean}
+              onClick={() => {
+                s.toggleKorean();
+                showToast(s.showKorean ? '한국어 뜻을 화면에서 숨겼어요.' : '한국어 뜻을 다시 표시해요.');
+              }}
+            />
           </Row>
         </div>
       </section>
@@ -157,6 +210,11 @@ export default function Settings(): JSX.Element {
                 // UserMode는 null도 포함하지만 사용자가 null로 되돌리는 UI 없음.
                 if (v === 'device' || v === 'recorded') {
                   s.setUserMode(v);
+                  showToast(
+                    v === 'device'
+                      ? '기기에 설치된 음성으로 읽어줘요. 음성팩이 필요해요.'
+                      : '미리 녹음된 음성으로 읽어줘요. 음성팩 없이도 들려요.',
+                  );
                 }
               }}
             />
@@ -185,7 +243,15 @@ export default function Settings(): JSX.Element {
               max={1.4}
               step={0.05}
               value={s.ttsRate}
-              onChange={(e) => s.setTTSRate(Number(e.target.value))}
+              onChange={(e) => {
+                const rate = Number(e.target.value);
+                s.setTTSRate(rate);
+                showToast(
+                  rate === 1
+                    ? '음성 속도를 기본(1.00×)으로 맞췄어요.'
+                    : `음성 속도를 ${rate.toFixed(2)}×로 맞췄어요. (${rate < 1 ? '느리게' : '빠르게'})`,
+                );
+              }}
               className="w-40"
               aria-label="음성 속도"
             />
@@ -194,7 +260,14 @@ export default function Settings(): JSX.Element {
             {voices.length > 0 ? (
               <select
                 value={s.ttsVoiceURI ?? ''}
-                onChange={(e) => s.setTTSVoiceURI(e.target.value || null)}
+                onChange={(e) => {
+                  s.setTTSVoiceURI(e.target.value || null);
+                  showToast(
+                    e.target.value
+                      ? '선택한 음성으로 읽어줘요.'
+                      : '음성을 자동 선택으로 맞췄어요.',
+                  );
+                }}
                 className="rounded-lg border border-divider bg-bg text-fg px-2 py-1 text-sm max-w-[60vw]"
               >
                 <option value="">자동</option>
@@ -258,7 +331,14 @@ export default function Settings(): JSX.Element {
                 { v: '2', l: '2단계' },
                 { v: '4', l: '4단계' },
               ]}
-              onChange={(v) => s.setFcGrades(Number(v) as FlashcardGrades)}
+              onChange={(v) => {
+                s.setFcGrades(Number(v) as FlashcardGrades);
+                showToast(
+                  v === '2'
+                    ? '채점 버튼을 2단계(모름·알아요)로 바꿨어요.'
+                    : '채점 버튼을 4단계(모름·어려움·알아요·쉬움)로 바꿨어요.',
+                );
+              }}
             />
           </Row>
           <Row
@@ -272,7 +352,14 @@ export default function Settings(): JSX.Element {
                 { v: 'leitner', l: 'Leitner' },
                 { v: 'sm2', l: 'SM-2' },
               ]}
-              onChange={(v) => s.setFcAlgorithm(v as SRSAlgorithm)}
+              onChange={(v) => {
+                s.setFcAlgorithm(v as SRSAlgorithm);
+                showToast(
+                  v === 'leitner'
+                    ? '복습 간격을 Leitner(고정 간격) 방식으로 바꿨어요.'
+                    : '복습 간격을 SM-2(난이도 반영) 방식으로 바꿨어요.',
+                );
+              }}
             />
           </Row>
           <Row
@@ -287,7 +374,14 @@ export default function Settings(): JSX.Element {
                 { v: 'ko2zh', l: '韓→中' },
                 { v: 'mixed', l: '혼합' },
               ]}
-              onChange={(v) => s.setFcDirection(v as FlashcardDirection)}
+              onChange={(v) => {
+                s.setFcDirection(v as FlashcardDirection);
+                showToast(
+                  v === 'zh2ko' ? '한자를 보고 뜻을 맞히는 방향으로 출제해요.'
+                  : v === 'ko2zh' ? '뜻을 보고 한자를 떠올리는 방향으로 출제해요.'
+                  : '두 방향을 섞어서 출제해요.',
+                );
+              }}
             />
           </Row>
           <Row
@@ -307,7 +401,14 @@ export default function Settings(): JSX.Element {
                   <button
                     key={k}
                     type="button"
-                    onClick={() => s.setFcCardTypes({ ...s.fcCardTypes, [k]: !on })}
+                    onClick={() => {
+                      s.setFcCardTypes({ ...s.fcCardTypes, [k]: !on });
+                      showToast(
+                        on
+                          ? `${label} 카드를 학습에서 뺐어요.`
+                          : `${label} 카드를 학습에 넣었어요.`,
+                      );
+                    }}
                     aria-pressed={on}
                     className={cn(
                       'rounded-full px-3 py-1 text-xs font-semibold border',
@@ -324,19 +425,49 @@ export default function Settings(): JSX.Element {
             label="자동 음성 재생"
             description="카드가 바뀌면 자동으로 중국어 음성이 한 번 재생돼요."
           >
-            <Toggle on={s.fcAutoplay} onClick={() => s.setFcAutoplay(!s.fcAutoplay)} />
+            <Toggle
+              on={s.fcAutoplay}
+              onClick={() => {
+                s.setFcAutoplay(!s.fcAutoplay);
+                showToast(
+                  s.fcAutoplay
+                    ? '자동 음성 재생을 껐어요.'
+                    : '카드가 바뀌면 음성이 자동으로 재생돼요.',
+                );
+              }}
+            />
           </Row>
           <Row
-            label="대조쌍에 발음표 단음절 포함"
-            description="대조쌍 모드에서 한 글자(단음절) 발음 카드도 함께 출제해요."
+            label="듣기 테스트에 발음표 단음절 포함"
+            description="듣기 테스트 모드에서 한 글자(단음절) 발음 카드도 함께 출제해요."
           >
-            <Toggle on={s.fcPronInPairs} onClick={() => s.setFcPronInPairs(!s.fcPronInPairs)} />
+            <Toggle
+              on={s.fcPronInPairs}
+              onClick={() => {
+                s.setFcPronInPairs(!s.fcPronInPairs);
+                showToast(
+                  s.fcPronInPairs
+                    ? '듣기 테스트에서 한 글자(단음절) 발음 카드를 뺐어요.'
+                    : '듣기 테스트에 한 글자(단음절) 발음 카드도 함께 출제해요.',
+                );
+              }}
+            />
           </Row>
           <Row
             label="부록1 기독교 용어 학습 포함"
             description="예수·하나님 같은 부록1의 기독교 핵심 용어 80여 개를 학습 풀에 넣어요."
           >
-            <Toggle on={s.fcAppendixVocab} onClick={() => s.setFcAppendixVocab(!s.fcAppendixVocab)} />
+            <Toggle
+              on={s.fcAppendixVocab}
+              onClick={() => {
+                s.setFcAppendixVocab(!s.fcAppendixVocab);
+                showToast(
+                  s.fcAppendixVocab
+                    ? '부록1 기독교 용어를 학습에서 뺐어요.'
+                    : '부록1 기독교 용어 80여 개를 학습에 넣었어요.',
+                );
+              }}
+            />
           </Row>
           <Row
             label={`하루 새 카드 한도: ${s.fcDailyGoal === 0 ? '한도 없음' : `${s.fcDailyGoal}장`}`}
@@ -349,7 +480,15 @@ export default function Settings(): JSX.Element {
               max={100}
               step={5}
               value={s.fcDailyGoal}
-              onChange={(e) => s.setFcDailyGoal(Number(e.target.value))}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                s.setFcDailyGoal(n);
+                showToast(
+                  n === 0
+                    ? '하루 새 카드 한도를 없앴어요. 새 카드가 모두 나와요.'
+                    : `하루 새 카드 한도를 ${n}장으로 맞췄어요.`,
+                );
+              }}
               className="w-32"
               aria-label="하루 새 카드 한도"
             />
@@ -464,6 +603,18 @@ export default function Settings(): JSX.Element {
           </Link>
         </div>
       </section>
+
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 pointer-events-none"
+        >
+          <p className="max-w-sm rounded-full bg-primary text-white text-sm font-semibold px-4 py-2 shadow-lg text-center">
+            {toast}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

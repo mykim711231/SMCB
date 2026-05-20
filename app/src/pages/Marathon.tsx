@@ -179,7 +179,7 @@ export default function Marathon(): JSX.Element {
               : 'bg-primary text-white',
           )}
         >
-          <Play size={16} aria-hidden /> 마라톤 시작
+          <Play size={16} aria-hidden /> 이어듣기 시작
         </button>
       </div>
 

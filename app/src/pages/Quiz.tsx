@@ -470,7 +470,7 @@ export default function Quiz({ mode }: Props): JSX.Element {
           )}
           {mode === 'pairs' && (
             <>
-              <p className="text-fg font-semibold">최소 대조쌍 듣기</p>
+              <p className="text-fg font-semibold">듣기 테스트</p>
               <p className="text-sm text-muted">
                 같은 무성조 발음의 단어 중에서 들리는 성조를 변별하는 미니 게임입니다.
               </p>

@@ -304,7 +304,7 @@ export default function Home(): JSX.Element {
       <section className="grid grid-cols-2 gap-3">
         <QuickCard to="/toc" icon={<BookOpen size={20} aria-hidden />} title="목차" subtitle="65과 전체" />
         <QuickCard to="/search" icon={<Search size={20} aria-hidden />} title="검색" subtitle="한자·병음·한글" />
-        <QuickCard to="/learn" icon={<GraduationCap size={20} aria-hidden />} title="학습" subtitle="플래시·문장·4지선다·대조쌍" />
+        <QuickCard to="/learn" icon={<GraduationCap size={20} aria-hidden />} title="학습" subtitle="플래시·4지선다·문장·이어듣기 등" />
         <QuickCard to="/hanzi" icon={<Type size={20} aria-hidden />} title="한자 인덱스" subtitle="글자별 단어" />
         <QuickCard to="/help" icon={<HelpCircle size={20} aria-hidden />} title="도움말" subtitle="음성·설치·FAQ" />
       </section>

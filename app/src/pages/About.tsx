@@ -79,10 +79,13 @@ export default function About(): JSX.Element {
       <section>
         <SectionHeader title="앱 정보" />
         <div className="rounded-2xl border border-divider bg-surface p-4 text-sm space-y-1 text-fg/90">
+          <p>· 앱 버전 {__APP_VERSION__}</p>
           <p>· 65과 본문 + 어휘 + 발음 + 어법 + 성경 인용 + 회화 + 상황 + 질문</p>
-          <p>· 단말기 내장 TTS (Web Speech API)</p>
-          <p>· 한자 / 병음 / 한국어 토글, 큰글씨 모드</p>
-          <p>· 전체 텍스트 검색 · 단어 플래시카드 (라이트너 5박스)</p>
+          <p>· 미리 녹음된 발음 약 3,500개(mp3), 단말기 내장 음성은 보조용</p>
+          <p>· 학습 모드: 플래시카드 · 4지선다 · 문장 조립 · 이어듣기 · 듣기 테스트</p>
+          <p>· 플래시카드 5종(단어·예문·구절·회화·시나리오), 복습 알고리즘 Leitner·SM-2</p>
+          <p>· 전체 텍스트 검색, 학습 진도 백업·복원</p>
+          <p>· 한자 / 병음 / 한국어 표시 토글, 큰글씨 · 다크 모드</p>
           <p>· 오프라인 학습 지원 (PWA), 분석 도구 미사용</p>
         </div>
       </section>

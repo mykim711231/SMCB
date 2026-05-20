@@ -82,14 +82,14 @@ const GUIDES: Guide[] = [
     id: 'settings',
     title: <><SettingsIcon size={18} aria-hidden /> 설정 페이지 한눈에 보기</>,
     subtitle: '화면 · 음성 · 플래시카드 · 백업 · 저장 공간 안내.',
-    keywords: '설정 화면 테마 다크 라이트 시스템 글자 크기 폰트 한자 병음 한국어 표시 토글 재생 방식 음성 속도 빠르게 느리게 플래시카드 알고리즘 leitner sm2 채점 카드 종류 자동 재생 하루 새 카드 한도 대조쌍 발음표 부록 백업 복원 저장 공간 캐시 비우기 초기화 전체 초기화 정보',
+    keywords: '설정 화면 테마 다크 라이트 시스템 글자 크기 폰트 한자 병음 한국어 표시 토글 재생 방식 음성 속도 빠르게 느리게 플래시카드 알고리즘 leitner sm2 채점 카드 종류 자동 재생 하루 새 카드 한도 듣기 테스트 대조쌍 발음표 부록 백업 복원 저장 공간 캐시 비우기 초기화 전체 초기화 정보',
     Body: SettingsOverviewGuide,
   },
   {
     id: 'learn-sources',
     title: <><GraduationCap size={18} aria-hidden /> 학습 모드별 자료 매핑</>,
-    subtitle: '플래시카드 · 문장 조립 · 4지선다 · 대조쌍 · 마라톤이 어떤 자료를 쓰는지.',
-    keywords: '학습 모드 플래시카드 문장 조립 4지선다 대조쌍 마라톤 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 발음표 부록',
+    subtitle: '플래시카드 · 4지선다 · 문장 조립 · 이어듣기 · 듣기 테스트가 어떤 자료를 쓰는지.',
+    keywords: '학습 모드 플래시카드 4지선다 문장 조립 이어듣기 듣기 테스트 마라톤 대조쌍 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 발음표 부록',
     Body: LearnSourcesGuide,
   },
   {
@@ -749,7 +749,7 @@ function SettingsOverviewGuide(): JSX.Element {
               매번 스피커 버튼을 누르지 않아도 돼서 편해요.
             </li>
             <li>
-              <b>대조쌍에 발음표 단음절 포함</b> — 대조쌍 모드에서 한 글자(단음절) 발음 카드도 함께 출제합니다.
+              <b>듣기 테스트에 발음표 단음절 포함</b> — 듣기 테스트 모드에서 한 글자(단음절) 발음 카드도 함께 출제합니다.
             </li>
             <li>
               <b>부록1 기독교 용어 학습 포함</b> — 예수·하나님 같은 부록1의 기독교 용어 80여 개를 학습 풀에 넣습니다.
@@ -949,10 +949,10 @@ function LearnSourcesGuide(): JSX.Element {
             <tr className="text-fg">
               <th className="text-left p-2 border-b border-divider whitespace-nowrap">자료 영역</th>
               <th className="p-2 border-b border-divider whitespace-nowrap">플래시<br/>카드</th>
-              <th className="p-2 border-b border-divider whitespace-nowrap">문장<br/>조립</th>
               <th className="p-2 border-b border-divider whitespace-nowrap">4지<br/>선다</th>
-              <th className="p-2 border-b border-divider whitespace-nowrap">대조쌍</th>
-              <th className="p-2 border-b border-divider whitespace-nowrap">마라톤</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">문장<br/>조립</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">이어<br/>듣기</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">듣기<br/>테스트</th>
             </tr>
           </thead>
           <tbody>
@@ -963,10 +963,10 @@ function LearnSourcesGuide(): JSX.Element {
                   <div className="text-[10px] text-muted">{r.desc}</div>
                 </td>
                 <td className="p-2 border-b border-divider text-center">{cell(r.flashcard)}</td>
-                <td className="p-2 border-b border-divider text-center">{cell(r.sentence)}</td>
                 <td className="p-2 border-b border-divider text-center">{cell(r.mcq)}</td>
-                <td className="p-2 border-b border-divider text-center">{cell(r.pairs)}</td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.sentence)}</td>
                 <td className="p-2 border-b border-divider text-center">{cell(r.marathon)}</td>
+                <td className="p-2 border-b border-divider text-center">{cell(r.pairs)}</td>
               </tr>
             ))}
           </tbody>
@@ -979,17 +979,17 @@ function LearnSourcesGuide(): JSX.Element {
         </p>
         <ul className="list-disc pl-5 space-y-1.5 text-xs text-fg/90">
           <li>
-            <b>마라톤의 본문/단어/예문/구절/회화/시나리오</b> —{' '}
-            <Link to="/learn?mode=marathon" className="text-primary font-semibold underline">학습 → 마라톤</Link> 화면의{' '}
+            <b>이어듣기의 본문/단어/예문/구절/회화/시나리오</b> —{' '}
+            <Link to="/learn?mode=marathon" className="text-primary font-semibold underline">학습 → 이어듣기</Link> 화면의{' '}
             <b>영역</b> 섹션에서 원하는 영역만 켜세요. 그 영역만 권/과 순서로 재생합니다.
           </li>
           <li>
-            <b>대조쌍의 발음표</b> —{' '}
+            <b>듣기 테스트의 발음표</b> —{' '}
             <Link to="/settings" className="text-primary font-semibold underline">설정</Link> 페이지 →{' '}
-            <b>"대조쌍에 발음표 단음절 포함"</b> 토글을 켜면 单字 발음표도 풀에 들어갑니다.
+            <b>"듣기 테스트에 발음표 단음절 포함"</b> 토글을 켜면 单字 발음표도 풀에 들어갑니다.
           </li>
           <li>
-            <b>부록 단어 (플래시카드 · 4지선다 · 대조쌍)</b> —{' '}
+            <b>부록 단어 (플래시카드 · 4지선다 · 듣기 테스트)</b> —{' '}
             <Link to="/settings" className="text-primary font-semibold underline">설정</Link> 페이지 →{' '}
             <b>"부록1 기독교 용어 학습 포함"</b> 토글을 켜면 부록1의 기독교 용어 80+개가 학습 풀에 합류해요.
           </li>
@@ -1002,10 +1002,10 @@ function LearnSourcesGuide(): JSX.Element {
         </p>
         <ul className="list-disc pl-5 space-y-1 text-xs text-muted">
           <li><b className="text-fg">플래시카드</b> — 단어 · 예문 · 구절 · 회화 · 시나리오를 카드 한 장씩 넘기며 외워요.</li>
-          <li><b className="text-fg">문장 조립</b> — 회화체 문장(회화·예문·시나리오·어법 예문·본문 질문)을 토큰으로 흩어 놓고 다시 맞춰요. <i>본문·구절은 문어체라 제외.</i></li>
           <li><b className="text-fg">4지선다</b> — 주요 어휘(단어)만 출제. 4개 보기 중 한국어 뜻을 고르거나 한자/병음을 맞춰요.</li>
-          <li><b className="text-fg">대조쌍</b> — 헷갈리기 쉬운 발음을 짝지어 듣고 골라요. 단어 풀에서 자동 추출, 설정에서 발음표 단음절도 켤 수 있어요.</li>
-          <li><b className="text-fg">마라톤</b> — 선택한 영역(본문·단어·예문·구절·회화·시나리오)을 권/과 순서대로 끝까지 재생만 해요. 채점 없음.</li>
+          <li><b className="text-fg">문장 조립</b> — 회화체 문장(회화·예문·시나리오·어법 예문·본문 질문)을 토큰으로 흩어 놓고 다시 맞춰요. <i>본문·구절은 문어체라 제외.</i></li>
+          <li><b className="text-fg">이어듣기</b> — 선택한 영역(본문·단어·예문·구절·회화·시나리오)을 권/과 순서대로 끝까지 재생만 해요. 채점 없음.</li>
+          <li><b className="text-fg">듣기 테스트</b> — 헷갈리기 쉬운 발음을 짝지어 듣고 골라요. 단어 풀에서 자동 추출, 설정에서 발음표 단음절도 켤 수 있어요.</li>
         </ul>
       </div>
     </div>
@@ -2147,12 +2147,21 @@ const FAQ_ITEMS: FAQ[] = [
         ),
       },
       {
-        q: '한자 위에 병음이 안 보여요.',
-        keywords: '병음 표시 한자 위 pinyin 안 보여요',
+        q: '한자·병음·한국어 뜻 중 일부가 화면에서 사라졌어요.',
+        keywords: '한자 병음 한국어 뜻 안 보여 사라 표시 설정 화면 토글 pinyin 글자별 위에',
         a: (
-          <p>
-            ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>병음 표시</b>가 꺼져 있을 수 있어요. 켜 주세요.
-          </p>
+          <>
+            <p className="mb-2">
+              ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>화면</b>에 표시를 켜고 끄는 토글이 있어요.
+              토글을 끄면 그 내용이 본문·예문에서 빠집니다. 안 보이는 것을 다시 켜 주세요.
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><b>한자 표시</b> — 중국어 한자(中文)를 보이거나 숨깁니다.</li>
+              <li><b>병음 표시</b> — 한자 발음(pīnyīn)을 보이거나 숨깁니다.</li>
+              <li><b>한국어 표시</b> — 한국어 뜻을 보이거나 숨깁니다.</li>
+              <li><b>글자별 병음</b> — 켜면 병음이 한자 글자 위에, 끄면 한 줄로 모여 표시돼요(병음 자체는 그대로 보입니다).</li>
+            </ul>
+          </>
         ),
       },
       {
@@ -2218,12 +2227,12 @@ const FAQ_ITEMS: FAQ[] = [
         ),
       },
       {
-        q: '대조쌍 연습에 한 글자(단음절) 발음 카드가 안 나와요.',
-        keywords: '대조쌍 발음표 단음절 한 글자 안 나와 빠짐 설정 토글',
+        q: '듣기 테스트에 한 글자(단음절) 발음 카드가 안 나와요.',
+        keywords: '듣기 테스트 대조쌍 발음표 단음절 한 글자 안 나와 빠짐 설정 토글',
         a: (
           <p>
-            대조쌍은 기본적으로 <b>단어</b>에서 헷갈리는 짝만 뽑아요. 한 글자(단음절)
-            발음표 카드까지 함께 풀려면 ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>대조쌍에 발음표 단음절 포함</b>을 켜세요.
+            듣기 테스트는 기본적으로 <b>단어</b>에서 헷갈리는 짝만 뽑아요. 한 글자(단음절)
+            발음표 카드까지 함께 풀려면 ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>듣기 테스트에 발음표 단음절 포함</b>을 켜세요.
           </p>
         ),
       },
@@ -2265,13 +2274,13 @@ const FAQ_ITEMS: FAQ[] = [
         ),
       },
       {
-        q: '오디오 마라톤은 일반 학습과 뭐가 다른가요?',
-        keywords: '마라톤 오디오 듣기 채점 없음 부록 순차 재생',
+        q: '이어듣기는 일반 학습과 뭐가 다른가요?',
+        keywords: '이어듣기 마라톤 오디오 듣기 채점 없음 부록 순차 재생',
         a: (
           <p>
-            마라톤은 선택한 범위의 카드를 권·과 순서대로 <b>읽어 주기만 하는 듣기 전용</b>
+            이어듣기는 선택한 범위의 카드를 권·과 순서대로 <b>읽어 주기만 하는 듣기 전용</b>
             모드예요. 정답을 누르는 <b>채점이 없고</b>, 진도에도 반영되지 않습니다.
-            교재 <b>부록</b>은 마라톤 대상에서 제외됩니다. 집안일을 하거나 이동 중에
+            교재 <b>부록</b>은 이어듣기 대상에서 제외됩니다. 집안일을 하거나 이동 중에
             귀로만 익히고 싶을 때 사용해 보세요.
           </p>
         ),
