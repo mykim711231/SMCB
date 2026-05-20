@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2, Copy, Check } from 'lucide-react';
+import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2, Copy, Check, QrCode } from 'lucide-react';
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
 import OnboardingCard from '@/components/OnboardingCard';
 import DeviceVoiceMissingBanner from '@/components/DeviceVoiceMissingBanner';
 import RecordedAudioMissingBanner from '@/components/RecordedAudioMissingBanner';
+import InviteQrModal from '@/components/InviteQrModal';
 
 function isInAppBrowser(): { kind: 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram' | null; label: string | null } {
   if (typeof navigator === 'undefined') return { kind: null, label: null };
@@ -219,6 +220,7 @@ export default function Home(): JSX.Element {
   const standalone = isStandaloneMode();
 
   const [inviteToast, setInviteToast] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
   const onShareClick = async (): Promise<void> => {
     const r = await shareInvite();
     if (r === 'copied') setInviteToast('초청 메시지가 복사되었어요. 원하는 곳에 붙여넣어 보내세요.');
@@ -257,14 +259,24 @@ export default function Home(): JSX.Element {
           >
             전체 목차
           </Link>
-          <button
-            type="button"
-            onClick={() => void onShareClick()}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
-            aria-label="초청 메시지 공유"
-          >
-            <Share2 size={16} aria-hidden /> 초청 하기
-          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void onShareClick()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/20 text-white text-sm font-semibold px-4 py-2 border border-white/50"
+              aria-label="초청 메시지 공유"
+            >
+              <Share2 size={16} aria-hidden /> 초청 하기
+            </button>
+            <button
+              type="button"
+              onClick={() => setQrOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white text-primary text-sm font-semibold px-4 py-2"
+              aria-label="QR 코드로 초청하기"
+            >
+              <QrCode size={16} aria-hidden /> QR 코드
+            </button>
+          </div>
         </div>
         {inviteToast && (
           <p
@@ -379,6 +391,7 @@ export default function Home(): JSX.Element {
         </ul>
       </section>
 
+      {qrOpen && <InviteQrModal url={INVITE_URL} onClose={() => setQrOpen(false)} />}
     </div>
   );
 }
