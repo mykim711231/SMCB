@@ -64,7 +64,7 @@ export type SettingsState = {
   fcDirection: FlashcardDirection;
   fcAutoplay: boolean;
   fcCardTypes: FlashcardCardTypes;
-  fcDailyGoal: number; // 일일 학습 목표 카드 수 (0 = 비활성)
+  fcDailyGoal: number; // 하루 새 카드 한도 (0 = 한도 없음). Flashcards '복습 대상' 덱이 신규 카드 노출 수를 이 값으로 제한.
   /**
    * 최소 대조쌍 듣기 게임에서 발음표(lesson.pronunciation) 단음절도 풀에 포함할지.
    * default false — 기본은 vocab만. 발음 변별을 더 폭넓게 연습하고 싶을 때 켠다.

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { loadAllLessons, loadAppendixVocabs, META } from '@/data/loaders';
 import type { VocabEntry } from '@/types/lesson';
-import { useSRS, BOX_DAYS, type SRSGrade } from '@/stores/srs';
+import { useSRS, BOX_DAYS, isNewCard, type SRSGrade } from '@/stores/srs';
 import { useFavorites } from '@/stores/favorites';
 import { useSettings, type FlashcardDirection } from '@/stores/settings';
 import { useLearnScope } from '@/stores/learnScope';
@@ -27,6 +27,10 @@ export default function Flashcards(): JSX.Element {
   const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0 });
   const [lapses, setLapses] = useState<CardSource[]>([]);
   const [inLapses, setInLapses] = useState(false);
+  // 세션 덱 스냅샷: 세션 시작 시점의 카드 목록을 고정한다. 채점하면 due 덱이
+  // 실시간으로 줄어들기 때문에(채점된 카드는 더 이상 due 아님), 커서가 훑는
+  // 배열은 절대 변하면 안 된다 — 안 그러면 세션이 중간에 끝나고 카드를 건너뛴다.
+  const [sessionDeck, setSessionDeck] = useState<CardSource[]>([]);
   // session-local card type overrides (initialized from settings on mount)
   const [typeFilter, setTypeFilter] = useState({
     vocab: true,
@@ -45,6 +49,7 @@ export default function Flashcards(): JSX.Element {
   const ensure = useSRS((s) => s.ensure);
   const migrateIds = useSRS((s) => s.migrateIds);
   const grade = useSRS((s) => s.grade);
+  const newDoneToday = useSRS((s) => s.newCardsToday());
   const favItems = useFavorites((s) => s.items);
 
   const fcAlgorithm = useSettings((s) => s.fcAlgorithm);
@@ -53,6 +58,7 @@ export default function Flashcards(): JSX.Element {
   const fcAutoplay = useSettings((s) => s.fcAutoplay);
   const fcCardTypes = useSettings((s) => s.fcCardTypes);
   const fcAppendixVocab = useSettings((s) => s.fcAppendixVocab);
+  const fcDailyGoal = useSettings((s) => s.fcDailyGoal);
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
 
@@ -123,36 +129,56 @@ export default function Flashcards(): JSX.Element {
     return ids;
   }, [cards]);
 
-  // current "playable" deck
-  const filtered = useMemo<CardSource[]>(() => {
-    if (inLapses) return lapses;
+  // 복습 대상 덱: 복습 시기가 된 카드 + 새 카드. 새 카드는 하루 한도(fcDailyGoal)
+  // 까지만 노출하고 초과분은 heldBack 으로 빼둔다 — 어르신이 첫 진입에서 수백 장에
+  // 짓눌리지 않도록 하는 SRS 안전장치. 복습 카드는 시기를 놓치면 안 되므로 한도 없음.
+  // fcDailyGoal === 0 이면 한도 비활성(전부 노출).
+  const dueComputed = useMemo<{ deck: CardSource[]; heldBack: number }>(() => {
+    if (typeFiltered.length === 0) return { deck: [], heldBack: 0 };
+    const now = Date.now();
+    let newBudget = fcDailyGoal > 0 ? Math.max(0, fcDailyGoal - newDoneToday) : Infinity;
+    const out: CardSource[] = [];
+    let heldBack = 0;
+    for (const s of typeFiltered) {
+      const c = cards[cardIdOf(s)];
+      if (c && new Date(c.due).getTime() > now) continue; // 아직 복습 시기 아님
+      if (isNewCard(c)) {
+        if (newBudget <= 0) { heldBack += 1; continue; }
+        newBudget -= 1;
+      }
+      out.push(s);
+    }
+    return { deck: out, heldBack };
+  }, [typeFiltered, cards, fcDailyGoal, newDoneToday]);
+
+  // 현재 덱 후보(실시간): 채점에 따라 매 렌더 재계산된다. 세션 중에는 직접
+  // 쓰지 않고 sessionDeck 스냅샷의 원본으로만 쓴다. 오답 재투입(lapses)은
+  // 별도 경로(startLapses)로 스냅샷하므로 여기엔 포함하지 않는다.
+  const mainDeck = useMemo<CardSource[]>(() => {
     if (typeFiltered.length === 0) return [];
     if (deck === 'all') return typeFiltered;
     if (deck === 'favorites') return typeFiltered.filter((s) => favItems[favKeyOf(s)]);
-    if (deck === 'lapses') return lapses; // also available as a deck after session
     if (deck === 'mistakes') return typeFiltered.filter((s) => mistakeIds.has(cardIdOf(s)));
-    // due
-    const now = Date.now();
-    const out: CardSource[] = [];
-    for (const s of typeFiltered) {
-      const c = cards[cardIdOf(s)];
-      const due = !c || new Date(c.due).getTime() <= now;
-      if (!due) continue;
-      out.push(s);
-    }
-    return out;
-  }, [inLapses, lapses, typeFiltered, deck, favItems, cards, mistakeIds]);
+    return dueComputed.deck;
+  }, [typeFiltered, deck, favItems, mistakeIds, dueComputed]);
 
-  // reset session when deck or filter changes
+  // 효과 안에서 최신 mainDeck를 읽되, mainDeck 변화 자체로는 효과를 재실행하지
+  // 않으려고 ref로 우회한다 (채점 때마다 스냅샷이 갱신되면 안 됨).
+  const mainDeckRef = useRef(mainDeck);
+  mainDeckRef.current = mainDeck;
+
+  // reset session when deck or filter changes — 이때 세션 덱을 새로 스냅샷한다.
+  // sources 의존: 카드가 비동기 로드되므로 첫 로드 완료 시점에도 다시 스냅샷해야 한다.
   useEffect(() => {
     setCursor(0);
     setRevealed(false);
     setLapses([]);
     setInLapses(false);
     setSessionStats({ correct: 0, wrong: 0 });
-  }, [deck, typeFilter, lessonSel]);
+    setSessionDeck(mainDeckRef.current);
+  }, [deck, typeFilter, lessonSel, sources]);
 
-  const current = filtered[cursor];
+  const current = sessionDeck[cursor];
 
   // per-card effective direction (stable per cursor when mixed)
   const effectiveDirection = useMemo<'zh2ko' | 'ko2zh'>(() => {
@@ -178,13 +204,8 @@ export default function Flashcards(): JSX.Element {
     return () => window.clearTimeout(t);
   }, [current, effectiveDirection, revealed, fcAutoplay, ttsRate, ttsVoiceURI]);
 
-  const dueCount = useMemo(() => {
-    const now = Date.now();
-    return typeFiltered.filter((s) => {
-      const c = cards[cardIdOf(s)];
-      return !c || new Date(c.due).getTime() <= now;
-    }).length;
-  }, [typeFiltered, cards]);
+  const dueCount = dueComputed.deck.length;
+  const heldBackNew = dueComputed.heldBack;
 
   const favCount = useMemo(
     () => typeFiltered.filter((s) => favItems[favKeyOf(s)]).length,
@@ -257,7 +278,7 @@ export default function Flashcards(): JSX.Element {
     return () => window.removeEventListener('keydown', handler);
   }, [current, revealed, onGrade, replayTTS, fcGrades]);
 
-  const sessionEnded = filtered.length > 0 && cursor >= filtered.length;
+  const sessionEnded = sessionDeck.length > 0 && cursor >= sessionDeck.length;
 
   const startLapses = (): void => {
     if (lapses.length === 0) return;
@@ -265,6 +286,7 @@ export default function Flashcards(): JSX.Element {
     setCursor(0);
     setRevealed(false);
     setSessionStats({ correct: 0, wrong: 0 });
+    setSessionDeck([...lapses]);
   };
 
   const restart = (): void => {
@@ -273,6 +295,8 @@ export default function Flashcards(): JSX.Element {
     setSessionStats({ correct: 0, wrong: 0 });
     setInLapses(false);
     setLapses([]);
+    // 다시 시작: 현재 시점의 덱을 새로 스냅샷한다(채점 결과가 반영된 최신 상태).
+    setSessionDeck(mainDeckRef.current);
   };
 
   return (
@@ -330,14 +354,25 @@ export default function Flashcards(): JSX.Element {
         세션 진행: <span className="text-success font-semibold">{sessionStats.correct}</span>
         <span className="mx-1">·</span>
         <span className="text-accent font-semibold">{sessionStats.wrong}</span>
-        <span className="text-muted"> ({Math.min(cursor, filtered.length)}/{filtered.length})</span>
+        <span className="text-muted"> ({Math.min(cursor, sessionDeck.length)}/{sessionDeck.length})</span>
         {inLapses && <span className="ml-2 text-accent">(오답 재투입 중)</span>}
       </p>
 
+      {deck === 'due' && !inLapses && heldBackNew > 0 && sessionDeck.length > 0 && (
+        <p className="text-xs text-muted leading-snug">
+          새 카드는 하루 {fcDailyGoal}장까지 나와요. 나머지 {heldBackNew}장은 다음에 이어집니다.
+        </p>
+      )}
+
       {sources.length === 0 && <p className="text-muted">불러오는 중…</p>}
 
-      {sources.length > 0 && filtered.length === 0 && !sessionEnded && (
-        <EmptyState deck={deck} onStartLapses={startLapses} hasLapses={lapses.length > 0} />
+      {sources.length > 0 && sessionDeck.length === 0 && !sessionEnded && (
+        <EmptyState
+          deck={deck}
+          onStartLapses={startLapses}
+          hasLapses={lapses.length > 0}
+          heldBackNew={deck === 'due' && !inLapses ? heldBackNew : 0}
+        />
       )}
 
       {current && !sessionEnded && (
@@ -446,13 +481,19 @@ function TypeChip({
 }
 
 function EmptyState({
-  deck, onStartLapses, hasLapses,
-}: { deck: Deck; onStartLapses: () => void; hasLapses: boolean }): JSX.Element {
+  deck, onStartLapses, hasLapses, heldBackNew,
+}: { deck: Deck; onStartLapses: () => void; hasLapses: boolean; heldBackNew: number }): JSX.Element {
+  // 복습 대상 덱이 비었지만 새 카드가 한도 때문에 대기 중이면 안내 문구가 달라진다.
+  const dueHeldBack = deck === 'due' && heldBackNew > 0;
   return (
     <div className="rounded-2xl border border-divider bg-surface p-6 text-center">
-      <p className="text-fg font-semibold">표시할 카드가 없습니다.</p>
+      <p className="text-fg font-semibold">
+        {dueHeldBack ? '오늘 학습을 마쳤습니다.' : '표시할 카드가 없습니다.'}
+      </p>
       <p className="text-muted text-sm mt-1">
-        {deck === 'due' && '오늘 복습할 카드가 없어요. 잘하고 있습니다!'}
+        {deck === 'due' && (dueHeldBack
+          ? `오늘 새 카드 한도를 다 채웠어요. 새 카드 ${heldBackNew}장은 내일 이어서 나옵니다.`
+          : '오늘 복습할 카드가 없어요. 잘하고 있습니다!')}
         {deck === 'favorites' && '아직 즐겨찾기한 항목이 없습니다.'}
         {deck === 'all' && '카드 종류 필터를 확인하세요.'}
         {deck === 'lapses' && '오답 카드가 없습니다.'}

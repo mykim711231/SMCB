@@ -26,8 +26,10 @@
  *   easy : interval *= ease * 1.3, ease += 0.15
  *   ease는 [1.3, 2.8]로 clamp.
  *
- * `newCardsByDate`: 새 카드(아직 한 번도 채점 안 된 카드)를 오늘 몇 장 풀었는지.
- * Flashcards 페이지에서 일일 신규 한도 적용에 사용.
+ * `newCardsByDate`: 새 카드(아직 한 번도 채점 안 된 카드)를 날짜별로 몇 장
+ * 풀었는지 누적. Flashcards '복습 대상' 덱이 settings.fcDailyGoal(하루 새
+ * 카드 한도)을 적용할 때 newCardsToday()로 오늘 소진량을 읽는다. 한도는
+ * 새 카드에만 걸리고 복습 카드(이미 한 번 이상 채점된 카드)는 제한 없음.
  */
 import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';

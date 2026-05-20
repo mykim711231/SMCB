@@ -339,8 +339,8 @@ export default function Settings(): JSX.Element {
             <Toggle on={s.fcAppendixVocab} onClick={() => s.setFcAppendixVocab(!s.fcAppendixVocab)} />
           </Row>
           <Row
-            label={`일일 학습 목표: ${s.fcDailyGoal === 0 ? '비활성' : `${s.fcDailyGoal}장`}`}
-            description="하루에 풀고 싶은 카드 수예요. 0으로 두면 목표 없이 학습합니다."
+            label={`하루 새 카드 한도: ${s.fcDailyGoal === 0 ? '한도 없음' : `${s.fcDailyGoal}장`}`}
+            description="‘복습 대상’에 하루 동안 새 카드가 몇 장까지 나올지 정해요. 이미 배운 복습 카드는 한도와 무관하게 모두 나옵니다. 0으로 두면 한도 없이 전부 나옵니다."
             stack
           >
             <input
@@ -351,7 +351,7 @@ export default function Settings(): JSX.Element {
               value={s.fcDailyGoal}
               onChange={(e) => s.setFcDailyGoal(Number(e.target.value))}
               className="w-32"
-              aria-label="일일 학습 목표"
+              aria-label="하루 새 카드 한도"
             />
           </Row>
         </div>
