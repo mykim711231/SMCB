@@ -249,7 +249,7 @@ export default function Settings(): JSX.Element {
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
           <Row
             label="채점 단계"
-            description="2단계는 '알아요/몰라요' 두 버튼, 4단계는 '다시·어려움·괜찮음·쉬움' 네 버튼으로 더 정교하게 채점해요."
+            description="2단계는 '모름·알아요' 두 버튼, 4단계는 '모름·어려움·알아요·쉬움' 네 버튼으로 더 정교하게 채점해요."
             stack
           >
             <Segmented
