@@ -1,8 +1,8 @@
 # 새문안교회 중국어 중급 성경반 PWA — 상세 설계서
 
-> **문서 버전**: v1.2  
-> **작성일**: 2026-05-18  
-> **상태**: 설계 확정안 (개발 시작 전 최종 검토)
+> **문서 버전**: v1.3  
+> **작성일**: 2026-05-20  
+> **상태**: 구현 동기화 완료 (실제 코드베이스 반영)
 
 ---
 
@@ -110,18 +110,27 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  GitHub Repository                                          │
-│  ├── Doc/*.md                  ← 단일 진실 소스             │
-│  ├── app/scripts/              ← 빌드 타임 변환             │
-│  │   └── build-content.ts                                   │
+│  ├── Doc/Markdown/vol1/*.md    ← 단일 진실 소스 (65과)      │
+│  ├── Doc/Markdown/vol2/*.md                                 │
+│  ├── Doc/Markdown/vol3/*.md                                 │
+│  ├── Doc/Markdown/发音*.md     ← 발음 부록 (3종)            │
+│  ├── Doc/Markdown/附录*.md     ← 일반 부록 (4종)            │
+│  ├── app/scripts/              ← 빌드 타임 변환              │
+│  │   ├── build-content.ts      ← .md → vol별 JSON           │
+│  │   ├── build-search-index.ts ← MiniSearch 사전 빌드       │
+│  │   ├── build-tts.ts          ← zh 텍스트 → mp3 합성       │
+│  │   └── verify-tts-coverage.ts← mp3 누락 검증 게이트       │
 │  └── app/src/                  ← React PWA                  │
 └─────────────────────────────────────────────────────────────┘
                        │ git push
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  GitHub Actions (CI)                                        │
-│  1. Doc/*.md → src/data/lessons.json                        │
-│  2. vite build                                              │
-│  3. Workbox precache manifest 생성                          │
+│  1. Doc/Markdown/*.md → app/src/data/lessons-vol*.json      │
+│  2. MiniSearch 사전 인덱스 빌드                             │
+│  3. TTS mp3 커버리지 검증 (verify:tts)                      │
+│  4. vite build                                              │
+│  5. Workbox precache manifest 생성                          │
 └─────────────────────────────────────────────────────────────┘
                        │ deploy
                        ▼
@@ -187,9 +196,13 @@ export type Dialog = {
   lines: Verse[];        // 한 사람 발화 묶음 또는 개별 라인
 };
 
+export type ScenarioSegment = 
+  | { kind: "verse"; verse: Verse; prefix?: string }
+  | { kind: "text"; text: string };
+
 export type Scenario = {
   title: string;
-  body: string;          // 마크다운 그대로 (간단 렌더)
+  segments: ScenarioSegment[];   // verse trio와 자유 텍스트 혼합
 };
 
 export type Question = Verse;
@@ -226,15 +239,49 @@ export type ContentBundle = {
 ```
 
 ### 5.2 파서 규칙
+- 소스 디렉터리: `Doc/Markdown/vol1/`, `Doc/Markdown/vol2/`, `Doc/Markdown/vol3/` (+ `Doc/Markdown/发音*.md`, `Doc/Markdown/附录*.md`)
 - 헤더 `## 本文 (본문)` → `body`
 - 헤더 `## 主要词汇 (주요 단어)` → 그 아래 `### N. word / pinyin / pos / meaning` 블록 N개를 `vocab[]`로
 - 본문/회화 등에서 3줄 패턴 (한자 → 병음 → 한글) 을 `Verse`로 묶음
 - 표(`| ... |`)는 `pronunciation` 또는 `grammar`로 매핑
+- 시나리오(`## 实战场景`)는 `### 상황 N: title` 하위에 verse trio와 자유 텍스트 혼합 → `Scenario.segments[]`
 
 ### 5.3 빌드 산출물
-- `app/src/data/lessons.json` (65개 통합, gzip 약 500KB 예상)
-- `app/src/data/appendices.json`
-- `app/src/data/search-index.json` (MiniSearch 사전 빌드)
+- `app/src/data/lessons-vol1.json` (16과)
+- `app/src/data/lessons-vol2.json` (17과)
+- `app/src/data/lessons-vol3.json` (32과)
+- `app/src/data/lessons-meta.json` (65과 타이틀만, ≈ 10KB)
+- `app/src/data/appendices.json` (발음 3종 + 부록 4종 + 부록1 vocab)
+- `app/src/data/search-index.json` (MiniSearch 사전 빌드, ≈ 1,165KB)
+- `app/src/data/zh-tokens.json` (모든 zh 텍스트의 토큰 분할 매니페스트)
+- `app/src/data/zh-tts-manifest.json` (zh 텍스트 → mp3 파일명 해시 매핑)
+- `app/public/tts/*.mp3` (TTS 정적 에셋, SHA-1 해시 파일명, 약 3,500+개)
+
+### 5.4 TTS 음성 에셋 파이프라인
+
+학습 콘텐츠의 모든 zh 텍스트는 **빌드 타임에 mp3로 사전 합성**되어 정적 에셋으로 커밋됩니다. 런타임 Web Speech API가 아닌 정적 mp3 재생을 사용하므로 오프라인·일관된 발음 품질을 보장합니다.
+
+**스크립트**:
+- `build-tts.ts` — `lessons-vol*.json` + `appendices.json`에서 모든 zh 텍스트를 수집 → `msedge-tts`로 mp3 합성 → `public/tts/{sha1}.mp3` 저장 → `zh-tts-manifest.json` 갱신
+- `verify-tts-coverage.ts` — 콘텐츠에 추가된 zh 텍스트 중 mp3가 누락된 항목을 검출하여 비-0 종료. `build:all`의 마지막 게이트로 실행됨
+- `tts-texts.ts` — 두 스크립트가 공유하는 텍스트 수집·해시 로직의 단일 진실 소스
+
+**흐름**:
+```
+Doc/Markdown/*.md → build-content.ts → lessons-vol*.json
+                                       appendices.json
+                                              │
+                            ┌─────────────────┘
+                            ▼
+                    build-tts.ts ──→ public/tts/{sha1}.mp3
+                            │        zh-tts-manifest.json
+                            ▼
+                    verify-tts-coverage.ts (게이트)
+```
+**운영 원칙**:
+- mp3는 저장소에 커밋되는 정적 자산 (CI에서 합성하지 않음)
+- 콘텐츠 추가 시 `npm run build:tts -- --phase all` 로 mp3 합성 후 함께 커밋
+- `npm run build:all` = `build:content && build:search && verify:tts` (verify 실패 시 빌드 중단)
 
 ---
 
@@ -580,56 +627,91 @@ export function Footer() {
 
 ## 9. TTS 상세 설계
 
-### 9.1 추상화 레이어
+### 9.1 아키텍처: 사전녹음 mp3 우선 + Web Speech 폴백
+
+TTS는 **하이브리드 듀얼 경로**로 동작한다:
+
+- **1차 경로 (recorded)**: 빌드 타임에 사전 합성된 mp3 → `<audio>` 엘리먼트로 재생. 단말기 음성팩 불필요, 오프라인 안정, 일관된 본토 발음 품질.
+- **2차 경로 (device)**: Web Speech API → `SpeechSynthesisUtterance`로 재생. 매니페스트에 없는 텍스트의 폴백.
+- **음성 모드**: 사용자 설정에서 `'recorded'`(mp3 우선) / `'device'`(단말기 TTS만) 선택 가능.
+
+```
+speak(text)
+  │
+  ├─ voiceMode = 'device' ──────────→ speakSynth(text) → SpeechSynthesisUtterance
+  │
+  └─ voiceMode = 'recorded' ──→ lookupPrerecorded(text)
+        │                         └─ zh-tts-manifest.json에서 검색
+        │
+        ├─ mp3 HIT ──→ playPrerecorded(url) → <audio> 재생
+        │                 │ 실패 시: audio.onerror → 재시도 1회 → fallback
+        │
+        └─ mp3 MISS ─→ speakSynth(text) → SpeechSynthesisUtterance (온라인 시)
+                       └─ 오프라인 strictRecorded → onError('network') 통지
+```
+
+### 9.2 매니페스트 룩업
+
+`zh-tts-manifest.json`은 `{ "上帝": "27df1ce63cbd.mp3", ... }` 형태. `build-tts.ts`가 생성.
+
+- 키 정규화: NBSP → 공백, zero-width 문자 제거, 스마트 따옴표 → ASCII 등
+- 1차 정규화 키 직접 hit, 2차 원문 trim fallback (레거시 호환)
+- 빈 매니페스트(`{}`)에서도 정상 동작 — 모든 호출이 Web Speech 경로로 폴백
+
+### 9.3 prefetch (선제적 다운로드)
+
+`prefetchAudio(text)` — 사용자 제스처 직전(mousedown/touchstart)에 mp3 버퍼 다운로드 시작.
+- Data Saver(`connection.saveData=true`) 환경에서는 skip
+- TTL 30초 Map으로 중복 prefetch 방지
+- 실패 시 해당 URL을 Map에서 제거 → 다음 hover에서 재시도
+
+### 9.4 일괄 다운로드
+
+`ttsBulkDownload.ts` — 사용자가 "mp3 전체 다운로드" 선택 시 모든 매니페스트 URL을 배치 다운로드. 오프라인 완전성 보장.
+
+### 9.5 Web Speech 경로 (폴백)
 
 ```ts
 // src/lib/tts.ts
-export interface TTSAdapter {
-  isSupported(): boolean;
-  getVoices(lang: "zh-CN" | "ko-KR"): Promise<SpeechSynthesisVoice[]>;
-  speak(text: string, opts: { lang; voice?; rate?; pitch? }): Promise<void>;
-  stop(): void;
-}
-
-export class WebSpeechAdapter implements TTSAdapter { ... }
-```
-
-### 9.2 iOS 언락 패턴
-
-```ts
-// 첫 사용자 인터랙션에서 1회 실행
-function unlockTTS() {
-  const u = new SpeechSynthesisUtterance("");
-  u.volume = 0;
-  speechSynthesis.speak(u);
+function speakSynth(text, opts, epoch) {
+  const voice = pickMandarinVoice(opts.voiceURI);
+  // Chrome/Edge cold-start: awaitVoices()로 1회 재시도
+  // iOS PWA silent-fail 감지: 4초 워치독 → stuck 복구
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = voice;
+  u.lang = voice.lang;
+  u.rate = opts.rate ?? 1;
+  synth.speak(u);
 }
 ```
 
-### 9.3 보이스 로딩 (비동기)
+**iOS PWA silent-fail 워치독**: iOS 17.4 미만·26.0~26.1 회귀 구간에서 standalone PWA의 `synth.speak()`가 onstart/onend/onerror 모두 발화하지 않는 버그 대응. 4,000ms 안에 onstart가 없으면 강제 cancel + `'synthesis-unavailable'` 에러 통지.
 
-```ts
-function getVoicesAsync(): Promise<SpeechSynthesisVoice[]> {
-  return new Promise((resolve) => {
-    let voices = speechSynthesis.getVoices();
-    if (voices.length) return resolve(voices);
-    speechSynthesis.addEventListener("voiceschanged", () => {
-      resolve(speechSynthesis.getVoices());
-    }, { once: true });
-  });
-}
-```
+**진단 함수** (`diagnose()`):
+- `'ok'` — 정상 또는 매니페스트가 채워져 우회 가능
+- `'unsupported'` — SpeechSynthesis API 없음, 매니페스트도 비어 있음
+- `'no-zh-voice'` — zh 음성 미설치 (DeviceVoiceMissingBanner 표시)
+- `'ios-pwa-warning'` — iOS PWA 제약 (RecordedAudioMissingBanner 권유)
 
-### 9.4 폴백 매트릭스
+### 9.6 취소·에포크 메커니즘
+
+`s speakEpoch` 카운터로 모든 비동기 분기(awaitVoices, audio.onerror 재시도, SpeechSynthesisUtterance onend/onerror)를 추적. `stop()` 호출 시 epoch 증가 → 이전 분기들은 결과를 무시하여 빠른 연속 탭의 race condition 방지.
+
+### 9.7 폴백 매트릭스
 
 | 상태 | 사용자에게 보이는 것 |
 |---|---|
-| `speechSynthesis` 미지원 | 🔊 버튼 회색 처리 + 툴팁 "이 기기는 음성을 지원하지 않습니다" |
-| zh-CN 보이스 0개 | 설정 화면에 "중국어 음성 미설치" 카드 + Android: Google TTS 설치 링크 / iOS: 설정 → 손쉬운 사용 → 음성 가이드 |
-| 재생 중 화면 잠금 | 안내 토스트 "백그라운드에서는 OS 정책상 음성이 중단될 수 있어요" |
+| 매니페스트 HIT + mp3 캐시 | <audio> 즉시 재생 (오프라인 OK) |
+| 매니페스트 HIT + mp3 미캐시 + 온라인 | 네트워크 fetch → 재생, 실패 시 1회 retry 후 Web Speech 폴백 |
+| 매니페스트 MISS + 온라인 | Web Speech로 폴백 |
+| 매니페스트 MISS + 오프라인 (recorded 모드) | 'network' 에러 통지 (정책 위반 방지, zh-TW 음성 회피) |
+| `speechSynthesis` 미지원 + 매니페스트 {} | 🔊 버튼 회색 처리 + 툴팁 "이 기기는 음성을 지원하지 않습니다" |
+| zh-CN 보이스 0개 | "중국어 음성 미설치" 카드 + OS 설정 가이드 |
+| iOS PWA silent-fail | 4초 워치독 → stuck 복구 + 에러 통지 |
 
-### 9.5 자동 연속 재생
+### 9.8 자동 연속 재생
 
-본문 verse 배열을 큐로 만들어 `speak()` 완료(`onend`) 시 다음 verse 재생, 사용자 설정 `autoplayGap`만큼 지연.
+본문 verse 배열을 큐로 만들어 `speak()` 완료(`onEnd`) 시 다음 verse 재생, 사용자 설정 `autoplayGap`만큼 지연.
 
 ---
 
@@ -774,12 +856,25 @@ function todayDue(srs: SrsState): WordId[] {
 
 ```
 SMCB/   (= GitHub repo gababayo/SMCB)
-├── Doc/                          ← 원본 콘텐츠 (수정 금지 영역)
+├── Doc/
+│   ├── Markdown/                   ← 원본 콘텐츠 (수정 금지 영역)
+│   │   ├── vol1/                  ← 16과 (*.md)
+│   │   ├── vol2/                  ← 17과
+│   │   ├── vol3/                  ← 32과
+│   │   ├── 发音1_发音表.md         ← 발음 부록
+│   │   ├── 发音2_声调变化.md
+│   │   ├── 发音3_拼音规则.md
+│   │   ├── 附录1_中文基督教词汇表.md
+│   │   ├── 附录2_中国文化背景与宣教.md
+│   │   ├── 附录3_使徒信经.md
+│   │   └── 附录4_主祷文.md
+│   ├── pdf_docx_01/               ← 원본 PDF·DOCX (참조용)
+│   └── pdf_docx_02/               ← 번역본 PDF·DOCX (참조용)
 ├── docs/
-│   └── _design.md                ← 본 문서
+│   └── _design.md                  ← 본 문서
 ├── app/
 │   ├── package.json
-│   ├── vite.config.ts            ← base: "/SMCB/"
+│   ├── vite.config.ts              ← base: "/SMCB/"
 │   ├── tsconfig.json
 │   ├── tailwind.config.ts
 │   ├── index.html
@@ -789,23 +884,29 @@ SMCB/   (= GitHub repo gababayo/SMCB)
 │   │   │   ├── icon-192.webp
 │   │   │   ├── icon-512.webp
 │   │   │   └── icon-maskable-512.png
+│   │   ├── tts/                    ← TTS mp3 정적 에셋 (SHA-1 파일명)
 │   │   └── manifest.webmanifest
 │   ├── scripts/
-│   │   ├── build-content.ts      ← .md → vol별 JSON
-│   │   ├── build-search-index.ts ← MiniSearch 사전 빌드
-│   │   └── generate-icons.ts     ← SVG → WebP/PNG 자동 생성
+│   │   ├── build-content.ts        ← Doc/Markdown/*.md → vol별 JSON
+│   │   ├── build-search-index.ts   ← MiniSearch 사전 빌드
+│   │   ├── build-tts.ts            ← zh 텍스트 → mp3 합성
+│   │   ├── verify-tts-coverage.ts  ← mp3 누락 검증 게이트
+│   │   ├── tts-texts.ts            ← TTS 텍스트 수집·해시 (공유 모듈)
+│   │   └── generate-icons.ts       ← SVG → WebP/PNG 자동 생성
 │   └── src/
 │       ├── main.tsx
 │       ├── App.tsx
 │       ├── types/
 │       │   └── lesson.ts
-│       ├── data/                 ← 빌드 산출물 (gitignore)
+│       ├── data/                   ← 빌드 산출물 (gitignore)
 │       │   ├── lessons-vol1.json
 │       │   ├── lessons-vol2.json
 │       │   ├── lessons-vol3.json
-│       │   ├── lessons-meta.json ← 65과 메타정보(타이틀만, ≈ 10KB)
+│       │   ├── lessons-meta.json
 │       │   ├── appendices.json
-│       │   └── search-index.json
+│       │   ├── search-index.json
+│       │   ├── zh-tokens.json      ← 한자 토큰 매니페스트
+│       │   └── zh-tts-manifest.json← zh 텍스트 → mp3 해시 매핑
 │       ├── stores/
 │       │   ├── useSettingsStore.ts
 │       │   ├── useProgressStore.ts
@@ -817,10 +918,10 @@ SMCB/   (= GitHub repo gababayo/SMCB)
 │       │   ├── srs.ts
 │       │   ├── search.ts
 │       │   ├── db.ts
-│       │   └── contentLoader.ts  ← vol별 동적 import
+│       │   └── contentLoader.ts    ← vol별 동적 import
 │       ├── components/
 │       │   ├── BottomNav.tsx
-│       │   ├── Footer.tsx        ← 저작권 표기
+│       │   ├── Footer.tsx          ← 저작권 표기
 │       │   ├── VerseCard.tsx
 │       │   ├── TTSButton.tsx
 │       │   ├── WordCard.tsx
@@ -829,22 +930,22 @@ SMCB/   (= GitHub repo gababayo/SMCB)
 │       ├── pages/
 │       │   ├── HomePage.tsx
 │       │   ├── TocPage.tsx
-│       │   ├── LessonPage.tsx        ← lazy
-│       │   ├── SearchPage.tsx        ← lazy
-│       │   ├── FlashcardsPage.tsx    ← lazy
-│       │   ├── AppendixPage.tsx      ← lazy
+│       │   ├── LessonPage.tsx      ← lazy
+│       │   ├── SearchPage.tsx      ← lazy
+│       │   ├── FlashcardsPage.tsx  ← lazy
+│       │   ├── AppendixPage.tsx    ← lazy
 │       │   ├── SettingsPage.tsx
-│       │   └── AboutPage.tsx         ← 저작권/카카오톡 링크
+│       │   └── AboutPage.tsx       ← 저작권/카카오톡 링크
 │       ├── hooks/
 │       │   ├── useTTS.ts
 │       │   ├── useInstallPrompt.ts
 │       │   └── useScrollProgress.ts
 │       └── styles/
 │           └── tokens.css
-├── .gitignore                    ← app/src/data/*.json 무시
+├── .gitignore                      ← app/src/data/*.json 무시
 └── .github/
     └── workflows/
-        └── deploy.yml            ← GitHub Pages 자동 배포
+        └── deploy.yml              ← GitHub Pages 자동 배포
 ```
 
 ### 13.2 Vite 설정 핵심
@@ -956,7 +1057,11 @@ jobs:
         with: { node-version: 20, cache: npm, cache-dependency-path: app/package-lock.json }
       - run: npm ci
         working-directory: app
-      - run: npm run build:content       # Doc/*.md → JSON chunks
+      - run: npm run build:content       # Doc/Markdown/*.md → JSON chunks
+        working-directory: app
+      - run: npm run build:search        # MiniSearch 사전 인덱스 빌드
+        working-directory: app
+      - run: npm run verify:tts          # TTS mp3 커버리지 검증 (누락 시 실패)
         working-directory: app
       - run: npm run build               # vite build → app/dist
         working-directory: app
@@ -1202,3 +1307,4 @@ CI 단계에서 `size-limit`으로 자동 검증.
 | 2026-05-18 | v1.0 | 초안 작성, MVP 4기능 + 큰글씨 + 완전공개 확정 |
 | 2026-05-18 | v1.1 | GitHub Pages 배포 확정(`/SMCB/` subpath, HashRouter), 웹폰트 미사용, 이미지 WebP/SVG, 콘텐츠 vol별 chunk 분할, §17.5 용량 최소화 전략 신설, S-009 About 페이지 추가, Footer 의무화, 카카오톡 채널로 푸시 대체, 분석 도구 미설치 확정, 임시 아이콘 정책, AC-026~035 추가, 모든 오픈 이슈 해결 |
 | 2026-05-18 | v1.2 | **§17.5 관점 재정의**: "전송 사이즈 다이어트" → "**단말기 디스크 점유 최소화**"로 초점 변경. install 시 precache를 앱 셸+meta만으로 축소(약 200KB), 콘텐츠는 진입 시 lazy cache, 90일 자동 만료, IndexedDB 슬림화. §6.8 설정에 "저장공간 사용량"·"캐시 정리"·"전체 초기화" UI 추가. §10.1 SW 전략을 precache-all → lazy-cache로 전환. 디스크 예산: 설치만 ≤ 250KB, 전체 사용 ≤ 1.5MB. AC-031~036 디스크 점유 검증으로 교체, AC-039 자동 만료 추가 |
+| 2026-05-20 | v1.3 | **실제 코드베이스 동기화**: §4 아키텍처 다이어그램에 `Doc/Markdown/` 하위 구조 반영 및 TTS 스크립트 추가. §5.1 `Scenario` 타입 `body:string` → `segments:ScenarioSegment[]` 수정, `ScenarioSegment` 타입 신설. §5.2 파서 규칙에 소스 디렉터리·시나리오 파싱 추가. §5.3 빌드 산출물을 per-volume JSON + zh-tokens + tts-manifest + mp3로 갱신. §5.4 TTS 음성 에셋 파이프라인 신설 (build-tts, verify-tts-coverage, hash 기반 mp3 관리). §9 TTS 설계를 **사전녹음 mp3 우선 + Web Speech 폴백 하이브리드**로 전면 재작성 (매니페스트 룩업, prefetch, 일괄 다운로드, iOS PWA 워치독, 에포크 기반 취소). §13.1 폴더 구조에 `Doc/Markdown/`, `public/tts/`, TTS 스크립트, data 산출물 반영. §17 CI/CD에 `build:search`·`verify:tts` 단계 추가 |
