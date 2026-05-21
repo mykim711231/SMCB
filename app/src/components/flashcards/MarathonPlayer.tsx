@@ -41,18 +41,24 @@ export default function MarathonPlayer({
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [pauseBetweenMs, setPauseBetweenMs] = useState(1200);
+  const [repeatPauseMs, setRepeatPauseMs] = useState(800);
   const [repeatCount, setRepeatCount] = useState(1);
+  const [repeatCurrent, setRepeatCurrent] = useState(0); // display-only
   const timerRef = useRef<number | null>(null);
   const playingRef = useRef(playing);
   const idxRef = useRef(idx);
   const cardsRef = useRef(cards);
-  const repeatRef = useRef(0); // 0-indexed, current repeat
+  const repeatRef = useRef(0); // 0-indexed, current repeat (scheduler-side)
   const repeatCountRef = useRef(repeatCount);
+  const pauseBetweenRef = useRef(pauseBetweenMs);
+  const repeatPauseRef = useRef(repeatPauseMs);
 
   useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { idxRef.current = idx; }, [idx]);
   useEffect(() => { cardsRef.current = cards; }, [cards]);
   useEffect(() => { repeatCountRef.current = repeatCount; }, [repeatCount]);
+  useEffect(() => { pauseBetweenRef.current = pauseBetweenMs; }, [pauseBetweenMs]);
+  useEffect(() => { repeatPauseRef.current = repeatPauseMs; }, [repeatPauseMs]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current != null) {
@@ -65,16 +71,18 @@ export default function MarathonPlayer({
     const currentRepeat = repeatRef.current + 1;
     if (currentRepeat < repeatCountRef.current) {
       repeatRef.current = currentRepeat;
+      setRepeatCurrent(currentRepeat);
       timerRef.current = window.setTimeout(() => {
         if (playingRef.current) playCurrent();
-      }, pauseBetweenMs);
+      }, repeatPauseRef.current);
     } else {
       repeatRef.current = 0;
+      setRepeatCurrent(0);
       timerRef.current = window.setTimeout(() => {
         setIdx((v) => v + 1);
-      }, pauseBetweenMs);
+      }, pauseBetweenRef.current);
     }
-  }, [pauseBetweenMs]);
+  }, []);
 
   const playCurrent = useCallback(() => {
     if (!playingRef.current) return;
@@ -138,12 +146,14 @@ export default function MarathonPlayer({
     ttsStop();
     clearTimer();
     repeatRef.current = 0;
+    setRepeatCurrent(0);
     setIdx((v) => Math.min(cards.length, v + 1));
   };
   const prev = (): void => {
     ttsStop();
     clearTimer();
     repeatRef.current = 0;
+    setRepeatCurrent(0);
     setIdx((v) => Math.max(0, v - 1));
   };
   const exit = (): void => {
@@ -156,7 +166,7 @@ export default function MarathonPlayer({
   const current = cards[idx];
   const done = idx >= cards.length;
   const progress = cards.length === 0 ? 0 : Math.round((idx / cards.length) * 100);
-  const repeatLabel = repeatCount > 1 ? ` (${repeatRef.current + 1}/${repeatCount}회)` : '';
+  const repeatLabel = repeatCount > 1 ? ` (${repeatCurrent + 1}/${repeatCount}회)` : '';
 
   return (
     <div className="rounded-2xl border border-primary bg-primary-soft p-5 space-y-4">
@@ -222,7 +232,7 @@ export default function MarathonPlayer({
       </div>
 
       <div className="flex items-center justify-center gap-2 text-xs text-muted flex-wrap">
-        <label htmlFor="gap" className="whitespace-nowrap">간격</label>
+        <label htmlFor="gap" className="whitespace-nowrap">카드 간격</label>
         <input
           id="gap"
           type="range"
@@ -232,9 +242,24 @@ export default function MarathonPlayer({
           value={pauseBetweenMs}
           onChange={(e) => setPauseBetweenMs(Number(e.target.value))}
           className="w-24"
-          aria-label="카드 사이 간격"
+          aria-label="다음 카드까지 간격"
         />
         <span className="tabular-nums w-8">{(pauseBetweenMs / 1000).toFixed(1)}s</span>
+      </div>
+      <div className="flex items-center justify-center gap-2 text-xs text-muted flex-wrap">
+        <label htmlFor="repeat-gap" className="whitespace-nowrap">반복 간격</label>
+        <input
+          id="repeat-gap"
+          type="range"
+          min={200}
+          max={5000}
+          step={100}
+          value={repeatPauseMs}
+          onChange={(e) => setRepeatPauseMs(Number(e.target.value))}
+          className="w-24"
+          aria-label="반복 사이 간격"
+        />
+        <span className="tabular-nums w-8">{(repeatPauseMs / 1000).toFixed(1)}s</span>
         <span className="text-divider select-none">|</span>
         <label className="whitespace-nowrap">반복</label>
         <button
