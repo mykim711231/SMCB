@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import UpdateToast from './components/UpdateToast';
 
 const Home = lazy(() => import('./pages/Home'));
 const Toc = lazy(() => import('./pages/Toc'));
@@ -23,26 +24,29 @@ function LoadingFallback(): JSX.Element {
 
 export default function App(): JSX.Element {
   return (
-    <Layout>
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/toc" element={<Toc />} />
-          <Route path="/toc/:vol" element={<Toc />} />
-          <Route path="/lesson/:id" element={<Lesson />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/learn" element={<Learn />} />
-          {/* 구 경로 호환: 북마크/외부 링크 보존 */}
-          <Route path="/flashcards" element={<Navigate to="/learn?mode=flashcard" replace />} />
-          <Route path="/quiz" element={<Navigate to="/learn?mode=sentence" replace />} />
-          <Route path="/hanzi" element={<Hanzi />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/help" element={<Help />} />
-          <Route path="/appendix/:id" element={<Appendix />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </Layout>
+    <>
+      <Layout>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/toc" element={<Toc />} />
+            <Route path="/toc/:vol" element={<Toc />} />
+            <Route path="/lesson/:id" element={<Lesson />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/learn" element={<Learn />} />
+            {/* 구 경로 호환: 북마크/외부 링크 보존 */}
+            <Route path="/flashcards" element={<Navigate to="/learn?mode=flashcard" replace />} />
+            <Route path="/quiz" element={<Navigate to="/learn?mode=sentence" replace />} />
+            <Route path="/hanzi" element={<Hanzi />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/appendix/:id" element={<Appendix />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </Layout>
+      <UpdateToast />
+    </>
   );
 }
