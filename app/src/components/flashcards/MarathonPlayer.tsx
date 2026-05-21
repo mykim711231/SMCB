@@ -14,6 +14,9 @@ import {
   type CardSource, speakTextOf, cardIdOf,
 } from '@/lib/flashcard-items';
 import { cn } from '@/lib/cn';
+import { useSettings } from '@/stores/settings';
+import { alignRuby } from '@/lib/pinyinRuby';
+import HanziRuby from '@/components/HanziRuby';
 
 type Props = {
   cards: CardSource[];
@@ -38,6 +41,7 @@ export default function MarathonPlayer({
   cards, ttsRate, ttsVoiceURI, onExit,
   show = { zh: true, pinyin: true, ko: true },
 }: Props): JSX.Element {
+  const { rubyPinyin } = useSettings();
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [pauseBetweenMs, setPauseBetweenMs] = useState(1200);
@@ -190,14 +194,22 @@ export default function MarathonPlayer({
         ) : current ? (
           (() => {
             const t = cardTextsOf(current);
+            const useRuby = show.zh && show.pinyin && rubyPinyin && t.pinyin;
+            const rubyTokens = useRuby ? alignRuby(t.zh, t.pinyin) : null;
             return (
               <div key={cardIdOf(current)}>
                 <p className="text-xs text-muted">{current.lessonTitleKo} · {idx + 1}/{cards.length}</p>
-                {show.zh && (
-                  <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{t.zh}</p>
-                )}
-                {show.pinyin && t.pinyin && (
-                  <p className="text-pinyin font-pinyin text-sm mt-1">{t.pinyin}</p>
+                {rubyTokens ? (
+                  <HanziRuby tokens={rubyTokens} className="justify-center mt-1" />
+                ) : (
+                  <>
+                    {show.zh && (
+                      <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{t.zh}</p>
+                    )}
+                    {show.pinyin && t.pinyin && (
+                      <p className="text-pinyin font-pinyin text-sm mt-1">{t.pinyin}</p>
+                    )}
+                  </>
                 )}
                 {show.ko && t.ko && (
                   <p className="text-fg text-base mt-1">{t.ko}</p>
