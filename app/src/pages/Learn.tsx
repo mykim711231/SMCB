@@ -30,7 +30,7 @@ export default function Learn(): JSX.Element {
   // derived state + setter 한 곳으로 통합해 그 가능성을 차단한다.
   const [params, setParams] = useSearchParams();
   const q = params.get('mode');
-  const mode: LearnMode = isValidMode(q) ? q : 'flashcard';
+  const mode: LearnMode = isValidMode(q) ? q : 'marathon';
 
   const setMode = useCallback((v: LearnMode): void => {
     const next = new URLSearchParams(params);
