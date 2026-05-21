@@ -58,6 +58,7 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
+        clientsClaim: true,
         navigateFallback: `${base}index.html`,
         // Minimal precache: app shell only. Lesson volumes, appendices,
         // and the search index are emitted as JS chunks but EXCLUDED from
@@ -104,12 +105,13 @@ export default defineConfig({
             },
           },
           {
-            // Route-level chunks (Lesson/Search/Flashcards pages) — fetch lazily.
-            urlPattern: /\/assets\/(Lesson|Search|Flashcards|Settings|About|Toc|Appendix|search)-.*\.js$/,
+            // Route-level + shared chunks not in precache — fetch lazily, cache for offline.
+            // Exclude lessons-vol / appendices / search-index which have their own dedicated caches.
+            urlPattern: /\/assets\/(?!lessons-vol|appendices-|search-index-)[a-zA-Z]+-.*\.js$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'route-chunks',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 90 },
             },
           },
           {
