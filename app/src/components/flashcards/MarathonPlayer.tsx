@@ -8,7 +8,7 @@
  *   Learn 페이지의 '마라톤' 탭(Marathon.tsx)에서 사용한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pause, Play, SkipBack, SkipForward, Square } from 'lucide-react';
+import { Pause, Play, SkipBack, SkipForward, Square, Minus, Plus } from 'lucide-react';
 import { speak, stop as ttsStop, unlock, isSupported as ttsSupported } from '@/lib/tts';
 import {
   type CardSource, speakTextOf, cardIdOf,
@@ -41,14 +41,18 @@ export default function MarathonPlayer({
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [pauseBetweenMs, setPauseBetweenMs] = useState(1200);
+  const [repeatCount, setRepeatCount] = useState(1);
   const timerRef = useRef<number | null>(null);
   const playingRef = useRef(playing);
   const idxRef = useRef(idx);
   const cardsRef = useRef(cards);
+  const repeatRef = useRef(0); // 0-indexed, current repeat
+  const repeatCountRef = useRef(repeatCount);
 
   useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { idxRef.current = idx; }, [idx]);
   useEffect(() => { cardsRef.current = cards; }, [cards]);
+  useEffect(() => { repeatCountRef.current = repeatCount; }, [repeatCount]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current != null) {
@@ -56,6 +60,21 @@ export default function MarathonPlayer({
       timerRef.current = null;
     }
   }, []);
+
+  const advanceOrRepeat = useCallback(() => {
+    const currentRepeat = repeatRef.current + 1;
+    if (currentRepeat < repeatCountRef.current) {
+      repeatRef.current = currentRepeat;
+      timerRef.current = window.setTimeout(() => {
+        if (playingRef.current) playCurrent();
+      }, pauseBetweenMs);
+    } else {
+      repeatRef.current = 0;
+      timerRef.current = window.setTimeout(() => {
+        setIdx((v) => v + 1);
+      }, pauseBetweenMs);
+    }
+  }, [pauseBetweenMs]);
 
   const playCurrent = useCallback(() => {
     if (!playingRef.current) return;
@@ -67,7 +86,6 @@ export default function MarathonPlayer({
     }
     const text = speakTextOf(list[i]);
     if (!text) {
-      // skip
       setIdx((v) => v + 1);
       timerRef.current = window.setTimeout(() => {
         if (playingRef.current) playCurrent();
@@ -80,9 +98,7 @@ export default function MarathonPlayer({
       onEnd: () => {
         if (!playingRef.current) return;
         clearTimer();
-        timerRef.current = window.setTimeout(() => {
-          setIdx((v) => v + 1);
-        }, pauseBetweenMs);
+        advanceOrRepeat();
       },
       onError: () => {
         if (!playingRef.current) return;
@@ -90,7 +106,7 @@ export default function MarathonPlayer({
         timerRef.current = window.setTimeout(() => setIdx((v) => v + 1), 300);
       },
     });
-  }, [ttsRate, ttsVoiceURI, pauseBetweenMs, clearTimer]);
+  }, [ttsRate, ttsVoiceURI, advanceOrRepeat, clearTimer]);
 
   // when playing turns on, or idx changes while playing, kick off speak
   useEffect(() => {
@@ -121,11 +137,13 @@ export default function MarathonPlayer({
   const next = (): void => {
     ttsStop();
     clearTimer();
+    repeatRef.current = 0;
     setIdx((v) => Math.min(cards.length, v + 1));
   };
   const prev = (): void => {
     ttsStop();
     clearTimer();
+    repeatRef.current = 0;
     setIdx((v) => Math.max(0, v - 1));
   };
   const exit = (): void => {
@@ -138,12 +156,13 @@ export default function MarathonPlayer({
   const current = cards[idx];
   const done = idx >= cards.length;
   const progress = cards.length === 0 ? 0 : Math.round((idx / cards.length) * 100);
+  const repeatLabel = repeatCount > 1 ? ` (${repeatRef.current + 1}/${repeatCount}회)` : '';
 
   return (
     <div className="rounded-2xl border border-primary bg-primary-soft p-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-primary inline-flex items-center gap-2">
-          🎧 이어듣기
+          🎧 이어듣기{repeatLabel}
         </p>
         <button
           type="button"
@@ -202,20 +221,42 @@ export default function MarathonPlayer({
         </button>
       </div>
 
-      <div className="flex items-center justify-center gap-2 text-xs text-muted">
+      <div className="flex items-center justify-center gap-2 text-xs text-muted flex-wrap">
         <label htmlFor="gap" className="whitespace-nowrap">간격</label>
         <input
           id="gap"
           type="range"
           min={200}
-          max={3000}
+          max={15000}
           step={100}
           value={pauseBetweenMs}
           onChange={(e) => setPauseBetweenMs(Number(e.target.value))}
-          className="w-32"
+          className="w-24"
           aria-label="카드 사이 간격"
         />
-        <span className="tabular-nums">{(pauseBetweenMs / 1000).toFixed(1)}s</span>
+        <span className="tabular-nums w-8">{(pauseBetweenMs / 1000).toFixed(1)}s</span>
+        <span className="text-divider select-none">|</span>
+        <label className="whitespace-nowrap">반복</label>
+        <button
+          type="button"
+          onClick={() => setRepeatCount((v) => Math.max(1, v - 1))}
+          disabled={repeatCount <= 1}
+          className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-divider bg-surface disabled:opacity-30"
+          aria-label="반복 횟수 감소"
+        >
+          <Minus size={10} aria-hidden />
+        </button>
+        <span className="tabular-nums w-6 text-center font-semibold text-fg">{repeatCount}</span>
+        <button
+          type="button"
+          onClick={() => setRepeatCount((v) => Math.min(5, v + 1))}
+          disabled={repeatCount >= 5}
+          className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-divider bg-surface disabled:opacity-30"
+          aria-label="반복 횟수 증가"
+        >
+          <Plus size={10} aria-hidden />
+        </button>
+        <span className="text-muted">회</span>
       </div>
     </div>
   );
