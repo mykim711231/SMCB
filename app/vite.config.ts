@@ -57,6 +57,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        cleanupOutdatedCaches: true,
         navigateFallback: `${base}index.html`,
         // Minimal precache: app shell only. Lesson volumes, appendices,
         // and the search index are emitted as JS chunks but EXCLUDED from

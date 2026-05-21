@@ -136,29 +136,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// updateSWA(true) 호출 시 표시할 업데이트 중 상태를 위해
-// updateFn이 호출되기 직전에 'updating' phase로 전환
-// iOS에서는 postMessage로 SKIP_WAITING을 직접 보내는 것이 더 안정적이다.
+// updateSWA(true) 호출 시 'updating' phase로 전환한 후
+// vite-plugin-pwa 원본 updateSWA에 위임한다. (SKIP_WAITING + reload)
+// 별도 postMessage/controllerchange 대기는 원본과 중복되어
+// Android 검정 화면 등 경합을 유발하므로 제거.
 const origUpdate = sw.updateSWA;
 sw.updateSWA = async (reloadPage?: boolean): Promise<void> => {
   useUpdateStore.getState().setPhase('updating', 100);
-  // 대기 중인 SW에 SKIP_WAITING 메시지를 직접 전달 — iOS에서 더 신뢰성 있음
-  if ('serviceWorker' in navigator) {
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      if (reg.waiting) {
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        // SW가 활성화될 때까지 짧게 대기
-        await new Promise<void>((resolve) => {
-          const onControllerChange = (): void => {
-            navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-            resolve();
-          };
-          navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-          setTimeout(resolve, 2000); // 2초 타임아웃 — 이후 reloadPage가 처리
-        });
-      }
-    } catch { /* SW ready 실패 — 원본 updateSWA가 처리 */ }
-  }
   await origUpdate.call(sw, reloadPage);
 };
