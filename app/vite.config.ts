@@ -39,9 +39,15 @@ export default defineConfig({
       strategies: 'generateSW',
       includeAssets: ['icons/icon.svg'],
       manifest: {
+        // id/start_url/scope를 base로 고정 — 지정하지 않으면 PWA가
+        // 홈 추가 당시의 경로(#/learn 등)에서 부팅돼 해당 route 청크가
+        // 캐시되지 않은 경우 흰 화면이 날 수 있다. 항상 홈에서 시작한다.
+        id: base,
         name: '새문안교회 중국어 성경반(중급)',
         short_name: 'SMCB 中文',
         description: '새문안교회 중국어 성경반(중급) 학습 PWA',
+        start_url: base,
+        scope: base,
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#FAFAFA',
@@ -60,22 +66,18 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         navigateFallback: `${base}index.html`,
-        // Minimal precache: app shell only. Lesson volumes, appendices,
-        // and the search index are emitted as JS chunks but EXCLUDED from
-        // precache and cached lazily on first access (device storage diet).
-        globPatterns: ['**/*.{css,html,svg,webmanifest}', 'assets/index-*.js', 'assets/react-*.js', 'assets/state-*.js', 'assets/tts-*.js', 'assets/Home-*.js', 'assets/loaders-*.js', 'assets/workbox-*.js', 'assets/TTSButton-*.js', 'assets/SectionHeader-*.js', 'assets/check-*.js', 'assets/x-*.js'],
+        // App shell + 모든 route/아이콘 청크를 precache 한다.
+        //   과거에는 청크 이름을 수동 허용목록으로 나열했으나, route 페이지가
+        //   정적 import 하는 의존 청크(아이콘 등)가 누락되어 오프라인에서
+        //   lazy import가 reject → 흰 화면이 발생했다. 청크는 import 그래프
+        //   전체가 캐시돼야 로드되므로 작은 JS는 전부 precache 한다.
+        //   진짜 무거운 '데이터' 청크(레슨 본문 volumes·부록·검색 인덱스)만
+        //   globIgnores로 제외하고 runtimeCaching으로 lazy 캐시한다.
+        globPatterns: ['**/*.{css,html,svg,webmanifest}', 'assets/*.js'],
         globIgnores: [
           '**/lessons-vol*.js',
           '**/appendices*.js',
           '**/search-index*.js',
-          '**/search-*.js',
-          '**/Lesson-*.js',
-          '**/Search-*.js',
-          '**/Flashcards-*.js',
-          '**/Settings-*.js',
-          '**/About-*.js',
-          '**/Toc-*.js',
-          '**/Appendix-*.js',
           'sw.js',
           'workbox-*.js',
         ],
