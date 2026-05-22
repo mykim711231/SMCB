@@ -481,8 +481,42 @@ function navigatorOnline(): boolean {
   return navigator.onLine !== false;
 }
 
+/**
+ * SpeechSynthesis 입력 텍스트의 따옴표·콜론을 공백으로 치환한다.
+ *
+ * 동기:
+ *   iOS Safari/PWA 의 Speech Engine 은 utterance.voice 를 zh-CN 으로 명시해도
+ *   본문 「X 说："Y"」 처럼 reported-speech 마커가 있는 문장에서 시스템 기본
+ *   언어(ko-KR)로 짧은 fallback 발화를 추가하는 quirk 가 있다 — 「라고 하셨다」
+ *   가 중국어 발음 직후 들리는 증상의 원인.
+ *
+ *   따옴표·콜론을 공백으로 만들면 패턴 트리거가 사라져 fallback 이 일어나지
+ *   않는다. 자연 휴지는 쉼표(，/,)·마침표(。/.) 만으로도 충분하므로 발음
+ *   리듬에는 거의 영향이 없다.
+ *
+ *   recorded(mp3) 경로는 build-tts 시점에 음성이 이미 합성돼 있으므로 무관 —
+ *   본 함수는 SpeechSynth 호출 직전에만 적용한다.
+ *
+ *   모든 플랫폼의 device 모드에 적용해도 무해 (Edge/Chrome/Android 는 quote 를
+ *   verbalize 하지 않으므로 사니타이즈 전후 음성이 동일).
+ */
+function sanitizeForSynth(text: string): string {
+  return text
+    // ASCII / 풀와이드 / 스마트 큰따옴표·작은따옴표 모두 제거
+    .replace(/["'“”‘’„‟「」『』]/g, ' ')
+    // ASCII / 풀와이드 콜론 — reported speech 도입 마커
+    .replace(/[:：]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function speakSynth(text: string, opts: SpeakOptions, epoch: number): void {
   if (!isSupported() || !text) return;
+  // iOS Speech Engine 한국어 fallback 회피 — sanitizeForSynth 주석 참조.
+  // awaitVoices retry 경로 / emitUtterance 양쪽에서 동일한 sanitized text 가
+  // 쓰이도록 진입 직후에 한 번에 처리.
+  text = sanitizeForSynth(text);
+  if (!text) return;
   stopAudio();
   const synth = window.speechSynthesis;
   if (synth.speaking || synth.pending) {
