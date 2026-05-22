@@ -38,12 +38,32 @@ root.render(
 // ---------------------------------------------------------------------------
 
 let swProgressTimer: ReturnType<typeof setInterval> | null = null;
+let installTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+let swRegistration: ServiceWorkerRegistration | null = null;
+
+// precache(install 이벤트)가 이 시간 안에 끝나지 않으면 실패로 간주한다.
+// Workbox precache의 fetch가 끊긴 네트워크에서 무한 대기하는 경우의 안전망.
+const INSTALL_TIMEOUT_MS = 60_000;
 
 function clearSwProgress(): void {
   if (swProgressTimer) {
     clearInterval(swProgressTimer);
     swProgressTimer = null;
   }
+}
+
+function clearInstallTimeout(): void {
+  if (installTimeoutTimer) {
+    clearTimeout(installTimeoutTimer);
+    installTimeoutTimer = null;
+  }
+}
+
+/** precache 실패/타임아웃 → 진행률 정리 후 에러 UI 표시 */
+function failInstall(): void {
+  clearSwProgress();
+  clearInstallTimeout();
+  useUpdateStore.getState().setError();
 }
 
 /** installing 단계 진입 → 0%→70% 시뮬레이션 (durationMs 내에 선형 증가) */
@@ -61,6 +81,48 @@ function startInstallingProgress(durationMs = 4000): void {
   }, 100);
 }
 
+/**
+ * 설치 중인 SW를 감시한다. 진행 바가 70%에서 멈춘 채 방치되지 않도록
+ * 성공·실패·무응답을 모두 종결 처리한다.
+ *   - state 'installed' → precache 성공. 진행률 정리 (onNeedRefresh가 곧 ready 표시)
+ *   - state 'redundant' → install 이벤트(precache fetch)가 실패해 SW가 폐기됨 → 에러 UI
+ *   - 타임아웃          → fetch 무한 대기 등으로 끝내 응답 없음 → 에러 UI
+ */
+function watchInstall(worker: ServiceWorker): void {
+  startInstallingProgress();
+  clearInstallTimeout();
+  installTimeoutTimer = setTimeout(failInstall, INSTALL_TIMEOUT_MS);
+  worker.addEventListener('statechange', () => {
+    if (worker.state === 'installed') {
+      clearSwProgress();
+      clearInstallTimeout();
+    } else if (worker.state === 'redundant') {
+      failInstall();
+    }
+  });
+}
+
+/** 에러 UI의 "다시 시도" — registration.update()로 precache를 재시도한다. */
+function retryInstall(): void {
+  const reg = swRegistration;
+  if (!reg) {
+    useUpdateStore.getState().dismiss();
+    return;
+  }
+  startInstallingProgress();
+  reg.update()
+    .then(() => {
+      if (reg.installing) {
+        watchInstall(reg.installing);
+      } else {
+        // 새로 받을 게 없음 — 이전 실패가 일시적이었던 것으로 보고 토스트를 닫는다.
+        clearSwProgress();
+        useUpdateStore.getState().dismiss();
+      }
+    })
+    .catch(failInstall);
+}
+
 // ---------------------------------------------------------------------------
 // Service Worker 등록 — 진행률 표시 + 사용자 확인 후 업데이트 (§10.2)
 //
@@ -74,41 +136,29 @@ type SwHandle = ((reloadPage?: boolean) => Promise<void>) & { updateSWA: (reload
 const _raw = registerSW({
   onRegisteredSW(_swUrl: string, r?: ServiceWorkerRegistration) {
     if (!r) return;
+    swRegistration = r;
+
     // 이미 대기 중인 SW가 있다면 바로 ready 표시
     if (r.waiting) {
       useUpdateStore.getState().setUpdateFn(() => sw.updateSWA(true));
       return;
     }
 
-    // 새로 설치된 SW가 있다면 진행률 시작
+    // 새로 설치 중인 SW가 있다면 감시 시작 (성공/실패/타임아웃 종결)
     if (r.installing) {
-      startInstallingProgress();
-      r.installing.addEventListener('statechange', () => {
-        const ir = r.installing;
-        if (!ir) return;
-        if (ir.state === 'installed') {
-          clearSwProgress();
-          // onNeedRefresh가 곧 호출됨 → setUpdateFn으로 토스트 표시
-        }
-      });
+      watchInstall(r.installing);
       return;
     }
 
     // 첫 등록: 수동으로 업데이트 체크 (vite-plugin-pwa 기본 interval 보조)
-    r.update().then((newReg) => {
-      if (newReg?.installing) {
-        startInstallingProgress();
-        newReg.installing.addEventListener('statechange', () => {
-          const ni = newReg.installing;
-          if (!ni) return;
-          if (ni.state === 'installed') clearSwProgress();
-        });
-      }
+    r.update().then(() => {
+      if (r.installing) watchInstall(r.installing);
     }).catch(() => { /* 네트워크 없음 — 무시 */ });
   },
 
   onNeedRefresh() {
     clearSwProgress();
+    clearInstallTimeout();
     useUpdateStore.getState().setUpdateFn(() => sw.updateSWA(true));
   },
 
@@ -118,6 +168,9 @@ const _raw = registerSW({
 });
 
 const sw = _raw as SwHandle;
+
+// 에러 UI의 "다시 시도" 버튼이 호출할 함수 등록
+useUpdateStore.getState().setRetryFn(retryInstall);
 
 // SW 교체 완료 시 진행률 UI 정리
 if ('serviceWorker' in navigator) {
