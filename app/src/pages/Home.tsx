@@ -25,6 +25,11 @@ function isIOSDevice(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
+function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
 function isStandaloneMode(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia('(display-mode: standalone)').matches) return true;
@@ -99,36 +104,64 @@ async function copyToClipboard(text: string): Promise<'copied' | 'failed'> {
 type InAppKind = 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram';
 
 /**
- * 인앱 브라우저별 "외부 브라우저로 열기" URL 스킴.
- *   - kakao: iOS/Android 모두 동작. iOS 카카오톡의 ?openExternalBrowser=1 미지원을
- *            우회하는 공식 스킴(아이닉 등 다수 서비스가 사용).
- *   - naver: 네이버앱 인앱 브라우저 → 기본 브라우저로 전환.
- *   - line:  LINE 인앱 → 기본 브라우저. LINE iOS 도 ?openExternalBrowser=1 미지원.
- *   - facebook / instagram: 신뢰 가능한 스킴 없음 — 복사 폴백만 노출.
+ * 인앱 브라우저에서 외부 브라우저로 빠져나가는 URL.
+ *
+ * ▣ iOS — 앱별 전용 스킴이 유일한 방법
+ *   - kakao: kakaotalk://web/openExternal?url=… (iOS 카카오톡의 ?openExternalBrowser=1 미지원 우회)
+ *   - naver: naversearchapp://inappbrowser?url=…&target=external
+ *   - line:  line://msg/openExternal/url?url=…
+ *   - facebook / instagram: 신뢰 가능한 스킴 없음 → null (복사 폴백만 노출)
+ *
+ * ▣ Android — Chrome Intent URI 가 거의 모든 WebView 에서 동작
+ *   - 형식: intent://[host+path]#Intent;scheme=https;package=com.android.chrome;…end
+ *   - browser_fallback_url 로 Chrome 미설치 시 폴백
+ *   - 단, Kakao 는 자체 스킴이 더 안정적 (Intent 가 일부 기기에서 차단되는 사례 보고)
+ *   - 안드로이드 카카오톡은 ?openExternalBrowser=1 로 이미 자동 분기되지만,
+ *     인앱 안에서 페이지 이동·재방문 시 쿼리가 사라진 경우를 대비해 버튼도 제공.
  */
-function externalOpenUrl(kind: InAppKind, url: string): string | null {
+function externalOpenUrl(
+  kind: InAppKind,
+  url: string,
+  device: { ios: boolean; android: boolean },
+): string | null {
   const encoded = encodeURIComponent(url);
-  switch (kind) {
-    case 'kakao':
-      return `kakaotalk://web/openExternal?url=${encoded}`;
-    case 'naver':
-      return `naversearchapp://inappbrowser?url=${encoded}&target=external&version=6`;
-    case 'line':
-      return `line://msg/openExternal/url?url=${encoded}`;
-    default:
-      return null;
+
+  if (device.ios) {
+    switch (kind) {
+      case 'kakao':
+        return `kakaotalk://web/openExternal?url=${encoded}`;
+      case 'naver':
+        return `naversearchapp://inappbrowser?url=${encoded}&target=external&version=6`;
+      case 'line':
+        return `line://msg/openExternal/url?url=${encoded}`;
+      default:
+        return null;
+    }
   }
+
+  if (device.android) {
+    if (kind === 'kakao') {
+      return `kakaotalk://web/openExternal?url=${encoded}`;
+    }
+    // Chrome 강제 실행 Intent — naver/line/facebook/instagram 모두 동작.
+    // [scheme]://[host+path] 부분만 남기고 #Intent;…;end 로 패키지 지정.
+    const hostPath = url.replace(/^https?:\/\//, '');
+    return `intent://${hostPath}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encoded};end`;
+  }
+
+  return null;
 }
 
 function InAppBrowserBanner({ kind, label }: { kind: InAppKind; label: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const ios = isIOSDevice();
+  const android = isAndroidDevice();
   // 'Safari'는 받침 없음 → 를/로, 'Chrome'은 마지막 음 [m] 받침 → 을/으로
   const browserName = ios ? 'Safari' : 'Chrome';
   const objectParticle = ios ? '를' : '을';   // …을/를 열기
   const directionParticle = ios ? '로' : '으로'; // …(으)로 열기
 
-  const externalUrl = externalOpenUrl(kind, INVITE_URL);
+  const externalUrl = externalOpenUrl(kind, INVITE_URL, { ios, android });
 
   const copyUrl = async (): Promise<void> => {
     // 주소창에 그대로 붙여넣을 수 있도록 클립보드에는 깨끗한 URL 만 넣는다.
