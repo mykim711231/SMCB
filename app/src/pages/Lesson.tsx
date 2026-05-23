@@ -42,7 +42,7 @@ export default function LessonPage(): JSX.Element {
           window.scrollTo({ top: 0, behavior: 'auto' });
         }
       })
-      .catch(() => alive && setError('콘텐츠를 불러오지 못했습니다.'));
+      .catch(() => alive && setError('오프라인 상태입니다. Wi-Fi 또는 데이터 연결 후 다시 열어주세요.'));
     return () => {
       alive = false;
     };
