@@ -80,19 +80,12 @@ export default defineConfig({
         ],
       },
       injectManifest: {
-        // App shell + route 청크 + 모든 레슨 데이터를 precache 한다.
-        //   과거에는 청크 이름을 수동 허용목록으로 나열했으나, route 페이지가
-        //   정적 import 하는 의존 청크(아이콘 등)가 누락되어 오프라인에서
-        //   lazy import가 reject → 흰 화면이 발생했다. 청크는 import 그래프
-        //   전체가 캐시돼야 로드되므로 작은 JS·레슨 본문은 전부 precache 한다.
-        //   부록·검색 인덱스만 globIgnores로 제외하고 sw.ts 의 registerRoute 로
-        //   lazy 캐시한다.
+        // App shell + route 청크 + 레슨 데이터 + 검색 인덱스를 precache 한다.
         globPatterns: ['**/*.{css,html,svg,webmanifest}', 'assets/*.js'],
         globIgnores: [
-          // 레슨 본문(lessons-vol*.js)은 오프라인에서 모든 과를 즉시
-          // 사용할 수 있도록 precache 에 포함한다 (≈452KB 추가).
+          // 레슨 본문·검색 인덱스는 오프라인에서 즉시 사용할 수 있도록
+          // precache 에 포함한다 (레슨 3권 ≈452KB + 검색 ≈884KB).
           '**/appendices*.js',
-          '**/search-index*.js',
           'sw.js',
           'workbox-*.js',
         ],
