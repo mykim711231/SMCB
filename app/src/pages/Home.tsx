@@ -8,17 +8,8 @@ import OnboardingCard from '@/components/OnboardingCard';
 import DeviceVoiceMissingBanner from '@/components/DeviceVoiceMissingBanner';
 import RecordedAudioMissingBanner from '@/components/RecordedAudioMissingBanner';
 import InviteQrModal from '@/components/InviteQrModal';
-
-function isInAppBrowser(): { kind: 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram' | null; label: string | null } {
-  if (typeof navigator === 'undefined') return { kind: null, label: null };
-  const ua = navigator.userAgent;
-  if (/KAKAOTALK/i.test(ua)) return { kind: 'kakao', label: '카카오톡' };
-  if (/NAVER\(inapp/i.test(ua)) return { kind: 'naver', label: '네이버 앱' };
-  if (/Line\//i.test(ua)) return { kind: 'line', label: 'LINE' };
-  if (/FBAN|FBAV/i.test(ua)) return { kind: 'facebook', label: 'Facebook' };
-  if (/Instagram/i.test(ua)) return { kind: 'instagram', label: 'Instagram' };
-  return { kind: null, label: null };
-}
+import { isInAppBrowser } from '@/lib/inapp';
+import type { InAppKind } from '@/lib/inapp';
 
 function isIOSDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -101,8 +92,6 @@ async function copyToClipboard(text: string): Promise<'copied' | 'failed'> {
   return 'failed';
 }
 
-type InAppKind = 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram';
-
 /**
  * 인앱 브라우저에서 외부 브라우저로 빠져나가는 URL.
  *
@@ -132,8 +121,6 @@ function externalOpenUrl(
         return `kakaotalk://web/openExternal?url=${encoded}`;
       case 'naver':
         return `naversearchapp://inappbrowser?url=${encoded}&target=external&version=6`;
-      case 'line':
-        return `line://msg/openExternal/url?url=${encoded}`;
       default:
         return null;
     }
@@ -191,7 +178,7 @@ function InAppBrowserBanner({ kind, label }: { kind: InAppKind; label: string })
         이 화면에서는 <b>음성 재생·앱 설치·오프라인 사용</b>이 동작하지 않습니다.
       </p>
 
-      {/* 외부 브라우저로 한 번에 빠져나가는 빠른 경로 — 카톡/네이버/라인에서만 노출.
+      {/* 외부 브라우저로 한 번에 빠져나가는 빠른 경로 — 카톡/네이버에서만 노출.
           페이스북·인스타그램은 신뢰 가능한 스킴이 없어 아래 복사 흐름으로 폴백. */}
       {externalUrl && (
         <div className="mt-3">

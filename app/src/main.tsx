@@ -36,25 +36,21 @@ root.render(
 );
 
 // ---------------------------------------------------------------------------
-// SW 진행률
+// SW 진행률 — B 방식 (다음 실행 시 자동 적용)
+//
+//   원칙: 사용자가 앱을 사용하는 도중에는 절대 방해하지 않는다.
+//   새 SW 가 발견되면 백그라운드에서 precache 만 수행하고 waiting 상태로
+//   대기한다. 사용자가 앱을 완전히 종료 후 다시 열면 새 SW 가 활성화된다.
+//
 //   injectManifest 모드의 sw.ts 가 precache fetch 한 건마다
 //   { type:'sw-precache-progress', phase, pct } 를 postMessage 한다.
-//   여기서는 메시지를 받아 useUpdateStore 의 phase/pct 를 갱신하기만 한다.
-//   (generateSW 시절의 0→70% 임의 시뮬레이션은 제거.)
+//   첫 설치 시에만 진행 바를 보여주고, 업데이트는 조용히 넘어간다.
 // ---------------------------------------------------------------------------
 
 let installTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let swRegistration: ServiceWorkerRegistration | null = null;
 
-// reload 중복 방지 — controllerchange + SW_ACTIVATED 이중 신호 안전망.
-let isReloading = false;
-
-// visibilitychange 핸들러가 업데이트 진행 중 불필요한 update() 호출을
-// 하지 않도록 하는 가드. updateSWA 진입 시 true, reload 되면 자연 소멸.
-let updateInProgress = false;
-
 // precache 가 이 시간 안에 끝나지 않으면 실패로 간주한다.
-// fetch 가 끊긴 네트워크에서 무한 대기하는 경우의 안전망.
 const INSTALL_TIMEOUT_MS = 60_000;
 
 function clearInstallTimeout(): void {
@@ -78,10 +74,8 @@ type SwProgressMsg = {
   total: number;
 };
 
-/** 설치 중인 SW 를 감시. 타임아웃/redundant 안전망만 담당하고,
- *  진행 표시는 SW 의 postMessage 가 전담한다. */
+/** 설치 중인 SW 를 감시. 타임아웃/redundant 안전망. */
 function watchInstall(worker: ServiceWorker): void {
-  // 진행 표시 초기화 — 첫 메시지 도착 전 토스트가 즉시 보이도록.
   useUpdateStore.getState().setPhase('downloading', 0);
   clearInstallTimeout();
   installTimeoutTimer = setTimeout(failInstall, INSTALL_TIMEOUT_MS);
@@ -92,29 +86,6 @@ function watchInstall(worker: ServiceWorker): void {
       failInstall();
     }
   });
-}
-
-/**
- * waiting SW 의 VERSION_CACHE 에서 빌드 해시를 읽어, 페이지의 BUILD_HASH 와
- * 비교한다. 동일하면 iOS WebKit 중복 waiting worker 로 간주하고 update 프롬프트를
- * 표시하지 않는다. 다르면 정상적인 업데이트이므로 setUpdateFn 으로 "ready" 표시.
- */
-async function checkThenSetUpdateFn(waiting: ServiceWorker): Promise<void> {
-  try {
-    // waiting SW 의 버전 캐시를 읽어 해시 비교.
-    // install 이 완료된 상태이므로 VERSION_CACHE 에 hash 가 저장돼 있다.
-    const cache = await caches.open('app-version');
-    const cached = await cache.match('hash');
-    const swHash = cached ? await cached.text() : null;
-    if (swHash === BUILD_HASH) {
-      // 동일 버전 → phantom worker. dismiss 하여 토스트를 닫는다.
-      useUpdateStore.getState().dismiss();
-      return;
-    }
-  } catch { /* 캐시 읽기 실패 — 아래 정상 흐름으로 진행 */ }
-
-  // 진짜 새 버전
-  useUpdateStore.getState().setUpdateFn(() => sw.updateSWA(true));
 }
 
 /** 에러 UI 의 "다시 시도" — registration.update() 로 precache 재시도. */
@@ -130,7 +101,6 @@ function retryInstall(): void {
       if (reg.installing) {
         watchInstall(reg.installing);
       } else {
-        // 새로 받을 게 없음 — 이전 실패가 일시적이었던 것으로 보고 토스트를 닫는다.
         useUpdateStore.getState().dismiss();
       }
     })
@@ -138,54 +108,46 @@ function retryInstall(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Service Worker 등록 — 진행률 표시 + 사용자 확인 후 업데이트 (§10.2)
+// Service Worker 등록 — B 방식 (silent update on next launch)
 //
-// immediate:true 시 skipWaiting 후 즉시 reload → precache 미완료 상태에서
-// 페이지가 새로고침되어 흰 화면(white screen)이 발생할 수 있다.
-// 대신 onNeedRefresh 로 사용자 확인을 거친 후 업데이트한다.
+//   - 첫 설치: precache 진행률 표시 (downloading → installing → 자동 닫힘)
+//   - 업데이트 감지: 아무것도 하지 않음. 새 SW 는 waiting 상태로 대기.
+//     사용자가 앱을 종료 후 다시 열면 자연스럽게 활성화된다.
+//   - iOS phantom worker (WebKit #75981032): sw.ts 의 isSameVersion 이
+//     precache 를 건너뛰므로 낭비되는 다운로드가 없다.
 // ---------------------------------------------------------------------------
 
-type SwHandle = ((reloadPage?: boolean) => Promise<void>) & { updateSWA: (reloadPage?: boolean) => Promise<void> };
-
-const _raw = registerSW({
+registerSW({
   onRegisteredSW(_swUrl: string, r?: ServiceWorkerRegistration) {
     if (!r) return;
     swRegistration = r;
 
-    // 이미 대기 중인 SW 가 있다면 — iOS 중복 waiting worker 인지 확인
-    if (r.waiting) {
-      void checkThenSetUpdateFn(r.waiting);
-      return;
-    }
+    // 이미 대기 중인 SW — 다음 실행 시 자연스럽게 적용된다 (B 방식).
+    if (r.waiting) return;
 
-    // 새로 설치 중인 SW 가 있다면 감시 시작 (타임아웃/redundant 처리)
+    // 새로 설치 중인 SW — precache 진행률 감시
     if (r.installing) {
       watchInstall(r.installing);
       return;
     }
 
-    // 첫 등록: 수동으로 업데이트 체크 (vite-plugin-pwa 기본 interval 보조)
+    // 첫 등록: 수동으로 업데이트 체크
     r.update().then(() => {
       if (r.installing) watchInstall(r.installing);
     }).catch(() => { /* 네트워크 없음 — 무시 */ });
   },
 
   onNeedRefresh() {
+    // B 방식: 새 SW 가 waiting 상태로 들어왔지만 사용자에게 알리지 않는다.
+    // 다음에 앱을 다시 열면 자연스럽게 활성화된다.
     clearInstallTimeout();
-    // waiting SW 의 버전을 확인한 후에만 ready 표시 — iOS phantom 대응
-    if (swRegistration?.waiting) {
-      void checkThenSetUpdateFn(swRegistration.waiting);
-    } else {
-      useUpdateStore.getState().setUpdateFn(() => sw.updateSWA(true));
-    }
+    useUpdateStore.getState().dismiss();
   },
 
   onOfflineReady() {
     // 네트워크 없어도 앱 동작 가능 — 사용자에게 별도 안내 불필요.
   },
 });
-
-const sw = _raw as SwHandle;
 
 // 에러 UI 의 "다시 시도" 버튼이 호출할 함수 등록
 useUpdateStore.getState().setRetryFn(retryInstall);
@@ -196,16 +158,7 @@ if ('serviceWorker' in navigator) {
     const data = event.data as { type?: string; phase?: string; pct?: number; completed?: number; total?: number } | null;
     if (!data) return;
 
-    // SW activate 완료 후 clients.claim() 완료 → reload
-    // PWA standalone 에서 controllerchange 미발생 대응.
-    if (data.type === 'SW_ACTIVATED') {
-      if (isReloading) return;
-      isReloading = true;
-      forceReload();
-      return;
-    }
-
-    // precache 진행률
+    // precache 진행률만 처리. SW_ACTIVATED 등 다른 메시지는 무시 (B 방식).
     if (data.type !== 'sw-precache-progress') return;
     const msg = data as SwProgressMsg;
 
@@ -214,108 +167,23 @@ if ('serviceWorker' in navigator) {
       return;
     }
 
-    // installed 단계는 onNeedRefresh / onOfflineReady 가 후속 처리.
-    // 여기서는 진행 바를 100% 까지 채워두기만 한다.
-    const phase = msg.phase === 'installed' ? 'installing' : msg.phase;
-    useUpdateStore.getState().setPhase(phase, msg.pct);
-  });
+    if (msg.phase === 'installed') {
+      // 설치 완료 → 100% 표시 후 2초 뒤 자동으로 토스트를 닫는다.
+      useUpdateStore.getState().setPhase('installing', 100);
+      setTimeout(() => useUpdateStore.getState().dismiss(), 2000);
+      return;
+    }
 
-  // SW 교체 완료 시 진행률 UI 정리
-  // { once: true } — 중복 reload 방지
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    useUpdateStore.getState().dismiss();
-  }, { once: true });
+    // downloading / installing 진행률
+    useUpdateStore.getState().setPhase(msg.phase, msg.pct);
+  });
 
   // iOS standalone PWA 에서 SW 가 종료되지 않고 살아있는 문제 대응:
   // 사용자가 앱으로 돌아올 때마다 등록을 갱신하여 대기 중인 SW 를 발견한다.
-  // 단, 업데이트 진행 중이면 중복 update() 호출을 건너뛴다.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
-    if (updateInProgress) return;
     navigator.serviceWorker.ready.then((reg) => {
       reg.update().catch(() => { /* 네트워크 없음 */ });
     });
   });
 }
-
-// updateSWA(true) — 직접 SKIP_WAITING + SW_ACTIVATED 또는 타임아웃으로 reload.
-//
-// PWA standalone(iOS·Android)에서 controllerchange 가 발생하지 않는 문제를
-// sw.ts 의 activate → clients.claim() → SW_ACTIVATED postMessage 패턴으로 해결.
-// controllerchange 는 보조 신호로만 사용하고, 주 신호는 SW_ACTIVATED 메시지.
-// 양쪽 모두 안 오는 최악의 경우를 위해 5초 하드 타임아웃을 최종 안전망으로 둔다.
-const UPDATE_HARD_RELOAD_MS = 5_000;
-const origUpdate = sw.updateSWA;
-
-function forceReload(): void {
-  if (isReloading) return;
-  isReloading = true;
-  // replace 가 일부 환경(SW 가 redirect 가로채기 등)에서 막히면 reload 로 폴백
-  try {
-    window.location.replace(window.location.href);
-  } catch {
-    window.location.reload();
-  }
-}
-
-sw.updateSWA = async (_reloadPage?: boolean): Promise<void> => {
-  updateInProgress = true;
-
-  // 0. iOS 중복 waiting worker 방지 — VERSION_CACHE 에서 waiting SW 의
-  //    빌드 해시를 읽어 페이지의 BUILD_HASH 와 비교. 동일하면 phantom.
-  try {
-    if (swRegistration?.waiting) {
-      const cache = await caches.open('app-version');
-      const cached = await cache.match('hash');
-      const swHash = cached ? await cached.text() : null;
-      if (swHash === BUILD_HASH) {
-        useUpdateStore.getState().dismiss();
-        updateInProgress = false;
-        return;
-      }
-    }
-  } catch { /* 캐시 읽기 실패 — 정상 흐름으로 진행 */ }
-
-  useUpdateStore.getState().setPhase('updating', 100);
-
-  // 1. waiting SW 에 직접 SKIP_WAITING. swRegistration.waiting 이 비어있어도
-  //    onRegisteredSW/onNeedRefresh 시점의 registration 을 보유하므로 OK.
-  try {
-    swRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-  } catch { /* postMessage 실패 무시 — origUpdate 가 다시 시도 */ }
-
-  // 2. vite-pwa 의 updateSWA 도 보조로 호출. reloadPage=false 로 두어
-  //    중복 reload 경합을 피한다(reload 는 우리가 담당).
-  try {
-    void (origUpdate as ((r?: boolean) => Promise<void>) | undefined)
-      ?.call(sw, false)
-      ?.catch(() => undefined);
-  } catch { /* ignore */ }
-
-  // 3. SW_ACTIVATED(activate→claim 완료 후 SW가 보내는 메시지),
-  //    controllerchange(브라우저 기본), 또는 5초 타임아웃 —
-  //    셋 중 먼저인 신호로 reload. SW_ACTIVATED 가 가장 신뢰도 높다.
-  await new Promise<void>((resolve) => {
-    let done = false;
-    const finish = (): void => {
-      if (done) return;
-      done = true;
-      resolve();
-    };
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
-      navigator.serviceWorker.addEventListener('message', function onMsg(event: MessageEvent) {
-        if (event.data?.type === 'SW_ACTIVATED') {
-          navigator.serviceWorker.removeEventListener('message', onMsg);
-          finish();
-        }
-      });
-    }
-    window.setTimeout(finish, UPDATE_HARD_RELOAD_MS);
-  });
-
-  forceReload();
-};
-
-// 사용자 탭 강제 reload (UpdateToast 의 'updating' 클릭이 호출)
-useUpdateStore.getState().setForceReloadFn(forceReload);
