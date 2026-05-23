@@ -26,6 +26,7 @@ export default function UpdateToast(): JSX.Element | null {
   const ui = useUpdateStore((s) => s.ui);
   const updateSWA = useUpdateStore((s) => s.updateSWA);
   const retrySW = useUpdateStore((s) => s.retrySW);
+  const forceReload = useUpdateStore((s) => s.forceReload);
   const dismiss = useUpdateStore((s) => s.dismiss);
 
   if (ui.phase === 'idle') return null;
@@ -34,6 +35,7 @@ export default function UpdateToast(): JSX.Element | null {
   const isInProgress = ui.phase === 'downloading' || ui.phase === 'installing';
   const isReady = ui.phase === 'ready';
   const isError = ui.phase === 'error';
+  const isUpdating = ui.phase === 'updating';
 
   return (
     <div
@@ -46,7 +48,7 @@ export default function UpdateToast(): JSX.Element | null {
           pointer-events-auto rounded-2xl bg-surface shadow-lg border
           px-4 py-3 max-w-sm min-w-[200px]
           ${isError ? 'border-accent' : 'border-primary'}
-          ${isReady || isError ? 'space-y-3' : 'space-y-2'}
+          ${isReady || isError || isUpdating ? 'space-y-3' : 'space-y-2'}
         `}
       >
         {/* 헤더 행: 아이콘 + 레이블 + % */}
@@ -64,6 +66,20 @@ export default function UpdateToast(): JSX.Element | null {
         {/* 진행 바 (downloading / installing / updating 단계) */}
         {ui.pct > 0 && ui.pct < 100 && (
           <ProgressBar pct={ui.pct} />
+        )}
+
+        {/* updating: 일부 환경(iOS standalone PWA / Windows 등)에서 새 SW 활성화
+           신호(controllerchange)가 안 와 무한 대기 사례 보고. 3초 하드
+           타임아웃 안에 자동 reload 가 일어나지만, 그래도 막혀있으면
+           사용자가 직접 탭하여 즉시 새로고침할 수 있게 한다. */}
+        {isUpdating && (
+          <button
+            type="button"
+            onClick={() => forceReload?.()}
+            className="text-xs text-muted underline underline-offset-2 w-full text-center py-0.5"
+          >
+            오래 걸리면 탭하여 새로고침
+          </button>
         )}
 
         {/* ready: 업데이트 버튼 */}

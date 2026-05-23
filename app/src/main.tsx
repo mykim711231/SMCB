@@ -184,19 +184,62 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// updateSWA(true) 호출 시 'updating' phase 로 전환한 후
-// vite-plugin-pwa 원본 updateSWA 에 위임한다. (SKIP_WAITING + reload)
-// 별도 postMessage/controllerchange 대기는 원본과 중복되어
-// Android 검정 화면 등 경합을 유발하므로 제거.
+// updateSWA(true) — 직접 SKIP_WAITING + 3초 하드 타임아웃으로 강제 reload.
 //
-// iOS standalone PWA 에서 새 SW 가 활성화돼도 controllerchange 가
-// 발생하지 않아 'updating' 토스트가 무한 대기하는 사례가 확인됐다.
-// 10초 안에 reload 가 일어나지 않으면 안전망으로 강제 reload 한다.
-// 정상 흐름에서 reload 되면 이 타이머는 페이지 새로고침과 함께 폐기.
-const UPDATE_FALLBACK_RELOAD_MS = 10_000;
+// 이전엔 vite-pwa 의 updateSWA(true) 가 controllerchange 를 기다린 후 reload 했는데,
+// iOS standalone PWA / Windows 데스크톱 등 일부 환경에서 controllerchange 가
+// 안 와 멈추는 사례 다수 보고. 10초 fallback 도 어떤 환경에선 동작하지 않아
+// 더 적극적인 흐름으로 교체:
+//   1. waiting SW 에 직접 SKIP_WAITING postMessage (vite-pwa 와 독립)
+//   2. controllerchange OR 3초 타임아웃 — 둘 중 먼저인 신호로 reload
+//   3. vite-pwa updateSWA(false) 도 백그라운드 호출 (혹시 모를 추가 처리)
+//   4. reload 는 location.reload 대신 location.replace 사용 — beforeunload
+//      등에 가로채일 가능성이 더 낮다.
+const UPDATE_HARD_RELOAD_MS = 3_000;
 const origUpdate = sw.updateSWA;
-sw.updateSWA = async (reloadPage?: boolean): Promise<void> => {
+
+function forceReload(): void {
+  // replace 가 일부 환경(SW 가 redirect 가로채기 등)에서 막히면 reload 로 폴백
+  try {
+    window.location.replace(window.location.href);
+  } catch {
+    window.location.reload();
+  }
+}
+
+sw.updateSWA = async (_reloadPage?: boolean): Promise<void> => {
   useUpdateStore.getState().setPhase('updating', 100);
-  window.setTimeout(() => window.location.reload(), UPDATE_FALLBACK_RELOAD_MS);
-  await origUpdate.call(sw, reloadPage);
+
+  // 1. waiting SW 에 직접 SKIP_WAITING. swRegistration.waiting 이 비어있어도
+  //    onRegisteredSW/onNeedRefresh 시점의 registration 을 보유하므로 OK.
+  try {
+    swRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+  } catch { /* postMessage 실패 무시 — origUpdate 가 다시 시도 */ }
+
+  // 2. vite-pwa 의 updateSWA 도 보조로 호출. reloadPage=false 로 두어
+  //    중복 reload 경합을 피한다(reload 는 우리가 담당).
+  try {
+    void (origUpdate as ((r?: boolean) => Promise<void>) | undefined)
+      ?.call(sw, false)
+      ?.catch(() => undefined);
+  } catch { /* ignore */ }
+
+  // 3. controllerchange 또는 하드 타임아웃 — 먼저인 신호로 reload
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
+    }
+    window.setTimeout(finish, UPDATE_HARD_RELOAD_MS);
+  });
+
+  forceReload();
 };
+
+// 사용자 탭 강제 reload (UpdateToast 의 'updating' 클릭이 호출)
+useUpdateStore.getState().setForceReloadFn(forceReload);
