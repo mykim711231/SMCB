@@ -27,6 +27,9 @@ declare const self: ServiceWorkerGlobalScope & {
 };
 // vite define 에서 주입.
 declare const __TTS_CACHE_MAX_ENTRIES__: number;
+declare const __BUILD_HASH__: string;
+
+const BUILD_HASH = __BUILD_HASH__ ?? 'dev';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 캐시 이름
@@ -42,7 +45,8 @@ const RUNTIME_CACHE_NAMES = [
   'route-chunks',
   'tts-audio',
 ];
-const KEEP_CACHES = new Set<string>([PRECACHE, ...RUNTIME_CACHE_NAMES]);
+const VERSION_CACHE = 'app-version';
+const KEEP_CACHES = new Set<string>([PRECACHE, VERSION_CACHE, ...RUNTIME_CACHE_NAMES]);
 
 // ────────────────────────────────────────────────────────────────────────────
 // Precache 매니페스트 정규화
@@ -115,9 +119,33 @@ async function postProgress(
 
 const FETCH_CONCURRENCY = 4;
 
+// iOS standalone PWA에서 byte-for-byte 동일한 SW가 waiting으로 재진입하는
+// WebKit 결함 대응(#75981032). 빌드 해시가 이전과 같으면 skipWaiting을
+// 하지 않아 페이지가 "새 버전"으로 인식하지 않게 한다.
+let isSameVersion = false;
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(precacheAll());
+  event.waitUntil(installPhase());
 });
+
+async function installPhase(): Promise<void> {
+  const cache = await caches.open(VERSION_CACHE);
+  const prev = await cache.match('hash');
+  const prevHash = prev ? await prev.text() : null;
+  if (prevHash === BUILD_HASH) {
+    isSameVersion = true;
+  }
+  await cache.put('hash', new Response(BUILD_HASH));
+
+  if (!isSameVersion) {
+    await precacheAll();
+  } else {
+    // 동일 버전 → precache 도 생략하고 installed 메시지만 전송.
+    // 페이지는 onNeedRefresh 로 알림을 받지만, SKIP_WAITING 메시지를
+    // 무시하므로 업데이트 루프에 빠지지 않는다.
+    await postProgress('installed', 0, 0);
+  }
+}
 
 async function precacheAll(): Promise<void> {
   const entries = Array.from(PRECACHE_MAP.entries()); // [absPath, cacheKey][]
@@ -207,6 +235,13 @@ async function activate(): Promise<void> {
 
   // 3. 첫 install 시 즉시 페이지 제어 (generateSW 시절 clientsClaim:true 동등)
   await self.clients.claim();
+
+  // 4. 활성화 완료 알림 → 페이지가 controllerchange 미발생 환경에서도
+  //    안전하게 reload 가능 (P0 타이밍 문제 해결).
+  const clients = await self.clients.matchAll({ type: 'window' });
+  for (const client of clients) {
+    client.postMessage({ type: 'SW_ACTIVATED' });
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -215,8 +250,23 @@ async function activate(): Promise<void> {
 
 self.addEventListener('message', (event) => {
   const data = event.data as { type?: string } | null | undefined;
-  if (data && data.type === 'SKIP_WAITING') {
+  if (!data) return;
+  if (data.type === 'SKIP_WAITING') {
+    // iOS 중복 waiting worker: 동일 버전이면 skipWaiting 거부
+    if (isSameVersion) return;
     void self.skipWaiting();
+  }
+  if (data.type === 'GET_VERSION') {
+    // 페이지가 waiting SW 의 빌드 해시를 확인할 때 사용
+    const port = (event as ExtendableMessageEvent).ports?.[0];
+    if (port) {
+      port.postMessage({ type: 'VERSION_RESPONSE', hash: BUILD_HASH });
+    } else if (event.source && 'postMessage' in event.source) {
+      (event.source as WindowClient).postMessage({
+        type: 'VERSION_RESPONSE',
+        hash: BUILD_HASH,
+      });
+    }
   }
 });
 

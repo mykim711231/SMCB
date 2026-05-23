@@ -3,8 +3,15 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { resolve } from 'path';
 import { readFileSync } from 'fs';
+import { execSync } from 'child_process';
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')) as { version: string };
+const GIT_HASH = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  } catch { return Date.now().toString(36); }
+})();
+const BUILD_HASH = `${pkg.version}-${GIT_HASH}`;
 
 // 사전녹음 zh-tts mp3 캐시 용량(maxEntries) 계산.
 //   maxEntries보다 캐시에 들어온 항목이 많아지면 LRU로 오래된 항목부터 evict된다.
@@ -30,6 +37,8 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
     // sw.ts 가 사용. vite-plugin-pwa 의 injectManifest 빌드에도 적용된다.
     __TTS_CACHE_MAX_ENTRIES__: JSON.stringify(TTS_CACHE_MAX_ENTRIES),
+    // iOS PWA 중복 waiting worker 무한 루프 방지용 빌드 식별자 (§10.3)
+    __BUILD_HASH__: JSON.stringify(BUILD_HASH),
   },
   resolve: {
     alias: { '@': resolve(__dirname, 'src') },
