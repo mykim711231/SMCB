@@ -2,6 +2,7 @@
   "name": "smcb-chinese-pwa",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
   "type": "module",
   "description": "Saemunan Church Mandarin Bible Class PWA",
   "scripts": {
