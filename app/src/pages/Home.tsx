@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2, Copy, Check, QrCode } from 'lucide-react';
+import { BookOpen, Search, HelpCircle, ArrowRight, AlertTriangle, Type, GraduationCap, Share2, Copy, Check, QrCode, ExternalLink } from 'lucide-react';
 import { META } from '@/data/loaders';
 import { useProgress, progressPercent } from '@/stores/progress';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -96,13 +96,39 @@ async function copyToClipboard(text: string): Promise<'copied' | 'failed'> {
   return 'failed';
 }
 
-function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
+type InAppKind = 'kakao' | 'naver' | 'line' | 'facebook' | 'instagram';
+
+/**
+ * 인앱 브라우저별 "외부 브라우저로 열기" URL 스킴.
+ *   - kakao: iOS/Android 모두 동작. iOS 카카오톡의 ?openExternalBrowser=1 미지원을
+ *            우회하는 공식 스킴(아이닉 등 다수 서비스가 사용).
+ *   - naver: 네이버앱 인앱 브라우저 → 기본 브라우저로 전환.
+ *   - line:  LINE 인앱 → 기본 브라우저. LINE iOS 도 ?openExternalBrowser=1 미지원.
+ *   - facebook / instagram: 신뢰 가능한 스킴 없음 — 복사 폴백만 노출.
+ */
+function externalOpenUrl(kind: InAppKind, url: string): string | null {
+  const encoded = encodeURIComponent(url);
+  switch (kind) {
+    case 'kakao':
+      return `kakaotalk://web/openExternal?url=${encoded}`;
+    case 'naver':
+      return `naversearchapp://inappbrowser?url=${encoded}&target=external&version=6`;
+    case 'line':
+      return `line://msg/openExternal/url?url=${encoded}`;
+    default:
+      return null;
+  }
+}
+
+function InAppBrowserBanner({ kind, label }: { kind: InAppKind; label: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const ios = isIOSDevice();
   // 'Safari'는 받침 없음 → 를/로, 'Chrome'은 마지막 음 [m] 받침 → 을/으로
   const browserName = ios ? 'Safari' : 'Chrome';
   const objectParticle = ios ? '를' : '을';   // …을/를 열기
   const directionParticle = ios ? '로' : '으로'; // …(으)로 열기
+
+  const externalUrl = externalOpenUrl(kind, INVITE_URL);
 
   const copyUrl = async (): Promise<void> => {
     // 주소창에 그대로 붙여넣을 수 있도록 클립보드에는 깨끗한 URL 만 넣는다.
@@ -115,6 +141,14 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
     window.setTimeout(() => setCopied(false), 3000);
   };
 
+  // 외부 브라우저 스킴 호출 — iOS 카카오톡에서 ?openExternalBrowser=1 가 무시되는
+  // 문제를 우회하는 유일한 신뢰 가능한 방법. <a href=…> 로 두면 클릭이 사용자 제스처로
+  // 인정되어 일부 환경(iOS 13+)에서 스킴 차단을 우회하기 쉽다.
+  const openExternal = (): void => {
+    if (!externalUrl) return;
+    window.location.href = externalUrl;
+  };
+
   return (
     <section className="rounded-2xl border-2 border-accent bg-accent/10 p-4 sm:p-5">
       <p className="font-bold text-fg inline-flex items-center gap-1.5">
@@ -124,7 +158,26 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
         이 화면에서는 <b>음성 재생·앱 설치·오프라인 사용</b>이 동작하지 않습니다.
       </p>
 
-      <p className="text-sm text-fg mt-3 font-semibold">▸ 이렇게 해주세요</p>
+      {/* 외부 브라우저로 한 번에 빠져나가는 빠른 경로 — 카톡/네이버/라인에서만 노출.
+          페이스북·인스타그램은 신뢰 가능한 스킴이 없어 아래 복사 흐름으로 폴백. */}
+      {externalUrl && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={openExternal}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-accent text-white text-base font-bold px-5 py-3 shadow-sm active:scale-[0.98] transition-transform"
+            aria-label={`${browserName}${objectParticle} 바로 열기`}
+          >
+            <ExternalLink size={18} aria-hidden />
+            {browserName}{objectParticle} 바로 열기
+          </button>
+          <p className="text-xs text-muted mt-1.5 text-center">
+            버튼이 동작하지 않으면 아래 <b>주소 복사하기</b>로 진행하세요.
+          </p>
+        </div>
+      )}
+
+      <p className="text-sm text-fg mt-4 font-semibold">▸ 또는 직접 열기</p>
       <ol className="list-decimal pl-5 text-sm text-fg/90 space-y-1 mt-1">
         <li>아래 <b>주소 복사하기</b> 버튼을 누르세요.</li>
         <li>홈 화면에서 <b>{browserName}</b>{ios ? ' (나침반 아이콘)' : ''}{objectParticle} 여세요.</li>
@@ -135,7 +188,7 @@ function InAppBrowserBanner({ label }: { label: string }): JSX.Element {
         <button
           type="button"
           onClick={() => void copyUrl()}
-          className="inline-flex items-center gap-1.5 rounded-full bg-accent text-white text-sm font-semibold px-4 py-2"
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-accent text-accent bg-surface text-sm font-semibold px-4 py-2"
           aria-label="앱 주소를 클립보드에 복사"
         >
           {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />}
@@ -230,7 +283,7 @@ export default function Home(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      {inApp.label && <InAppBrowserBanner label={inApp.label} />}
+      {inApp.kind && inApp.label && <InAppBrowserBanner kind={inApp.kind} label={inApp.label} />}
       {!inApp.label && <OnboardingCard />}
       {!inApp.label && <DeviceVoiceMissingBanner />}
       {!inApp.label && <RecordedAudioMissingBanner />}
