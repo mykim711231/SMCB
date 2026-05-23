@@ -193,8 +193,15 @@ if ('serviceWorker' in navigator) {
 // vite-plugin-pwa 원본 updateSWA에 위임한다. (SKIP_WAITING + reload)
 // 별도 postMessage/controllerchange 대기는 원본과 중복되어
 // Android 검정 화면 등 경합을 유발하므로 제거.
+//
+// iOS standalone PWA에서 새 SW가 활성화돼도 controllerchange가
+// 발생하지 않아 'updating' 토스트가 무한 대기하는 사례가 확인됐다.
+// 10초 안에 reload가 일어나지 않으면 안전망으로 강제 reload 한다.
+// 정상 흐름에서 reload되면 이 타이머는 페이지 새로고침과 함께 폐기.
+const UPDATE_FALLBACK_RELOAD_MS = 10_000;
 const origUpdate = sw.updateSWA;
 sw.updateSWA = async (reloadPage?: boolean): Promise<void> => {
   useUpdateStore.getState().setPhase('updating', 100);
+  window.setTimeout(() => window.location.reload(), UPDATE_FALLBACK_RELOAD_MS);
   await origUpdate.call(sw, reloadPage);
 };
