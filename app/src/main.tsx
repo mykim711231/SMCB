@@ -32,25 +32,19 @@ root.render(
 );
 
 // ---------------------------------------------------------------------------
-// SW 진행률 헬퍼
-// Service Worker spec에는 다운로드 %가 없으므로, SW 생명주기 이벤트 기반으로
-// 추정 진행률을 보여준다. Workbox precache(install event)가 가장 오래 걸린다.
+// SW 진행률
+//   injectManifest 모드의 sw.ts 가 precache fetch 한 건마다
+//   { type:'sw-precache-progress', phase, pct } 를 postMessage 한다.
+//   여기서는 메시지를 받아 useUpdateStore 의 phase/pct 를 갱신하기만 한다.
+//   (generateSW 시절의 0→70% 임의 시뮬레이션은 제거.)
 // ---------------------------------------------------------------------------
 
-let swProgressTimer: ReturnType<typeof setInterval> | null = null;
 let installTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let swRegistration: ServiceWorkerRegistration | null = null;
 
-// precache(install 이벤트)가 이 시간 안에 끝나지 않으면 실패로 간주한다.
-// Workbox precache의 fetch가 끊긴 네트워크에서 무한 대기하는 경우의 안전망.
+// precache 가 이 시간 안에 끝나지 않으면 실패로 간주한다.
+// fetch 가 끊긴 네트워크에서 무한 대기하는 경우의 안전망.
 const INSTALL_TIMEOUT_MS = 60_000;
-
-function clearSwProgress(): void {
-  if (swProgressTimer) {
-    clearInterval(swProgressTimer);
-    swProgressTimer = null;
-  }
-}
 
 function clearInstallTimeout(): void {
   if (installTimeoutTimer) {
@@ -59,42 +53,29 @@ function clearInstallTimeout(): void {
   }
 }
 
-/** precache 실패/타임아웃 → 진행률 정리 후 에러 UI 표시 */
+/** precache 실패/타임아웃 → 에러 UI 표시 */
 function failInstall(): void {
-  clearSwProgress();
   clearInstallTimeout();
   useUpdateStore.getState().setError();
 }
 
-/** installing 단계 진입 → 0%→70% 시뮬레이션 (durationMs 내에 선형 증가) */
-function startInstallingProgress(durationMs = 4000): void {
-  clearSwProgress();
-  const steps = Math.max(1, Math.round(durationMs / 100));
-  const inc = 70 / steps;
-  let current = 0;
-  useUpdateStore.getState().setPhase('downloading', 0);
-  swProgressTimer = setInterval(() => {
-    current = Math.min(70, current + inc);
-    const pct = Math.round(current);
-    useUpdateStore.getState().setPhase(pct < 40 ? 'downloading' : 'installing', pct);
-    if (current >= 70) clearSwProgress();
-  }, 100);
-}
+type SwProgressMsg = {
+  type: 'sw-precache-progress';
+  phase: 'downloading' | 'installing' | 'installed' | 'error';
+  pct: number;
+  completed: number;
+  total: number;
+};
 
-/**
- * 설치 중인 SW를 감시한다. 진행 바가 70%에서 멈춘 채 방치되지 않도록
- * 성공·실패·무응답을 모두 종결 처리한다.
- *   - state 'installed' → precache 성공. 진행률 정리 (onNeedRefresh가 곧 ready 표시)
- *   - state 'redundant' → install 이벤트(precache fetch)가 실패해 SW가 폐기됨 → 에러 UI
- *   - 타임아웃          → fetch 무한 대기 등으로 끝내 응답 없음 → 에러 UI
- */
+/** 설치 중인 SW 를 감시. 타임아웃/redundant 안전망만 담당하고,
+ *  진행 표시는 SW 의 postMessage 가 전담한다. */
 function watchInstall(worker: ServiceWorker): void {
-  startInstallingProgress();
+  // 진행 표시 초기화 — 첫 메시지 도착 전 토스트가 즉시 보이도록.
+  useUpdateStore.getState().setPhase('downloading', 0);
   clearInstallTimeout();
   installTimeoutTimer = setTimeout(failInstall, INSTALL_TIMEOUT_MS);
   worker.addEventListener('statechange', () => {
-    if (worker.state === 'installed') {
-      clearSwProgress();
+    if (worker.state === 'installed' || worker.state === 'activated') {
       clearInstallTimeout();
     } else if (worker.state === 'redundant') {
       failInstall();
@@ -102,21 +83,20 @@ function watchInstall(worker: ServiceWorker): void {
   });
 }
 
-/** 에러 UI의 "다시 시도" — registration.update()로 precache를 재시도한다. */
+/** 에러 UI 의 "다시 시도" — registration.update() 로 precache 재시도. */
 function retryInstall(): void {
   const reg = swRegistration;
   if (!reg) {
     useUpdateStore.getState().dismiss();
     return;
   }
-  startInstallingProgress();
+  useUpdateStore.getState().setPhase('downloading', 0);
   reg.update()
     .then(() => {
       if (reg.installing) {
         watchInstall(reg.installing);
       } else {
         // 새로 받을 게 없음 — 이전 실패가 일시적이었던 것으로 보고 토스트를 닫는다.
-        clearSwProgress();
         useUpdateStore.getState().dismiss();
       }
     })
@@ -128,7 +108,7 @@ function retryInstall(): void {
 //
 // immediate:true 시 skipWaiting 후 즉시 reload → precache 미완료 상태에서
 // 페이지가 새로고침되어 흰 화면(white screen)이 발생할 수 있다.
-// 대신 onNeedRefresh로 사용자 확인을 거친 후 업데이트한다.
+// 대신 onNeedRefresh 로 사용자 확인을 거친 후 업데이트한다.
 // ---------------------------------------------------------------------------
 
 type SwHandle = ((reloadPage?: boolean) => Promise<void>) & { updateSWA: (reloadPage?: boolean) => Promise<void> };
@@ -138,13 +118,13 @@ const _raw = registerSW({
     if (!r) return;
     swRegistration = r;
 
-    // 이미 대기 중인 SW가 있다면 바로 ready 표시
+    // 이미 대기 중인 SW 가 있다면 바로 ready 표시
     if (r.waiting) {
       useUpdateStore.getState().setUpdateFn(() => sw.updateSWA(true));
       return;
     }
 
-    // 새로 설치 중인 SW가 있다면 감시 시작 (성공/실패/타임아웃 종결)
+    // 새로 설치 중인 SW 가 있다면 감시 시작 (타임아웃/redundant 처리)
     if (r.installing) {
       watchInstall(r.installing);
       return;
@@ -157,7 +137,6 @@ const _raw = registerSW({
   },
 
   onNeedRefresh() {
-    clearSwProgress();
     clearInstallTimeout();
     useUpdateStore.getState().setUpdateFn(() => sw.updateSWA(true));
   },
@@ -169,17 +148,33 @@ const _raw = registerSW({
 
 const sw = _raw as SwHandle;
 
-// 에러 UI의 "다시 시도" 버튼이 호출할 함수 등록
+// 에러 UI 의 "다시 시도" 버튼이 호출할 함수 등록
 useUpdateStore.getState().setRetryFn(retryInstall);
 
-// SW 교체 완료 시 진행률 UI 정리
+// SW 가 postMessage 로 보내는 precache 진행률 수신
 if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const data = event.data as SwProgressMsg | null;
+    if (!data || data.type !== 'sw-precache-progress') return;
+
+    if (data.phase === 'error') {
+      failInstall();
+      return;
+    }
+
+    // installed 단계는 onNeedRefresh / onOfflineReady 가 후속 처리.
+    // 여기서는 진행 바를 100% 까지 채워두기만 한다.
+    const phase = data.phase === 'installed' ? 'installing' : data.phase;
+    useUpdateStore.getState().setPhase(phase, data.pct);
+  });
+
+  // SW 교체 완료 시 진행률 UI 정리
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     useUpdateStore.getState().dismiss();
   });
 
-  // iOS standalone PWA에서 SW가 종료되지 않고 살아있는 문제 대응:
-  // 사용자가 앱으로 돌아올 때마다 등록을 갱신하여 대기 중인 SW를 발견한다.
+  // iOS standalone PWA 에서 SW 가 종료되지 않고 살아있는 문제 대응:
+  // 사용자가 앱으로 돌아올 때마다 등록을 갱신하여 대기 중인 SW 를 발견한다.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       navigator.serviceWorker.ready.then((reg) => {
@@ -189,15 +184,15 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// updateSWA(true) 호출 시 'updating' phase로 전환한 후
-// vite-plugin-pwa 원본 updateSWA에 위임한다. (SKIP_WAITING + reload)
+// updateSWA(true) 호출 시 'updating' phase 로 전환한 후
+// vite-plugin-pwa 원본 updateSWA 에 위임한다. (SKIP_WAITING + reload)
 // 별도 postMessage/controllerchange 대기는 원본과 중복되어
 // Android 검정 화면 등 경합을 유발하므로 제거.
 //
-// iOS standalone PWA에서 새 SW가 활성화돼도 controllerchange가
+// iOS standalone PWA 에서 새 SW 가 활성화돼도 controllerchange 가
 // 발생하지 않아 'updating' 토스트가 무한 대기하는 사례가 확인됐다.
-// 10초 안에 reload가 일어나지 않으면 안전망으로 강제 reload 한다.
-// 정상 흐름에서 reload되면 이 타이머는 페이지 새로고침과 함께 폐기.
+// 10초 안에 reload 가 일어나지 않으면 안전망으로 강제 reload 한다.
+// 정상 흐름에서 reload 되면 이 타이머는 페이지 새로고침과 함께 폐기.
 const UPDATE_FALLBACK_RELOAD_MS = 10_000;
 const origUpdate = sw.updateSWA;
 sw.updateSWA = async (reloadPage?: boolean): Promise<void> => {
