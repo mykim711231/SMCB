@@ -80,6 +80,9 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
   }, [ttsRate, ttsVoiceURI]);
 
   // 라운드 변경(cursor 이동) 시 자동 1회 재생 · 선택 초기화
+  // 의존성을 round(매 렌더 새 참조) 대신 cursor(숫자)로 잡아야
+  // onResult→SRS→filteredPairs 재계산→pairs prop 변경→sequence 재생성→round 참조 변경
+  // 연쇄로 인해 피드백이 즉시 사라지는 버그를 막을 수 있다.
   useEffect(() => {
     playedRef.current = false;
     setPlayed(false);
@@ -95,7 +98,8 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
       });
     }, 200);
     return () => window.clearTimeout(t);
-  }, [round, play]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor, play]);
 
   // 마운트 해제 시 TTS 중지
   useEffect(() => () => { ttsStop(); }, []);
@@ -109,8 +113,8 @@ export default function MinimalPairsGame({ pairs, ttsRate, ttsVoiceURI, onExit, 
   }, [focusIdx]);
 
   const select = (it: PairItem, idx?: number): void => {
-    if (picked) return;
-    if (!round) return;
+    if (picked) { console.warn('[Pairs] select blocked: already picked', picked.word); return; }
+    if (!round) { console.warn('[Pairs] select blocked: no round'); return; }
     setPicked(it);
     if (typeof idx === 'number') setFocusIdx(idx);
     const ok = it.word === round.answer.word;

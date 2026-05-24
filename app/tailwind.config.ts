@@ -13,6 +13,7 @@ export default {
         primary: 'rgb(var(--rgb-primary) / <alpha-value>)',
         'primary-soft': 'rgb(var(--rgb-primary-soft) / <alpha-value>)',
         accent: 'rgb(var(--rgb-accent) / <alpha-value>)',
+        star: 'rgb(var(--rgb-star) / <alpha-value>)',
         success: 'rgb(var(--rgb-success) / <alpha-value>)',
         divider: 'rgb(var(--rgb-divider) / <alpha-value>)',
         pinyin: 'rgb(var(--rgb-pinyin) / <alpha-value>)',

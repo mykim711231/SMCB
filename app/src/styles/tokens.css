@@ -9,6 +9,7 @@
   --rgb-primary: 37 99 235;
   --rgb-primary-soft: 219 234 254;
   --rgb-accent: 234 88 12;
+  --rgb-star: 234 179 8;   /* 즐겨찾기 별 — 전통적 금색(gold) */
   --rgb-success: 22 163 74;
   --rgb-divider: 226 232 240;
   --rgb-pinyin: 75 85 99;
@@ -37,6 +38,7 @@ html.dark {
   --rgb-primary: 96 165 250;
   --rgb-primary-soft: 30 58 138;
   --rgb-accent: 251 146 60;
+  --rgb-star: 250 204 21;   /* 다크 모드 — 더 밝은 금색 */
   --rgb-success: 74 222 128;
   --rgb-divider: 51 55 64;
   --rgb-pinyin: 156 163 175;
