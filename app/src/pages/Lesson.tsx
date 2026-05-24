@@ -133,7 +133,7 @@ export default function LessonPage(): JSX.Element {
                       className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
                     >
                       {starred ? (
-                        <Star size={18} className="text-accent fill-current" />
+                        <Star size={18} className="text-star fill-current" />
                       ) : (
                         <StarOff size={18} className="text-muted" aria-hidden />
                       )}
@@ -168,7 +168,7 @@ export default function LessonPage(): JSX.Element {
                       className="w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-primary-soft shrink-0"
                     >
                       {starred ? (
-                        <Star size={14} className="text-accent fill-current" />
+                        <Star size={14} className="text-star fill-current" />
                       ) : (
                         <StarOff size={14} className="text-muted" aria-hidden />
                       )}
@@ -215,7 +215,7 @@ export default function LessonPage(): JSX.Element {
                               className="absolute top-1 right-1 w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
                             >
                               {exStarred ? (
-                                <Star size={14} className="text-accent fill-current" />
+                                <Star size={14} className="text-star fill-current" />
                               ) : (
                                 <StarOff size={14} className="text-muted" aria-hidden />
                               )}
@@ -233,7 +233,7 @@ export default function LessonPage(): JSX.Element {
                       className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
                     >
                       {starred ? (
-                        <Star size={18} className="text-accent fill-current" />
+                        <Star size={18} className="text-star fill-current" />
                       ) : (
                         <StarOff size={18} className="text-muted" aria-hidden />
                       )}
@@ -302,7 +302,7 @@ export default function LessonPage(): JSX.Element {
                             className="w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-primary-soft shrink-0 self-center"
                           >
                             {exStarred ? (
-                              <Star size={14} className="text-accent fill-current" />
+                              <Star size={14} className="text-star fill-current" />
                             ) : (
                               <StarOff size={14} className="text-muted" aria-hidden />
                             )}
@@ -340,7 +340,7 @@ export default function LessonPage(): JSX.Element {
                       className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
                     >
                       {starred ? (
-                        <Star size={18} className="text-accent fill-current" />
+                        <Star size={18} className="text-star fill-current" />
                       ) : (
                         <StarOff size={18} className="text-muted" aria-hidden />
                       )}
@@ -379,7 +379,7 @@ export default function LessonPage(): JSX.Element {
                       className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
                     >
                       {starred ? (
-                        <Star size={18} className="text-accent fill-current" />
+                        <Star size={18} className="text-star fill-current" />
                       ) : (
                         <StarOff size={18} className="text-muted" aria-hidden />
                       )}
@@ -416,7 +416,7 @@ export default function LessonPage(): JSX.Element {
                       className="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-primary-soft"
                     >
                       {starred ? (
-                        <Star size={18} className="text-accent fill-current" />
+                        <Star size={18} className="text-star fill-current" />
                       ) : (
                         <StarOff size={18} className="text-muted" aria-hidden />
                       )}
