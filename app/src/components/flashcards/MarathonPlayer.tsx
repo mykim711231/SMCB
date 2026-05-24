@@ -246,7 +246,7 @@ export default function MarathonPlayer({
           id="gap"
           type="range"
           min={200}
-          max={15000}
+          max={60000}
           step={100}
           value={pauseBetweenMs}
           onChange={(e) => setPauseBetweenMs(Number(e.target.value))}
