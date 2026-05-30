@@ -108,7 +108,7 @@ export default function Settings(): JSX.Element {
         <div className="rounded-2xl border border-divider bg-surface divide-y divide-divider">
           <Row
             label="테마"
-            description="라이트는 흰 배경, 다크는 검은 배경, 시스템은 단말기 설정을 따라요."
+            description="라이트는 흰 배경, 다크는 검은 배경, 세피아는 따뜻한 종이색, 웜다크는 포근한 어두운색, 시스템은 단말기 설정을 따라요."
             stack
           >
             <Segmented
@@ -116,6 +116,8 @@ export default function Settings(): JSX.Element {
               options={[
                 { v: 'light', l: '라이트' },
                 { v: 'dark', l: '다크' },
+                { v: 'sepia', l: '세피아' },
+                { v: 'warmdark', l: '웜다크' },
                 { v: 'system', l: '시스템' },
               ]}
               onChange={(v) => {
@@ -123,6 +125,8 @@ export default function Settings(): JSX.Element {
                 showToast(
                   v === 'light' ? '밝은 흰 배경으로 바꿨어요.'
                   : v === 'dark' ? '어두운 검은 배경으로 바꿨어요.'
+                  : v === 'sepia' ? '따뜻한 종이색 배경으로 바꿨어요.'
+                  : v === 'warmdark' ? '포근한 어두운 배경으로 바꿨어요.'
                   : '단말기 설정에 따라 밝기가 자동으로 바뀌어요.',
                 );
               }}
@@ -182,6 +186,22 @@ export default function Settings(): JSX.Element {
               onClick={() => {
                 s.toggleKorean();
                 showToast(s.showKorean ? '한국어 뜻을 화면에서 숨겼어요.' : '한국어 뜻을 다시 표시해요.');
+              }}
+            />
+          </Row>
+          <Row
+            label="청색광 차단"
+            description="화면 전체에 따뜻한 색을 살짝 덧입혀 파란빛을 줄여요. 밤이나 오래 볼 때 눈이 덜 피로해요. 모든 테마에 적용돼요."
+          >
+            <Toggle
+              on={s.blueLight}
+              onClick={() => {
+                s.setBlueLight(!s.blueLight);
+                showToast(
+                  s.blueLight
+                    ? '청색광 차단을 껐어요. 화면 색이 원래대로 돌아와요.'
+                    : '청색광 차단을 켰어요. 화면이 조금 따뜻해져요.',
+                );
               }}
             />
           </Row>
@@ -833,7 +853,7 @@ function Segmented<T extends string>(props: {
   onChange: (v: T) => void;
 }): JSX.Element {
   return (
-    <div className="inline-flex rounded-full border border-divider bg-bg p-0.5">
+    <div className="inline-flex flex-wrap gap-y-0.5 rounded-3xl border border-divider bg-bg p-0.5">
       {props.options.map((o) => (
         <button
           key={o.v}

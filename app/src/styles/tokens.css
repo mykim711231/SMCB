@@ -44,6 +44,40 @@ html.dark {
   --rgb-pinyin: 156 163 175;
 }
 
+/* 세피아 — 따뜻한 종이(크림)톤 라이트 테마. 눈부심을 줄이고 장시간 읽기에 편안.
+   .dark 없이 :root(라이트)를 웜톤으로 덮어쓴다. */
+html.theme-sepia {
+  /* Claude Desktop의 본/오트(bone/oat)톤 — 노란기를 뺀 따뜻한 오프화이트.
+     실제 종이에 가깝게 중성적인 웜그레이로 글자·구분선까지 맞춘다. */
+  --rgb-bg: 246 245 242;        /* #F6F5F2 — 노란기 추가 감소, R·G·B 간격 4 이내 */
+  --rgb-surface: 250 249 245;   /* #FAF9F5 */
+  --rgb-text: 51 49 45;
+  --rgb-text-muted: 120 116 108;
+  --rgb-primary: 29 78 180;
+  --rgb-primary-soft: 224 224 216;
+  --rgb-accent: 180 83 9;
+  --rgb-star: 202 138 4;
+  --rgb-success: 21 128 61;
+  --rgb-divider: 222 220 211;
+  --rgb-pinyin: 118 114 106;
+}
+
+/* 웜다크 — 따뜻한 갈색 기운의 다크 테마. .dark 베이스 위에 웜톤으로 오버라이드.
+   반드시 html.dark 규칙 뒤에 와서 다크 변수를 덮어써야 한다. */
+html.theme-warmdark {
+  --rgb-bg: 28 24 20;
+  --rgb-surface: 41 35 28;
+  --rgb-text: 237 230 218;
+  --rgb-text-muted: 178 165 148;
+  --rgb-primary: 129 164 246;
+  --rgb-primary-soft: 60 50 38;
+  --rgb-accent: 251 146 60;
+  --rgb-star: 250 204 21;
+  --rgb-success: 74 222 128;
+  --rgb-divider: 64 56 46;
+  --rgb-pinyin: 178 165 148;
+}
+
 /* Large-font mode (큰글씨) — scales rem base. */
 html.fontsize-lg { font-size: 18px; }
 html.fontsize-xl { font-size: 20px; }
@@ -62,6 +96,21 @@ body {
 }
 
 .font-pinyin { font-family: var(--font-pinyin); }
+
+/* 청색광 차단(블루라이트 필터) — 설정에서 켤 때만(html.bluelight) 적용.
+   화면 전체를 따뜻한 호박색으로 multiply 합성해 파란 빛 비중을 낮춘다.
+   (multiply: 빨강 ≈유지, 초록 ~0.90, 파랑 ~0.80 → 눈부심·청색광 감소)
+   position:fixed 로 뷰포트만 덮고, pointer-events:none 으로 모든 조작은 그대로 통과한다.
+   배경/이미지/모달까지 일괄 적용하기 위해 최상위 z-index 사용. */
+html.bluelight body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  background: rgb(255 230 204);
+  mix-blend-mode: multiply;
+}
 
 /* Focus ring (a11y) */
 :focus-visible {

@@ -9,7 +9,7 @@ import { dbGet, dbSet } from '@/lib/db';
 import { stop as stopTTS, setVoiceModeProvider } from '@/lib/tts';
 import type { SRSAlgorithm } from '@/stores/srs';
 
-export type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system' | 'sepia' | 'warmdark';
 export type FontSize = 'md' | 'lg' | 'xl';
 
 export type FlashcardDirection = 'zh2ko' | 'ko2zh' | 'mixed';
@@ -55,6 +55,8 @@ export type SettingsState = {
   showKorean: boolean;
   /** Per-character pinyin ruby (Naver/Pagoda style). Requires both hanzi+pinyin on. */
   rubyPinyin: boolean;
+  /** 청색광 차단(블루라이트 필터). 켜면 모든 테마 위에 따뜻한 호박색 multiply 오버레이를 얹는다. */
+  blueLight: boolean;
   // TTS
   ttsRate: number;
   ttsVoiceURI: string | null;
@@ -93,6 +95,7 @@ export type SettingsState = {
   togglePinyin: () => void;
   toggleKorean: () => void;
   toggleRubyPinyin: () => void;
+  setBlueLight: (b: boolean) => void;
   setTTSRate: (n: number) => void;
   setTTSVoiceURI: (uri: string | null) => void;
   setFcAlgorithm: (a: SRSAlgorithm) => void;
@@ -120,6 +123,7 @@ const DEFAULTS = {
   showPinyin: true,
   showKorean: true,
   rubyPinyin: true,
+  blueLight: false,
   ttsRate: 0.95,
   ttsVoiceURI: null as string | null,
   fcAlgorithm: 'leitner' as SRSAlgorithm,
@@ -140,7 +144,7 @@ type Persisted = Omit<
   SettingsState,
   | 'hydrated'
   | 'setTheme' | 'setFontSize'
-  | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean' | 'toggleRubyPinyin'
+  | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean' | 'toggleRubyPinyin' | 'setBlueLight'
   | 'setTTSRate' | 'setTTSVoiceURI'
   | 'setFcAlgorithm' | 'setFcGrades' | 'setFcDirection' | 'setFcAutoplay'
   | 'setFcCardTypes'
@@ -158,6 +162,7 @@ function pickPersisted(s: SettingsState): Persisted {
     showPinyin: s.showPinyin,
     showKorean: s.showKorean,
     rubyPinyin: s.rubyPinyin,
+    blueLight: s.blueLight,
     ttsRate: s.ttsRate,
     ttsVoiceURI: s.ttsVoiceURI,
     fcAlgorithm: s.fcAlgorithm,
@@ -267,6 +272,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   togglePinyin: () => { const v = !get().showPinyin; set({ showPinyin: v }); void persist({ ...get(), showPinyin: v }); },
   toggleKorean: () => { const v = !get().showKorean; set({ showKorean: v }); void persist({ ...get(), showKorean: v }); },
   toggleRubyPinyin: () => { const v = !get().rubyPinyin; set({ rubyPinyin: v }); void persist({ ...get(), rubyPinyin: v }); },
+  setBlueLight: (b) => { set({ blueLight: b }); void persist({ ...get(), blueLight: b }); applyBlueLight(b); },
   setTTSRate: (n) => { set({ ttsRate: n }); void persist({ ...get(), ttsRate: n }); },
   setTTSVoiceURI: (uri) => { set({ ttsVoiceURI: uri }); void persist({ ...get(), ttsVoiceURI: uri }); },
 
@@ -318,6 +324,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
+      applyBlueLight(merged.blueLight);
       void persist({ ...get(), ...merged } as SettingsState);
       void validateBulkCache(get());
       return;
@@ -328,6 +335,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
+      applyBlueLight(merged.blueLight);
       void persist({ ...get(), ...merged } as SettingsState);
       void validateBulkCache(get());
       return;
@@ -335,6 +343,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     set({ hydrated: true });
     applyTheme(get().theme);
     applyFontSize(get().fontSize);
+    applyBlueLight(get().blueLight);
   },
 }));
 
@@ -342,8 +351,19 @@ export const useSettings = create<SettingsState>((set, get) => ({
 export function applyTheme(theme: Theme): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // 어두운 계열(dark/warmdark, 그리고 system+다크선호)이면 .dark 베이스를 깔고,
+  // 세피아/웜다크는 그 위에 웜톤 변수 오버라이드 클래스를 얹는다.
+  const isDark = theme === 'dark' || theme === 'warmdark' || (theme === 'system' && prefersDark);
   root.classList.toggle('dark', isDark);
+  root.classList.toggle('theme-sepia', theme === 'sepia');
+  root.classList.toggle('theme-warmdark', theme === 'warmdark');
+}
+
+// 청색광 차단 필터 토글. html.bluelight 클래스에 따라 tokens.css의 전역 오버레이가 켜진다.
+export function applyBlueLight(on: boolean): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('bluelight', on);
 }
 
 export function applyFontSize(size: FontSize): void {
