@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, RefreshCw, AlertTriangle, Info, ChevronRight, Download, Loader2, CheckCircle2, Upload, Save } from 'lucide-react';
-import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection } from '@/stores/settings';
+import { useSettings, type Theme, type FontSize, type FlashcardGrades, type FlashcardDirection, type BlueLightLevel } from '@/stores/settings';
 import type { SRSAlgorithm } from '@/stores/srs';
 import { useProgress } from '@/stores/progress';
 import { useFavorites } from '@/stores/favorites';
@@ -191,16 +191,25 @@ export default function Settings(): JSX.Element {
           </Row>
           <Row
             label="청색광 차단"
-            description="화면 전체에 따뜻한 색을 살짝 덧입혀 파란빛을 줄여요. 밤이나 오래 볼 때 눈이 덜 피로해요. 모든 테마에 적용돼요."
+            description="화면 전체에 따뜻한 색을 덧입혀 파란빛을 줄여요. 단계가 높을수록 더 따뜻해지고 눈부심이 줄어요. 모든 테마에 적용돼요."
+            stack
           >
-            <Toggle
-              on={s.blueLight}
-              onClick={() => {
-                s.setBlueLight(!s.blueLight);
+            <Segmented
+              value={String(s.blueLight)}
+              options={[
+                { v: '0', l: '끄기' },
+                { v: '1', l: '약하게' },
+                { v: '2', l: '보통' },
+                { v: '3', l: '강하게' },
+              ]}
+              onChange={(v) => {
+                const level = Number(v) as BlueLightLevel;
+                s.setBlueLight(level);
                 showToast(
-                  s.blueLight
-                    ? '청색광 차단을 껐어요. 화면 색이 원래대로 돌아와요.'
-                    : '청색광 차단을 켰어요. 화면이 조금 따뜻해져요.',
+                  level === 0 ? '청색광 차단을 껐어요. 화면 색이 원래대로 돌아와요.'
+                  : level === 1 ? '청색광 차단을 약하게 켰어요.'
+                  : level === 2 ? '청색광 차단을 보통으로 켰어요.'
+                  : '청색광 차단을 강하게 켰어요. 화면이 가장 따뜻해져요.',
                 );
               }}
             />

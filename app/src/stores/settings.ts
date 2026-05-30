@@ -11,6 +11,8 @@ import type { SRSAlgorithm } from '@/stores/srs';
 
 export type Theme = 'light' | 'dark' | 'system' | 'sepia' | 'warmdark';
 export type FontSize = 'md' | 'lg' | 'xl';
+/** 청색광 차단 단계. 0=끄기, 1=약하게, 2=보통, 3=강하게. */
+export type BlueLightLevel = 0 | 1 | 2 | 3;
 
 export type FlashcardDirection = 'zh2ko' | 'ko2zh' | 'mixed';
 export type FlashcardGrades = 2 | 4;
@@ -55,8 +57,8 @@ export type SettingsState = {
   showKorean: boolean;
   /** Per-character pinyin ruby (Naver/Pagoda style). Requires both hanzi+pinyin on. */
   rubyPinyin: boolean;
-  /** 청색광 차단(블루라이트 필터). 켜면 모든 테마 위에 따뜻한 호박색 multiply 오버레이를 얹는다. */
-  blueLight: boolean;
+  /** 청색광 차단(블루라이트 필터) 단계. 0=끄기 / 1~3 단계별로 호박색 multiply 오버레이 강도 ↑. */
+  blueLight: BlueLightLevel;
   // TTS
   ttsRate: number;
   ttsVoiceURI: string | null;
@@ -95,7 +97,7 @@ export type SettingsState = {
   togglePinyin: () => void;
   toggleKorean: () => void;
   toggleRubyPinyin: () => void;
-  setBlueLight: (b: boolean) => void;
+  setBlueLight: (level: BlueLightLevel) => void;
   setTTSRate: (n: number) => void;
   setTTSVoiceURI: (uri: string | null) => void;
   setFcAlgorithm: (a: SRSAlgorithm) => void;
@@ -123,7 +125,7 @@ const DEFAULTS = {
   showPinyin: true,
   showKorean: true,
   rubyPinyin: true,
-  blueLight: false,
+  blueLight: 0 as BlueLightLevel,
   ttsRate: 0.95,
   ttsVoiceURI: null as string | null,
   fcAlgorithm: 'leitner' as SRSAlgorithm,
@@ -204,6 +206,16 @@ function normalizeBulkStatus<T extends { ttsBulkStatus: unknown }>(s: T): T {
   return s;
 }
 
+// 청색광 차단이 boolean(true/false)이던 구버전 값을 4단계 레벨로 정규화한다.
+//   true → 2(보통), false → 0(끄기). 숫자는 0~3로 클램프, 그 외는 0.
+function normalizeBlueLight<T extends { blueLight: unknown }>(s: T): T {
+  const v = s.blueLight;
+  if (v === true) return { ...s, blueLight: 2 };
+  if (v === false || v == null) return { ...s, blueLight: 0 };
+  const n = Math.round(Number(v));
+  return { ...s, blueLight: (Number.isFinite(n) ? Math.min(3, Math.max(0, n)) : 0) as BlueLightLevel };
+}
+
 /**
  * R8: 부팅 시 SW의 tts-audio 캐시가 실제로 채워져 있는지 비동기로 검증한다.
  *
@@ -272,7 +284,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   togglePinyin: () => { const v = !get().showPinyin; set({ showPinyin: v }); void persist({ ...get(), showPinyin: v }); },
   toggleKorean: () => { const v = !get().showKorean; set({ showKorean: v }); void persist({ ...get(), showKorean: v }); },
   toggleRubyPinyin: () => { const v = !get().rubyPinyin; set({ rubyPinyin: v }); void persist({ ...get(), rubyPinyin: v }); },
-  setBlueLight: (b) => { set({ blueLight: b }); void persist({ ...get(), blueLight: b }); applyBlueLight(b); },
+  setBlueLight: (level) => { set({ blueLight: level }); void persist({ ...get(), blueLight: level }); applyBlueLight(level); },
   setTTSRate: (n) => { set({ ttsRate: n }); void persist({ ...get(), ttsRate: n }); },
   setTTSVoiceURI: (uri) => { set({ ttsVoiceURI: uri }); void persist({ ...get(), ttsVoiceURI: uri }); },
 
@@ -320,7 +332,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   hydrate: async () => {
     const v2 = await dbGet<Partial<Persisted>>(DB_KEY);
     if (v2) {
-      const merged = normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v2 }));
+      const merged = normalizeBlueLight(normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v2 })));
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
@@ -331,7 +343,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     }
     const v1 = await dbGet<Partial<Persisted>>(DB_KEY_LEGACY);
     if (v1) {
-      const merged = normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v1 }));
+      const merged = normalizeBlueLight(normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v1 })));
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
@@ -360,10 +372,13 @@ export function applyTheme(theme: Theme): void {
   root.classList.toggle('theme-warmdark', theme === 'warmdark');
 }
 
-// 청색광 차단 필터 토글. html.bluelight 클래스에 따라 tokens.css의 전역 오버레이가 켜진다.
-export function applyBlueLight(on: boolean): void {
+// 청색광 차단 필터 단계 적용. html[data-bluelight="1|2|3"]에 따라 tokens.css의
+// 전역 오버레이 강도가 달라진다. 0(끄기)이면 속성을 제거해 오버레이를 끈다.
+export function applyBlueLight(level: BlueLightLevel): void {
   if (typeof document === 'undefined') return;
-  document.documentElement.classList.toggle('bluelight', on);
+  const root = document.documentElement;
+  if (level > 0) root.setAttribute('data-bluelight', String(level));
+  else root.removeAttribute('data-bluelight');
 }
 
 export function applyFontSize(size: FontSize): void {

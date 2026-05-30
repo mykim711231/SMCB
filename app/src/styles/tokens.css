@@ -97,20 +97,22 @@ body {
 
 .font-pinyin { font-family: var(--font-pinyin); }
 
-/* 청색광 차단(블루라이트 필터) — 설정에서 켤 때만(html.bluelight) 적용.
+/* 청색광 차단(블루라이트 필터) — 설정에서 단계를 켤 때만(html[data-bluelight]) 적용.
    화면 전체를 따뜻한 호박색으로 multiply 합성해 파란 빛 비중을 낮춘다.
-   (multiply: 빨강 ≈유지, 초록 ~0.90, 파랑 ~0.80 → 눈부심·청색광 감소)
    position:fixed 로 뷰포트만 덮고, pointer-events:none 으로 모든 조작은 그대로 통과한다.
-   배경/이미지/모달까지 일괄 적용하기 위해 최상위 z-index 사용. */
-html.bluelight body::after {
+   배경/이미지/모달까지 일괄 적용하기 위해 최상위 z-index 사용.
+   단계별로 호박색을 더 짙게 → 파랑 채널을 더 깎는다(1 약 / 2 보통 / 3 강). */
+html[data-bluelight] body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 2147483647;
   pointer-events: none;
-  background: rgb(255 230 204);
   mix-blend-mode: multiply;
 }
+html[data-bluelight="1"] body::after { background: rgb(255 242 226); } /* 약하게: 파랑 ~0.89 */
+html[data-bluelight="2"] body::after { background: rgb(255 230 204); } /* 보통:   파랑 ~0.80 */
+html[data-bluelight="3"] body::after { background: rgb(255 214 172); } /* 강하게: 파랑 ~0.67 */
 
 /* Focus ring (a11y) */
 :focus-visible {
