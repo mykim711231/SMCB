@@ -17,6 +17,12 @@ import { cn } from '@/lib/cn';
 import { useSettings } from '@/stores/settings';
 import { alignRuby } from '@/lib/pinyinRuby';
 import HanziRuby from '@/components/HanziRuby';
+import {
+  startSession as startMediaSession,
+  endSession as endMediaSession,
+  setMetadata as setMediaMetadata,
+  setPlaybackState as setMediaPlaybackState,
+} from '@/lib/mediaSession';
 
 type Props = {
   cards: CardSource[];
@@ -42,6 +48,10 @@ export default function MarathonPlayer({
   show = { zh: true, pinyin: true, ko: true },
 }: Props): JSX.Element {
   const { rubyPinyin } = useSettings();
+  // userMode === 'recorded'일 때만 잠금화면 keep-alive를 켠다.
+  // 'device' 모드는 단말 TTS 전용 — iOS 화면 잠금 시 표준적으로 정지되므로
+  // 무음 loop를 흘려도 실익이 없다 (배터리·세션 점유만 발생).
+  const userMode = useSettings((s) => s.userMode);
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [pauseBetweenMs, setPauseBetweenMs] = useState(1200);
@@ -131,36 +141,84 @@ export default function MarathonPlayer({
   // cleanup
   useEffect(() => () => {
     ttsStop();
+    endMediaSession();
     if (timerRef.current != null) window.clearTimeout(timerRef.current);
   }, []);
 
-  const togglePlay = (): void => {
-    if (!ttsSupported()) return;
-    unlock();
-    setPlaying((p) => {
-      const next = !p;
-      if (!next) ttsStop();
-      return next;
+  // 잠금화면 메타데이터 — 현재 카드(zh) + 레슨 제목. recorded 모드에서만 활성.
+  useEffect(() => {
+    if (userMode !== 'recorded') return;
+    if (cards.length === 0 || idx >= cards.length) return;
+    const card = cards[idx];
+    if (!card) return;
+    const t = cardTextsOf(card);
+    setMediaMetadata({
+      title: t.zh || t.ko || '이어듣기',
+      artist: card.lessonTitleKo,
+      album: 'SMCB 이어듣기',
     });
-  };
-  const next = (): void => {
-    ttsStop();
-    clearTimer();
-    repeatRef.current = 0;
-    setRepeatCurrent(0);
-    setIdx((v) => Math.min(cards.length, v + 1));
-  };
-  const prev = (): void => {
+  }, [idx, cards, userMode]);
+
+  // 재생 완료 — 끝에 도달하면 세션 종료해 잠금화면 컨트롤도 정리.
+  useEffect(() => {
+    if (cards.length > 0 && idx >= cards.length) {
+      endMediaSession();
+    }
+  }, [idx, cards.length]);
+
+  const prev = useCallback((): void => {
     ttsStop();
     clearTimer();
     repeatRef.current = 0;
     setRepeatCurrent(0);
     setIdx((v) => Math.max(0, v - 1));
+  }, [clearTimer]);
+
+  const next = useCallback((): void => {
+    ttsStop();
+    clearTimer();
+    repeatRef.current = 0;
+    setRepeatCurrent(0);
+    setIdx((v) => Math.min(cardsRef.current.length, v + 1));
+  }, [clearTimer]);
+
+  const playAction = useCallback((): void => {
+    if (idxRef.current >= cardsRef.current.length) return;
+    setPlaying(true);
+    setMediaPlaybackState('playing');
+  }, []);
+
+  const pauseAction = useCallback((): void => {
+    ttsStop();
+    setPlaying(false);
+    setMediaPlaybackState('paused');
+  }, []);
+
+  const togglePlay = (): void => {
+    if (!ttsSupported()) return;
+    unlock();
+    if (playingRef.current) {
+      pauseAction();
+      return;
+    }
+    // 사용자 제스처 컨텍스트 — 무음 keep-alive의 자동재생 정책을 통과시킨다.
+    // 단말 TTS 전용 모드(device)에서는 잠금 시 어차피 정지되므로 세션 자체를 켜지 않는다.
+    if (userMode === 'recorded') {
+      startMediaSession({
+        play: playAction,
+        pause: pauseAction,
+        previoustrack: prev,
+        nexttrack: next,
+      });
+    }
+    playAction();
   };
+
   const exit = (): void => {
     setPlaying(false);
     ttsStop();
     clearTimer();
+    endMediaSession();
     onExit();
   };
 
