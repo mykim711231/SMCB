@@ -31,7 +31,14 @@ export default function HanziRuby({ tokens, prefix, className }: Props): JSX.Ele
           >
             {t.py || ' '}
           </span>
-          <span className="text-fg text-xl sm:text-2xl font-medium leading-tight">
+          <span
+            className={
+              t.mark
+                ? 'text-primary font-bold text-xl sm:text-2xl leading-tight px-0.5'
+                : 'text-fg text-xl sm:text-2xl font-medium leading-tight'
+            }
+            aria-hidden={t.mark || undefined}
+          >
             {t.ch}
           </span>
         </span>

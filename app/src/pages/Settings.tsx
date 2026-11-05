@@ -11,6 +11,7 @@ import { dbClearAll, dbExportAll, dbImportAll, type DbBackup } from '@/lib/db';
 import { awaitVoices, isSupported, isIOS, isStandalonePWA } from '@/lib/tts';
 import { bulkDownloadAll, getManifestSize } from '@/lib/ttsBulkDownload';
 import { cn } from '@/lib/cn';
+import type { ChunkLevel } from '@/lib/chunkMarks';
 import SectionHeader from '@/components/SectionHeader';
 
 export default function Settings(): JSX.Element {
@@ -177,6 +178,30 @@ export default function Settings(): JSX.Element {
               onClick={() => {
                 s.toggleRubyPinyin();
                 showToast(s.rubyPinyin ? '병음을 한 줄로 모아 표시해요.' : '병음을 한자 글자 위에 표시해요.');
+              }}
+            />
+          </Row>
+          <Row
+            label="끊어 읽기 표시"
+            description="문장 안에 / 를 넣어 의미 단위로 끊어 읽도록 도와줘요. 초급은 잘게, 고급은 쉼표·모점 자리에서만 끊어요."
+            stack
+          >
+            <Segmented
+              value={s.chunkLevel}
+              options={[
+                { v: 'off', l: '끄기' },
+                { v: 'beginner', l: '초급' },
+                { v: 'intermediate', l: '중급' },
+                { v: 'advanced', l: '고급' },
+              ]}
+              onChange={(v) => {
+                s.setChunkLevel(v as ChunkLevel);
+                showToast(
+                  v === 'off' ? '끊어 읽기 표시(/)를 껐어요.'
+                  : v === 'beginner' ? '초급: 짧은 의미 단위마다 / 를 표시해요.'
+                  : v === 'intermediate' ? '중급: 쉼표와 접속사 앞에 / 를 표시해요.'
+                  : '고급: 쉼표·모점 자리에만 / 를 표시해요.',
+                );
               }}
             />
           </Row>

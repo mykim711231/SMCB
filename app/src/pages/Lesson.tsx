@@ -10,6 +10,9 @@ import VerseRow from '@/components/VerseRow';
 import SectionHeader from '@/components/SectionHeader';
 import TTSButton from '@/components/TTSButton';
 import { cn } from '@/lib/cn';
+import { CHUNK_LEVELS, type ChunkLevel } from '@/lib/chunkMarks';
+
+const CHUNK_LABEL: Record<ChunkLevel, string> = { off: '', beginner: '초급', intermediate: '중급', advanced: '고급' };
 
 export default function LessonPage(): JSX.Element {
   const { id } = useParams();
@@ -24,7 +27,7 @@ export default function LessonPage(): JSX.Element {
   const favItems = useFavorites((s) => s.items);
   const favToggle = useFavorites((s) => s.toggle);
   const favHas = (k: string): boolean => Boolean(favItems[k]);
-  const { showHanzi, showPinyin, showKorean, toggleHanzi, togglePinyin, toggleKorean } = useSettings();
+  const { showHanzi, showPinyin, showKorean, toggleHanzi, togglePinyin, toggleKorean, chunkLevel, setChunkLevel } = useSettings();
 
   useEffect(() => {
     let alive = true;
@@ -99,6 +102,11 @@ export default function LessonPage(): JSX.Element {
         <ToggleChip on={showHanzi} onClick={toggleHanzi} label="한자" />
         <ToggleChip on={showPinyin} onClick={togglePinyin} label="병음" />
         <ToggleChip on={showKorean} onClick={toggleKorean} label="한국어" />
+        <ToggleChip
+          on={chunkLevel !== 'off'}
+          onClick={() => setChunkLevel(CHUNK_LEVELS[(CHUNK_LEVELS.indexOf(chunkLevel) + 1) % CHUNK_LEVELS.length])}
+          label={`끊어읽기${CHUNK_LABEL[chunkLevel] ? ` · ${CHUNK_LABEL[chunkLevel]}` : ''}`}
+        />
       </div>
 
       {lesson.body.length > 0 && (

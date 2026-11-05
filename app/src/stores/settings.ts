@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
 import { stop as stopTTS, setVoiceModeProvider } from '@/lib/tts';
 import type { SRSAlgorithm } from '@/stores/srs';
+import type { ChunkLevel } from '@/lib/chunkMarks';
 
 export type Theme = 'light' | 'dark' | 'system' | 'sepia' | 'warmdark';
 export type FontSize = 'md' | 'lg' | 'xl';
@@ -57,6 +58,8 @@ export type SettingsState = {
   showKorean: boolean;
   /** Per-character pinyin ruby (Naver/Pagoda style). Requires both hanzi+pinyin on. */
   rubyPinyin: boolean;
+  /** 끊어 읽기 표시 단계 — off / beginner(잘게) / intermediate / advanced(쉼표만). */
+  chunkLevel: ChunkLevel;
   /** 청색광 차단(블루라이트 필터) 단계. 0=끄기 / 1~3 단계별로 호박색 multiply 오버레이 강도 ↑. */
   blueLight: BlueLightLevel;
   // TTS
@@ -97,6 +100,7 @@ export type SettingsState = {
   togglePinyin: () => void;
   toggleKorean: () => void;
   toggleRubyPinyin: () => void;
+  setChunkLevel: (l: ChunkLevel) => void;
   setBlueLight: (level: BlueLightLevel) => void;
   setTTSRate: (n: number) => void;
   setTTSVoiceURI: (uri: string | null) => void;
@@ -125,6 +129,7 @@ const DEFAULTS = {
   showPinyin: true,
   showKorean: true,
   rubyPinyin: true,
+  chunkLevel: 'off' as ChunkLevel,
   blueLight: 0 as BlueLightLevel,
   ttsRate: 0.95,
   ttsVoiceURI: null as string | null,
@@ -146,7 +151,7 @@ type Persisted = Omit<
   SettingsState,
   | 'hydrated'
   | 'setTheme' | 'setFontSize'
-  | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean' | 'toggleRubyPinyin' | 'setBlueLight'
+  | 'toggleHanzi' | 'togglePinyin' | 'toggleKorean' | 'toggleRubyPinyin' | 'setChunkLevel' | 'setBlueLight'
   | 'setTTSRate' | 'setTTSVoiceURI'
   | 'setFcAlgorithm' | 'setFcGrades' | 'setFcDirection' | 'setFcAutoplay'
   | 'setFcCardTypes'
@@ -164,6 +169,7 @@ function pickPersisted(s: SettingsState): Persisted {
     showPinyin: s.showPinyin,
     showKorean: s.showKorean,
     rubyPinyin: s.rubyPinyin,
+    chunkLevel: s.chunkLevel,
     blueLight: s.blueLight,
     ttsRate: s.ttsRate,
     ttsVoiceURI: s.ttsVoiceURI,
@@ -214,6 +220,13 @@ function normalizeBlueLight<T extends { blueLight: unknown }>(s: T): T {
   if (v === false || v == null) return { ...s, blueLight: 0 };
   const n = Math.round(Number(v));
   return { ...s, blueLight: (Number.isFinite(n) ? Math.min(3, Math.max(0, n)) : 0) as BlueLightLevel };
+}
+
+// 끊어 읽기: 초기 boolean(chunkMarks) 값이나 알 수 없는 값을 단계로 정규화.
+function normalizeChunkLevel<T extends { chunkLevel: unknown }>(s: T): T {
+  const v = s.chunkLevel;
+  if (v === 'off' || v === 'beginner' || v === 'intermediate' || v === 'advanced') return s;
+  return { ...s, chunkLevel: v === true ? 'advanced' : 'off' };
 }
 
 /**
@@ -284,6 +297,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   togglePinyin: () => { const v = !get().showPinyin; set({ showPinyin: v }); void persist({ ...get(), showPinyin: v }); },
   toggleKorean: () => { const v = !get().showKorean; set({ showKorean: v }); void persist({ ...get(), showKorean: v }); },
   toggleRubyPinyin: () => { const v = !get().rubyPinyin; set({ rubyPinyin: v }); void persist({ ...get(), rubyPinyin: v }); },
+  setChunkLevel: (l) => { set({ chunkLevel: l }); void persist({ ...get(), chunkLevel: l }); },
   setBlueLight: (level) => { set({ blueLight: level }); void persist({ ...get(), blueLight: level }); applyBlueLight(level); },
   setTTSRate: (n) => { set({ ttsRate: n }); void persist({ ...get(), ttsRate: n }); },
   setTTSVoiceURI: (uri) => { set({ ttsVoiceURI: uri }); void persist({ ...get(), ttsVoiceURI: uri }); },
@@ -332,7 +346,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
   hydrate: async () => {
     const v2 = await dbGet<Partial<Persisted>>(DB_KEY);
     if (v2) {
-      const merged = normalizeBlueLight(normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v2 })));
+      const merged = normalizeChunkLevel(normalizeBlueLight(normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v2 }))));
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);
@@ -343,7 +357,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     }
     const v1 = await dbGet<Partial<Persisted>>(DB_KEY_LEGACY);
     if (v1) {
-      const merged = normalizeBlueLight(normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v1 })));
+      const merged = normalizeChunkLevel(normalizeBlueLight(normalizeBulkStatus(migrateUserMode({ ...DEFAULTS, ...v1 }))));
       set({ ...merged, hydrated: true });
       applyTheme(merged.theme);
       applyFontSize(merged.fontSize);

@@ -4,6 +4,7 @@ import HanziRuby from './HanziRuby';
 import { useSettings } from '@/stores/settings';
 import { cn } from '@/lib/cn';
 import { alignRuby } from '@/lib/pinyinRuby';
+import { markChunksText, markChunksTokens } from '@/lib/chunkMarks';
 
 type Props = {
   verse: Verse;
@@ -23,9 +24,13 @@ type Props = {
  * block layout so the user never sees skewed reading aids.
  */
 export default function VerseRow({ verse, tts = true, className, prefix }: Props): JSX.Element {
-  const { showHanzi, showPinyin, showKorean, rubyPinyin } = useSettings();
-  const tokens =
+  const { showHanzi, showPinyin, showKorean, rubyPinyin, chunkLevel } = useSettings();
+  const aligned =
     showHanzi && showPinyin && rubyPinyin ? alignRuby(verse.zh, verse.pinyin) : null;
+  const tokens = aligned ? markChunksTokens(aligned, chunkLevel) : aligned;
+  const marked = markChunksText(verse.zh, verse.pinyin, chunkLevel);
+  const pinyinText = marked.pinyin;
+  const zhText = marked.zh;
 
   return (
     <div className={cn('flex gap-3 items-start py-2', className)}>
@@ -41,13 +46,13 @@ export default function VerseRow({ verse, tts = true, className, prefix }: Props
           <>
             {showPinyin && (
               <p className="text-pinyin font-pinyin text-sm leading-snug select-text">
-                {verse.pinyin}
+                {pinyinText}
               </p>
             )}
             {showHanzi && (
               <p className="text-fg text-xl sm:text-2xl leading-snug font-medium select-text">
                 {prefix ? <span className="text-muted mr-1">{prefix}</span> : null}
-                {verse.zh}
+                {zhText}
               </p>
             )}
           </>

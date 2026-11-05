@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn';
 import { useSettings } from '@/stores/settings';
 import { alignRuby } from '@/lib/pinyinRuby';
 import HanziRuby from '@/components/HanziRuby';
+import { markChunksText, markChunksTokens } from '@/lib/chunkMarks';
 import {
   startSession as startMediaSession,
   endSession as endMediaSession,
@@ -47,7 +48,7 @@ export default function MarathonPlayer({
   cards, ttsRate, ttsVoiceURI, onExit,
   show = { zh: true, pinyin: true, ko: true },
 }: Props): JSX.Element {
-  const { rubyPinyin } = useSettings();
+  const { rubyPinyin, chunkLevel } = useSettings();
   // userMode === 'recorded'일 때만 잠금화면 keep-alive를 켠다.
   // 'device' 모드는 단말 TTS 전용 — iOS 화면 잠금 시 표준적으로 정지되므로
   // 무음 loop를 흘려도 실익이 없다 (배터리·세션 점유만 발생).
@@ -253,7 +254,11 @@ export default function MarathonPlayer({
           (() => {
             const t = cardTextsOf(current);
             const useRuby = show.zh && show.pinyin && rubyPinyin && t.pinyin;
-            const rubyTokens = useRuby ? alignRuby(t.zh, t.pinyin) : null;
+            const alignedTokens = useRuby ? alignRuby(t.zh, t.pinyin) : null;
+            const rubyTokens = alignedTokens ? markChunksTokens(alignedTokens, chunkLevel) : alignedTokens;
+            const marked = markChunksText(t.zh, t.pinyin, chunkLevel);
+            const zhShown = marked.zh;
+            const pinyinShown = marked.pinyin;
             return (
               <div key={cardIdOf(current)}>
                 <p className="text-xs text-muted">{current.lessonTitleKo} · {idx + 1}/{cards.length}</p>
@@ -262,10 +267,10 @@ export default function MarathonPlayer({
                 ) : (
                   <>
                     {show.zh && (
-                      <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{t.zh}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{zhShown}</p>
                     )}
                     {show.pinyin && t.pinyin && (
-                      <p className="text-pinyin font-pinyin text-sm mt-1">{t.pinyin}</p>
+                      <p className="text-pinyin font-pinyin text-sm mt-1">{pinyinShown}</p>
                     )}
                   </>
                 )}

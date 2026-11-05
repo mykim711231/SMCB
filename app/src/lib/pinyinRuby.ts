@@ -50,11 +50,18 @@ const SYL_RE = new RegExp(
 // 儿화 대상 글자 (간체 儿 / 번체 兒).
 const ERHUA_CHAR_RE = /^[儿兒]$/;
 
-export type RubyToken = { ch: string; py: string };
+/** `mark`: 끊어 읽기 표시("/")용 토큰 — 원문 글자가 아님. */
+export type RubyToken = { ch: string; py: string; mark?: boolean };
 
 export function tokenizePinyinSyllables(pinyin: string): string[] {
   if (!pinyin) return [];
   return Array.from(pinyin.matchAll(SYL_RE)).map((m) => m[0]);
+}
+
+/** 각 음절이 끝나는 문자열 오프셋(끝 위치, exclusive) 목록. */
+export function pinyinSyllableEnds(pinyin: string): number[] {
+  if (!pinyin) return [];
+  return Array.from(pinyin.matchAll(SYL_RE)).map((m) => (m.index ?? 0) + m[0].length);
 }
 
 export function alignRuby(zh: string, pinyin: string): RubyToken[] | null {
