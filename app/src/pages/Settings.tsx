@@ -183,24 +183,24 @@ export default function Settings(): JSX.Element {
           </Row>
           <Row
             label="끊어 읽기 표시"
-            description="문장 안에 / 를 넣어 의미 단위로 끊어 읽도록 도와줘요. 초급은 잘게, 고급은 쉼표·모점 자리에서만 끊어요."
+            description="문장을 단어 → 구 → 절 단위로 나눠 보여줘요. 모두 | 로 표시하고, 단계마다 나누는 단위만 달라요."
             stack
           >
             <Segmented
               value={s.chunkLevel}
               options={[
                 { v: 'off', l: '끄기' },
-                { v: 'beginner', l: '초급' },
-                { v: 'intermediate', l: '중급' },
-                { v: 'advanced', l: '고급' },
+                { v: 'word', l: '단어' },
+                { v: 'phrase', l: '구' },
+                { v: 'clause', l: '절' },
               ]}
               onChange={(v) => {
                 s.setChunkLevel(v as ChunkLevel);
                 showToast(
-                  v === 'off' ? '끊어 읽기 표시(/)를 껐어요.'
-                  : v === 'beginner' ? '초급: 짧은 의미 단위마다 / 를 표시해요.'
-                  : v === 'intermediate' ? '중급: 쉼표와 접속사 앞에 / 를 표시해요.'
-                  : '고급: 쉼표·모점 자리에만 / 를 표시해요.',
+                  v === 'off' ? '끊어 읽기 표시를 껐어요.'
+                  : v === 'word' ? '단어: 단어마다 | 를 표시해요.'
+                  : v === 'phrase' ? '구: 의미 덩어리마다 | 를 표시해요.'
+                  : '절: 쉼표·모점 뒤에 | 를 표시해요.',
                 );
               }}
             />

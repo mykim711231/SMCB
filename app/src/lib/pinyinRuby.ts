@@ -50,8 +50,8 @@ const SYL_RE = new RegExp(
 // 儿화 대상 글자 (간체 儿 / 번체 兒).
 const ERHUA_CHAR_RE = /^[儿兒]$/;
 
-/** `mark`: 끊어 읽기 표시("/")용 토큰 — 원문 글자가 아님. */
-export type RubyToken = { ch: string; py: string; mark?: boolean };
+/** `mark`: 끊어 읽기 표시(간격·"/"·"//")용 토큰 — 원문 글자가 아님. */
+export type RubyToken = { ch: string; py: string; mark?: 'gap' | 'phrase' | 'clause' };
 
 export function tokenizePinyinSyllables(pinyin: string): string[] {
   if (!pinyin) return [];

@@ -18,6 +18,7 @@ import { useSettings } from '@/stores/settings';
 import { alignRuby } from '@/lib/pinyinRuby';
 import HanziRuby from '@/components/HanziRuby';
 import { markChunksText, markChunksTokens } from '@/lib/chunkMarks';
+import { useChunkData } from '@/lib/useChunkData';
 import {
   startSession as startMediaSession,
   endSession as endMediaSession,
@@ -49,6 +50,7 @@ export default function MarathonPlayer({
   show = { zh: true, pinyin: true, ko: true },
 }: Props): JSX.Element {
   const { rubyPinyin, chunkLevel } = useSettings();
+  useChunkData(chunkLevel);
   // userMode === 'recorded'일 때만 잠금화면 keep-alive를 켠다.
   // 'device' 모드는 단말 TTS 전용 — iOS 화면 잠금 시 표준적으로 정지되므로
   // 무음 loop를 흘려도 실익이 없다 (배터리·세션 점유만 발생).

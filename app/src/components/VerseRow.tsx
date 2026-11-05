@@ -5,6 +5,7 @@ import { useSettings } from '@/stores/settings';
 import { cn } from '@/lib/cn';
 import { alignRuby } from '@/lib/pinyinRuby';
 import { markChunksText, markChunksTokens } from '@/lib/chunkMarks';
+import { useChunkData } from '@/lib/useChunkData';
 
 type Props = {
   verse: Verse;
@@ -25,6 +26,7 @@ type Props = {
  */
 export default function VerseRow({ verse, tts = true, className, prefix }: Props): JSX.Element {
   const { showHanzi, showPinyin, showKorean, rubyPinyin, chunkLevel } = useSettings();
+  useChunkData(chunkLevel);
   const aligned =
     showHanzi && showPinyin && rubyPinyin ? alignRuby(verse.zh, verse.pinyin) : null;
   const tokens = aligned ? markChunksTokens(aligned, chunkLevel) : aligned;

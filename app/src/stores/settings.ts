@@ -8,7 +8,7 @@ import { create } from 'zustand';
 import { dbGet, dbSet } from '@/lib/db';
 import { stop as stopTTS, setVoiceModeProvider } from '@/lib/tts';
 import type { SRSAlgorithm } from '@/stores/srs';
-import type { ChunkLevel } from '@/lib/chunkMarks';
+import { normalizeChunkLevel as normalizeChunkLevelValue, type ChunkLevel } from '@/lib/chunkMarks';
 
 export type Theme = 'light' | 'dark' | 'system' | 'sepia' | 'warmdark';
 export type FontSize = 'md' | 'lg' | 'xl';
@@ -58,7 +58,7 @@ export type SettingsState = {
   showKorean: boolean;
   /** Per-character pinyin ruby (Naver/Pagoda style). Requires both hanzi+pinyin on. */
   rubyPinyin: boolean;
-  /** 끊어 읽기 표시 단계 — off / beginner(잘게) / intermediate / advanced(쉼표만). */
+  /** 끊어 읽기 표시 단계 — off / word(단어) / phrase(구) / clause(절). */
   chunkLevel: ChunkLevel;
   /** 청색광 차단(블루라이트 필터) 단계. 0=끄기 / 1~3 단계별로 호박색 multiply 오버레이 강도 ↑. */
   blueLight: BlueLightLevel;
@@ -224,9 +224,7 @@ function normalizeBlueLight<T extends { blueLight: unknown }>(s: T): T {
 
 // 끊어 읽기: 초기 boolean(chunkMarks) 값이나 알 수 없는 값을 단계로 정규화.
 function normalizeChunkLevel<T extends { chunkLevel: unknown }>(s: T): T {
-  const v = s.chunkLevel;
-  if (v === 'off' || v === 'beginner' || v === 'intermediate' || v === 'advanced') return s;
-  return { ...s, chunkLevel: v === true ? 'advanced' : 'off' };
+  return { ...s, chunkLevel: normalizeChunkLevelValue(s.chunkLevel) };
 }
 
 /**

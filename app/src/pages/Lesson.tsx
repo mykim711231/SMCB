@@ -12,7 +12,7 @@ import TTSButton from '@/components/TTSButton';
 import { cn } from '@/lib/cn';
 import { CHUNK_LEVELS, type ChunkLevel } from '@/lib/chunkMarks';
 
-const CHUNK_LABEL: Record<ChunkLevel, string> = { off: '', beginner: '초급', intermediate: '중급', advanced: '고급' };
+const CHUNK_LABEL: Record<ChunkLevel, string> = { off: '', word: '단어', phrase: '구', clause: '절' };
 
 export default function LessonPage(): JSX.Element {
   const { id } = useParams();
