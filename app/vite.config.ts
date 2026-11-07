@@ -54,7 +54,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      includeAssets: ['icons/icon.svg'],
+      includeAssets: ['icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'],
       manifest: {
         // id/start_url/scope를 base로 고정 — 지정하지 않으면 PWA가
         // 홈 추가 당시의 경로(#/learn 등)에서 부팅돼 해당 route 청크가
@@ -69,13 +69,13 @@ export default defineConfig({
         background_color: '#FAFAFA',
         theme_color: '#2563EB',
         lang: 'ko',
+        // WebAPK(설치형 앱)은 PNG 아이콘이 필요하다 — 구형 안드로이드 크롬은 SVG만 있으면
+        // 설치 앱이 바로 닫힐 수 있어 192/512 PNG(any)와 maskable 을 함께 둔다.
         icons: [
-          {
-            src: 'icons/icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
-          },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       injectManifest: {
