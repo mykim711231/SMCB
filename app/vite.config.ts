@@ -66,7 +66,6 @@ export default defineConfig({
         start_url: base,
         scope: base,
         display: 'standalone',
-        orientation: 'any',
         background_color: '#FAFAFA',
         theme_color: '#2563EB',
         lang: 'ko',
