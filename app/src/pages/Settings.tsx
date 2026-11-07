@@ -181,14 +181,14 @@ export default function Settings(): JSX.Element {
             />
           </Row>
           <Row
-            label="끊어 읽기 표시"
-            description="문장 구조에 맞춰 의미 단위마다 / 를 표시해요. 예) 我是 / 韩国人。 음성은 표시와 상관없이 문장 전체를 재생해요."
+            label="의미단위 표시"
+            description="화면의 글자에만 / 로 의미 단위를 표시해요. 예) 我是 / 韩国人。 음성은 표시와 상관없이 문장 전체를 재생해요."
           >
             <Toggle
               on={s.chunkLevel === 'on'}
               onClick={() => {
                 s.setChunkLevel(s.chunkLevel === 'on' ? 'off' : 'on');
-                showToast(s.chunkLevel === 'on' ? '끊어 읽기 표시를 껐어요.' : '의미 단위마다 / 를 표시해요.');
+                showToast(s.chunkLevel === 'on' ? '의미단위 표시를 껐어요.' : '의미 단위마다 / 를 표시해요.');
               }}
             />
           </Row>

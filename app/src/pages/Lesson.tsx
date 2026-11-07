@@ -103,7 +103,7 @@ export default function LessonPage(): JSX.Element {
         <ToggleChip
           on={chunkLevel === 'on'}
           onClick={() => setChunkLevel(chunkLevel === 'on' ? 'off' : 'on')}
-          label="끊어읽기"
+          label="의미단위"
         />
       </div>
 
