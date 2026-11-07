@@ -10,9 +10,7 @@ import VerseRow from '@/components/VerseRow';
 import SectionHeader from '@/components/SectionHeader';
 import TTSButton from '@/components/TTSButton';
 import { cn } from '@/lib/cn';
-import { CHUNK_LEVELS, type ChunkLevel } from '@/lib/chunkMarks';
 
-const CHUNK_LABEL: Record<ChunkLevel, string> = { off: '', word: '단어', phrase: '구', clause: '절' };
 
 export default function LessonPage(): JSX.Element {
   const { id } = useParams();
@@ -103,9 +101,9 @@ export default function LessonPage(): JSX.Element {
         <ToggleChip on={showPinyin} onClick={togglePinyin} label="병음" />
         <ToggleChip on={showKorean} onClick={toggleKorean} label="한국어" />
         <ToggleChip
-          on={chunkLevel !== 'off'}
-          onClick={() => setChunkLevel(CHUNK_LEVELS[(CHUNK_LEVELS.indexOf(chunkLevel) + 1) % CHUNK_LEVELS.length])}
-          label={`끊어읽기${CHUNK_LABEL[chunkLevel] ? ` · ${CHUNK_LABEL[chunkLevel]}` : ''}`}
+          on={chunkLevel === 'on'}
+          onClick={() => setChunkLevel(chunkLevel === 'on' ? 'off' : 'on')}
+          label="끊어읽기"
         />
       </div>
 

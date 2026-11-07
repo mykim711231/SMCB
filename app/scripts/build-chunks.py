@@ -2,7 +2,7 @@
 
 사용법:  pip install jieba && python scripts/build-chunks.py
 출력:    src/data/zh-chunks.json  — 문장마다 "神|爱/世人，…" 형태의 문자열 배열.
-         `|` = 단어(词) 경계, `/` = 구(短语) 경계(단어 경계의 부분집합).
+         `/` = 구(短语) 경계.
          구두점 옆에는 표시를 넣지 않는다. 앱은 표시를 걷어낸 원문으로 조회한다.
 레슨 본문(zh)이 바뀌면 다시 실행한다. 데이터에 없는 문장은 앱이 Intl.Segmenter로 폴백한다.
 """
@@ -118,6 +118,20 @@ def phrases(clause):
     if pend:
         if groups: groups[-1].extend(pend)
         else: groups.append(pend)
+    # 짧은 대명사 주어 + 술어(동사)는 한 덩어리: 我是 / 韩国人
+    flat = [w for g in groups for w in g]
+    starts, k = [], 0
+    for g in groups:
+        starts.append(k); k += len(g)
+    merged, gi = [], 0
+    while gi < len(groups):
+        g = groups[gi]
+        if gi + 1 < len(groups) and len(g) == 1 and clause[starts[gi]][1].startswith('r') and len(g[0]) <= 2:
+            nxt = starts[gi + 1]
+            if cl[nxt] == 'V' and clause[nxt][0] not in PREP:
+                merged.append(g + groups[gi + 1]); gi += 2; continue
+        merged.append(g); gi += 1
+    groups = merged
     return groups
 
 SPLIT = {'地用': [('地', 'uv'), ('用', 'p')], '主使': [('主', 'n'), ('使', 'p')], '神将': [('神', 'n'), ('将', 'p')], '神造': [('神', 'n'), ('造', 'v')], '神使': [('神', 'n'), ('使', 'p')]}
@@ -134,7 +148,7 @@ def mark(text):
         nonlocal clause
         if clause:
             gs = phrases(clause)
-            out.append('/'.join('|'.join(g) for g in gs))
+            out.append('/'.join(''.join(g) for g in gs))
             clause = []
     for w, f in toks:
         if HAN.search(w): clause.append((w, f))

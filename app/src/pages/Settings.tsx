@@ -11,7 +11,6 @@ import { dbClearAll, dbExportAll, dbImportAll, type DbBackup } from '@/lib/db';
 import { awaitVoices, isSupported, isIOS, isStandalonePWA } from '@/lib/tts';
 import { bulkDownloadAll, getManifestSize } from '@/lib/ttsBulkDownload';
 import { cn } from '@/lib/cn';
-import type { ChunkLevel } from '@/lib/chunkMarks';
 import SectionHeader from '@/components/SectionHeader';
 
 export default function Settings(): JSX.Element {
@@ -183,25 +182,13 @@ export default function Settings(): JSX.Element {
           </Row>
           <Row
             label="끊어 읽기 표시"
-            description="문장을 단어 → 구 → 절 단위로 나눠 보여줘요. 모두 | 로 표시하고, 단계마다 나누는 단위만 달라요."
-            stack
+            description="문장 구조에 맞춰 의미 단위마다 / 를 표시해요. 예) 我是 / 韩国人。 음성은 표시와 상관없이 문장 전체를 재생해요."
           >
-            <Segmented
-              value={s.chunkLevel}
-              options={[
-                { v: 'off', l: '끄기' },
-                { v: 'word', l: '단어' },
-                { v: 'phrase', l: '구' },
-                { v: 'clause', l: '절' },
-              ]}
-              onChange={(v) => {
-                s.setChunkLevel(v as ChunkLevel);
-                showToast(
-                  v === 'off' ? '끊어 읽기 표시를 껐어요.'
-                  : v === 'word' ? '단어: 단어마다 | 를 표시해요.'
-                  : v === 'phrase' ? '구: 의미 덩어리마다 | 를 표시해요.'
-                  : '절: 쉼표·모점 뒤에 | 를 표시해요.',
-                );
+            <Toggle
+              on={s.chunkLevel === 'on'}
+              onClick={() => {
+                s.setChunkLevel(s.chunkLevel === 'on' ? 'off' : 'on');
+                showToast(s.chunkLevel === 'on' ? '끊어 읽기 표시를 껐어요.' : '의미 단위마다 / 를 표시해요.');
               }}
             />
           </Row>
