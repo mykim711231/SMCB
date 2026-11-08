@@ -1613,6 +1613,12 @@ function AndroidInstallSteps(): JSX.Element {
         <b> "앱 설치"</b>로 설치한 앱이 열렸다가 바로 닫힐 수 있어요. 이때는 앱을 지우고
         <b> ⋮ 메뉴 → "홈 화면에 추가"</b>로 바로가기를 만들어 쓰세요.
       </p>
+      <p className="text-xs text-muted mt-2">
+        <AlertTriangle size={12} className="inline -mt-0.5" aria-hidden /> <b>삼성 인터넷</b>으로 설치하면
+        "오래된 Android 버전용 앱" 같은 경고가 나올 수 있어요. 악성 앱 판정이 아니라 삼성 인터넷이 만드는
+        설치 파일의 대상 버전 안내입니다. <b>Chrome으로 설치</b>하거나, 경고에서 <b>"무시하고 설치"</b>를 누르거나,
+        <b> "홈 화면에 추가"</b>로 바로가기만 만들어도 됩니다.
+      </p>
     </>
   );
 }
@@ -1860,6 +1866,24 @@ function MacUninstallSteps(): JSX.Element {
 type Trouble = { q: ReactNode; a: JSX.Element; keywords?: string };
 
 const TROUBLE_ITEMS: Trouble[] = [
+      {
+        q: <><AlertTriangle size={14} aria-hidden /> 삼성 인터넷으로 설치할 때 "오래된 버전용 앱" 경고가 나와요.</>,
+        keywords: '삼성 인터넷 설치 경고 오래된 버전 구형 대상 플레이 프로텍트 무시하고 설치 위험 갤럭시',
+        a: (
+          <>
+            <p className="mb-2">
+              삼성 인터넷이 웹앱을 설치할 때 만드는 설치 파일 때문에 나오는 경고예요. SMCB에 문제가 있거나 악성 앱으로
+              판정된 것이 아니며, 다른 웹앱도 똑같이 나옵니다. 설치 파일의 대상 버전은 삼성 인터넷이 정하기 때문에
+              SMCB 쪽에서 없앨 수 없어요.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li><b>Chrome으로 설치</b>: 기존 아이콘을 지우고 Chrome에서 이 페이지를 연 뒤 <b>⋮ → "앱 설치"</b>.</li>
+              <li>경고가 계속 나오면 <b>"무시하고 설치"</b>를 눌러도 됩니다.</li>
+              <li>설치가 부담스러우면 <b>⋮ → "홈 화면에 추가"</b>로 바로가기만 만들어도 같은 기능을 쓸 수 있어요.</li>
+            </ol>
+          </>
+        ),
+      },
       {
         q: <><AlertTriangle size={14} aria-hidden /> 설치한 앱 아이콘을 누르면 잠깐 열렸다가 바로 닫혀요. (오래된 Android)</>,
         keywords: '설치 앱 닫힘 꺼짐 종료 실행 안됨 안드로이드 8 9 오래된 기기 태블릿 크롬 지원 종료 바로가기 홈 화면에 추가',
