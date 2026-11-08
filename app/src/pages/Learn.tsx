@@ -32,7 +32,7 @@ export default function Learn(): JSX.Element {
   // 'repeat'(구 5회 듣기) 북마크는 단계 듣기로 연결
   const q0 = params.get('mode');
   const q = q0 === 'repeat' ? 'staged' : q0;
-  const mode: LearnMode = isValidMode(q) ? q : 'marathon';
+  const mode: LearnMode = isValidMode(q) ? q : 'staged';
 
   const setMode = useCallback((v: LearnMode): void => {
     const next = new URLSearchParams(params);
