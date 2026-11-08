@@ -82,14 +82,14 @@ const GUIDES: Guide[] = [
     id: 'settings',
     title: <><SettingsIcon size={18} aria-hidden /> 설정 페이지 한눈에 보기</>,
     subtitle: '화면 · 음성 · 플래시카드 · 백업 · 저장 공간 안내.',
-    keywords: '설정 화면 테마 다크 라이트 세피아 웜다크 종이색 시스템 청색광 차단 블루라이트 필터 눈 피로 글자 크기 폰트 한자 병음 한국어 표시 토글 재생 방식 음성 속도 빠르게 느리게 플래시카드 알고리즘 leitner sm2 채점 카드 종류 자동 재생 하루 새 카드 한도 듣기 테스트 대조쌍 발음표 부록 백업 복원 저장 공간 캐시 비우기 초기화 전체 초기화 정보',
+    keywords: '설정 화면 테마 다크 라이트 세피아 웜다크 종이색 시스템 청색광 차단 블루라이트 필터 눈 피로 글자 크기 폰트 한자 병음 한국어 표시 토글 재생 방식 음성 속도 빠르게 느리게 플래시카드 알고리즘 leitner sm2 채점 카드 종류 자동 재생 하루 새 카드 한도 부록 백업 복원 저장 공간 캐시 비우기 초기화 전체 초기화 정보',
     Body: SettingsOverviewGuide,
   },
   {
     id: 'learn-sources',
     title: <><GraduationCap size={18} aria-hidden /> 학습 모드별 자료 매핑</>,
-    subtitle: '플래시카드 · 4지선다 · 문장 조립 · 이어듣기 · 듣기 테스트가 어떤 자료를 쓰는지.',
-    keywords: '학습 모드 플래시카드 4지선다 문장 조립 이어듣기 듣기 테스트 마라톤 대조쌍 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 발음표 부록',
+    subtitle: '플래시카드 · 4지선다 · 문장 조립 · 이어듣기 · 5회 듣기가 어떤 자료를 쓰는지.',
+    keywords: '학습 모드 플래시카드 4지선다 문장 조립 이어듣기 5회 듣기 반복 듣기 마라톤 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 부록',
     Body: LearnSourcesGuide,
   },
   {
@@ -757,9 +757,6 @@ function SettingsOverviewGuide(): JSX.Element {
               매번 스피커 버튼을 누르지 않아도 돼서 편해요.
             </li>
             <li>
-              <b>듣기 테스트에 발음표 단음절 포함</b> — 듣기 테스트 모드에서 한 글자(단음절) 발음 카드도 함께 출제합니다.
-            </li>
-            <li>
               <b>부록1 기독교 용어 학습 포함</b> — 예수·하나님 같은 부록1의 기독교 용어 80여 개를 학습 풀에 넣습니다.
             </li>
           </ul>
@@ -902,7 +899,6 @@ function LearnSourcesGuide(): JSX.Element {
   //   - 플래시카드: lib/flashcard-items.ts buildAllCardSources
   //   - 문장 조립: lib/sentence-builder.ts buildAllPrompts (헤더 주석)
   //   - 4지선다:   pages/Quiz.tsx mcqPrompts (vocab만)
-  //   - 대조쌍:    lib/minimal-pairs.ts extractMinimalPairs (vocab + 옵션 발음표)
   //   - 마라톤:    lib/flashcard-items.ts buildMarathonSources
   const rows: Array<{
     area: string;
@@ -910,20 +906,18 @@ function LearnSourcesGuide(): JSX.Element {
     flashcard: 'yes' | 'no' | 'opt';
     sentence: 'yes' | 'no' | 'opt';
     mcq: 'yes' | 'no' | 'opt';
-    pairs: 'yes' | 'no' | 'opt';
     marathon: 'yes' | 'no' | 'opt';
   }> = [
-    { area: '본문',       desc: '本文 — 레슨 본문 문장',          flashcard: 'no',  sentence: 'no',  mcq: 'no',  pairs: 'no',  marathon: 'opt' },
-    { area: '단어',       desc: '主要词汇 — 주요 어휘',           flashcard: 'yes', sentence: 'no',  mcq: 'yes', pairs: 'yes', marathon: 'opt' },
-    { area: '단어 예문',  desc: 'vocab.example — 어휘 예문',      flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
-    { area: '발음표',     desc: '发音点 — 단음절 발음표',         flashcard: 'no',  sentence: 'no',  mcq: 'no',  pairs: 'opt', marathon: 'no'  },
-    { area: '어법 예문',  desc: '语法点 — 어법 예문',             flashcard: 'no',  sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'no'  },
-    { area: '성경 구절',  desc: '圣经引用 — 성경 인용',           flashcard: 'yes', sentence: 'no',  mcq: 'no',  pairs: 'no',  marathon: 'opt' },
-    { area: '응용 회화',  desc: '应用会话 — 일상 회화 라인',      flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
-    { area: '전도 회화',  desc: '传福音会话 — 전도 회화 라인',    flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
-    { area: '시나리오',   desc: '场景 — 실전 상황 verse 세그먼트', flashcard: 'yes', sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'opt' },
-    { area: '본문 질문',  desc: '本文问题 — 본문 이해 질문',      flashcard: 'no',  sentence: 'yes', mcq: 'no',  pairs: 'no',  marathon: 'no'  },
-    { area: '부록 단어',  desc: '附录 — 부록1 기독교 용어',       flashcard: 'opt', sentence: 'no',  mcq: 'opt', pairs: 'opt', marathon: 'no'  },
+    { area: '본문',       desc: '本文 — 레슨 본문 문장',          flashcard: 'no',  sentence: 'no',  mcq: 'no',   marathon: 'opt' },
+    { area: '단어',       desc: '主要词汇 — 주요 어휘',           flashcard: 'yes', sentence: 'no',  mcq: 'yes', marathon: 'opt' },
+    { area: '단어 예문',  desc: 'vocab.example — 어휘 예문',      flashcard: 'yes', sentence: 'yes', mcq: 'no',   marathon: 'opt' },
+    { area: '어법 예문',  desc: '语法点 — 어법 예문',             flashcard: 'no',  sentence: 'yes', mcq: 'no',   marathon: 'no'  },
+    { area: '성경 구절',  desc: '圣经引用 — 성경 인용',           flashcard: 'yes', sentence: 'no',  mcq: 'no',   marathon: 'opt' },
+    { area: '응용 회화',  desc: '应用会话 — 일상 회화 라인',      flashcard: 'yes', sentence: 'yes', mcq: 'no',   marathon: 'opt' },
+    { area: '전도 회화',  desc: '传福音会话 — 전도 회화 라인',    flashcard: 'yes', sentence: 'yes', mcq: 'no',   marathon: 'opt' },
+    { area: '시나리오',   desc: '场景 — 실전 상황 verse 세그먼트', flashcard: 'yes', sentence: 'yes', mcq: 'no',   marathon: 'opt' },
+    { area: '본문 질문',  desc: '本文问题 — 본문 이해 질문',      flashcard: 'no',  sentence: 'yes', mcq: 'no',   marathon: 'no'  },
+    { area: '부록 단어',  desc: '附录 — 부록1 기독교 용어',       flashcard: 'opt', sentence: 'no',  mcq: 'opt', marathon: 'no'  },
   ];
 
   const cell = (v: 'yes' | 'no' | 'opt'): JSX.Element => {
@@ -951,8 +945,7 @@ function LearnSourcesGuide(): JSX.Element {
               <th className="p-2 border-b border-divider whitespace-nowrap">플래시<br/>카드</th>
               <th className="p-2 border-b border-divider whitespace-nowrap">4지<br/>선다</th>
               <th className="p-2 border-b border-divider whitespace-nowrap">문장<br/>조립</th>
-              <th className="p-2 border-b border-divider whitespace-nowrap">이어<br/>듣기</th>
-              <th className="p-2 border-b border-divider whitespace-nowrap">듣기<br/>테스트</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">이어듣기<br/>5회 듣기</th>
             </tr>
           </thead>
           <tbody>
@@ -966,7 +959,6 @@ function LearnSourcesGuide(): JSX.Element {
                 <td className="p-2 border-b border-divider text-center">{cell(r.mcq)}</td>
                 <td className="p-2 border-b border-divider text-center">{cell(r.sentence)}</td>
                 <td className="p-2 border-b border-divider text-center">{cell(r.marathon)}</td>
-                <td className="p-2 border-b border-divider text-center">{cell(r.pairs)}</td>
               </tr>
             ))}
           </tbody>
@@ -984,12 +976,7 @@ function LearnSourcesGuide(): JSX.Element {
             <b>영역</b> 섹션에서 원하는 영역만 켜세요. 그 영역만 권/과 순서로 재생합니다.
           </li>
           <li>
-            <b>듣기 테스트의 발음표</b> —{' '}
-            <Link to="/settings" className="text-primary font-semibold underline">설정</Link> 페이지 →{' '}
-            <b>"듣기 테스트에 발음표 단음절 포함"</b> 토글을 켜면 单字 발음표도 풀에 들어갑니다.
-          </li>
-          <li>
-            <b>부록 단어 (플래시카드 · 4지선다 · 듣기 테스트)</b> —{' '}
+            <b>부록 단어 (플래시카드 · 4지선다)</b> —{' '}
             <Link to="/settings" className="text-primary font-semibold underline">설정</Link> 페이지 →{' '}
             <b>"부록1 기독교 용어 학습 포함"</b> 토글을 켜면 부록1의 기독교 용어 80+개가 학습 풀에 합류해요.
           </li>
@@ -1004,8 +991,8 @@ function LearnSourcesGuide(): JSX.Element {
           <li><b className="text-fg">플래시카드</b> — 단어 · 예문 · 구절 · 회화 · 시나리오를 카드 한 장씩 넘기며 외워요.</li>
           <li><b className="text-fg">4지선다</b> — 주요 어휘(단어)만 출제. 4개 보기 중 한국어 뜻을 고르거나 한자/병음을 맞춰요.</li>
           <li><b className="text-fg">문장 조립</b> — 회화체 문장(회화·예문·시나리오·어법 예문·본문 질문)을 토큰으로 흩어 놓고 다시 맞춰요. <i>본문·구절은 문어체라 제외.</i></li>
+          <li><b className="text-fg">5회 듣기</b> — 이어듣기와 같은 범위·영역을 쓰되 한 문장을 5번씩 들려줘요. 1~2회는 전체 표시, 3~4회는 한자만, 5회째는 소리만. 채점 없음.</li>
           <li><b className="text-fg">이어듣기</b> — 선택한 영역(본문·단어·예문·구절·회화·시나리오)을 권/과 순서대로 끝까지 재생만 해요. 채점 없음.</li>
-          <li><b className="text-fg">듣기 테스트</b> — 헷갈리기 쉬운 발음을 짝지어 듣고 골라요. 단어 풀에서 자동 추출, 설정에서 발음표 단음절도 켤 수 있어요.</li>
         </ul>
       </div>
     </div>
@@ -2275,16 +2262,6 @@ const FAQ_ITEMS: FAQ[] = [
               함께 외우려면 ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>부록1 기독교 용어 학습 포함</b>을 켜세요.
             </p>
           </>
-        ),
-      },
-      {
-        q: '듣기 테스트에 한 글자(단음절) 발음 카드가 안 나와요.',
-        keywords: '듣기 테스트 대조쌍 발음표 단음절 한 글자 안 나와 빠짐 설정 토글',
-        a: (
-          <p>
-            듣기 테스트는 기본적으로 <b>단어</b>에서 헷갈리는 짝만 뽑아요. 한 글자(단음절)
-            발음표 카드까지 함께 풀려면 ⚙️ <Link to="/settings" className="text-primary font-semibold underline">설정</Link> → <b>듣기 테스트에 발음표 단음절 포함</b>을 켜세요.
-          </p>
         ),
       },
       {

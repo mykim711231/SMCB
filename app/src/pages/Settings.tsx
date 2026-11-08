@@ -479,22 +479,6 @@ export default function Settings(): JSX.Element {
             />
           </Row>
           <Row
-            label="듣기 테스트에 발음표 단음절 포함"
-            description="듣기 테스트 모드에서 한 글자(단음절) 발음 카드도 함께 출제해요."
-          >
-            <Toggle
-              on={s.fcPronInPairs}
-              onClick={() => {
-                s.setFcPronInPairs(!s.fcPronInPairs);
-                showToast(
-                  s.fcPronInPairs
-                    ? '듣기 테스트에서 한 글자(단음절) 발음 카드를 뺐어요.'
-                    : '듣기 테스트에 한 글자(단음절) 발음 카드도 함께 출제해요.',
-                );
-              }}
-            />
-          </Row>
-          <Row
             label="부록1 기독교 용어 학습 포함"
             description="예수·하나님 같은 부록1의 기독교 핵심 용어 80여 개를 학습 풀에 넣어요."
           >

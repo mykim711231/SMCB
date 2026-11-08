@@ -2,7 +2,6 @@
  * 퀴즈 페이지 (Learn 통합): 미니 게임 모음.
  *   - 문장 조립: 한국어 단서를 보고 중국어 토큰을 순서대로 탭하여 정답 만들기
  *   - 4지선다: 단어/뜻을 보고 보기 중 정답 고르기
- *   - 최소 대조쌍: 발음을 듣고 같은 무성조 후보 중 정답 고르기
  *
  * mode는 외부(Learn 페이지)에서 prop으로 주입. 페이지 내 h1·모드 탭은 제거됨.
  * 레슨 범위 필터(권별 멀티 선택)는 Flashcards와 동일한 UX 패턴.
@@ -10,23 +9,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ArrowLeftRight, AlertTriangle } from 'lucide-react';
 import { loadAllLessons, loadAppendixVocabs, META } from '@/data/loaders';
-import type { Lesson, PronRow, VocabEntry } from '@/types/lesson';
+import type { Lesson, VocabEntry } from '@/types/lesson';
 import { useSettings } from '@/stores/settings';
 import { useSRS } from '@/stores/srs';
 import { useLearnScope } from '@/stores/learnScope';
-import MinimalPairsGame from '@/components/flashcards/MinimalPairsGame';
 import SentenceBuilderGame from '@/components/quiz/SentenceBuilderGame';
 import McqGame, { type McqPrompt, type Direction } from '@/components/quiz/McqGame';
 import {
   buildAllPrompts, shuffleSeeded, seedFromString, type SentencePrompt,
 } from '@/lib/sentence-builder';
 import { dialogCardId, scenarioCardId, buildIdMigrationPairs } from '@/lib/flashcard-items';
-import { extractMinimalPairs, type MinimalPair } from '@/lib/minimal-pairs';
 import { pickMistakeCards } from '@/lib/srs-stats';
 import { estimateGrade } from '@/lib/quiz-grade';
 import { cn } from '@/lib/cn';
 
-export type QuizMode = 'sentence' | 'mcq' | 'pairs';
+export type QuizMode = 'sentence' | 'mcq';
 
 type Props = { mode: QuizMode };
 
@@ -65,7 +62,7 @@ function srsCardIdFromPrompt(p: SentencePrompt): string | null {
 
 export default function Quiz({ mode }: Props): JSX.Element {
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  // 부록1 기독교 용어집의 학습 vocab — 설정 토글 시 4지선다·대조쌍 풀에 합쳐진다.
+  // 부록1 기독교 용어집의 학습 vocab — 설정 토글 시 4지선다 풀에 합쳐진다.
   // lessonId는 Appendix.id("appendix1")이며 lessonSel 멀티 필터의 범위 밖에 있으므로
   // 사용자가 토글로 켰을 때 lessonSel 선택과 무관하게 항상 포함된다.
   const [appendixVocabs, setAppendixVocabs] = useState<
@@ -82,12 +79,10 @@ export default function Quiz({ mode }: Props): JSX.Element {
   const [inLapses, setInLapses] = useState(false);
   const [lapsesSentence, setLapsesSentence] = useState<SentencePrompt[]>([]);
   const [lapsesMcq, setLapsesMcq] = useState<McqPrompt[]>([]);
-  const [lapsesPairs, setLapsesPairs] = useState<MinimalPair[]>([]);
 
   const ttsRate = useSettings((s) => s.ttsRate);
   const ttsVoiceURI = useSettings((s) => s.ttsVoiceURI);
   const fcAlgorithm = useSettings((s) => s.fcAlgorithm);
-  const fcPronInPairs = useSettings((s) => s.fcPronInPairs);
   const fcAppendixVocab = useSettings((s) => s.fcAppendixVocab);
   const grade = useSRS((s) => s.grade);
   const ensure = useSRS((s) => s.ensure);
@@ -140,22 +135,6 @@ export default function Quiz({ mode }: Props): JSX.Element {
     return shuffleSeeded(list, seed);
   }, [selectedLessons, lessonSel]);
 
-  // 대조쌍용 pairs — fcPronInPairs 설정 시 발음표 단음절(PronRow)도 풀에 합친다.
-  // pron 항목은 SRS 카드가 없어 정답·오답 시 SRS 갱신을 스킵한다(onPairsResult 분기).
-  // 부록 vocab(fcAppendixVocab)도 lessonSel과 무관하게 항상 풀에 포함된다 — v: 카드로 SRS 갱신 정상.
-  const pairs = useMemo(() => {
-    const vs: Array<{ vocab: VocabEntry; lessonId: string }> = [];
-    const ps: Array<{ pron: PronRow; lessonId: string; idx: number }> = [];
-    for (const l of selectedLessons) {
-      for (const v of l.vocab) vs.push({ vocab: v, lessonId: l.id });
-      if (fcPronInPairs) {
-        l.pronunciation.forEach((p, i) => ps.push({ pron: p, lessonId: l.id, idx: i }));
-      }
-    }
-    for (const av of appendixVocabs) vs.push({ vocab: av.vocab, lessonId: av.lessonId });
-    return extractMinimalPairs(vs, ps);
-  }, [selectedLessons, fcPronInPairs, appendixVocabs]);
-
   // 4지선다용 prompts (vocab 전용, 선택 범위 기반 시드 셔플)
   // 부록 vocab은 lessonSel과 무관하게 항상 포함 — distractor 풀도 함께 늘어 보기 다양성↑.
   const mcqPrompts = useMemo<McqPrompt[]>(() => {
@@ -205,20 +184,6 @@ export default function Quiz({ mode }: Props): JSX.Element {
     });
   }, [inLapses, lapsesMcq, deck, mcqPrompts, cards, mistakeIds]);
 
-  const filteredPairs = useMemo<MinimalPair[]>(() => {
-    if (inLapses) return lapsesPairs;
-    if (deck === 'all') return pairs;
-    if (deck === 'lapses') return lapsesPairs;
-    // pron 항목은 SRS 카드가 없어 due/mistakes 판별에서 제외 (pron-only 그룹은 'all' 전용)
-    return pairs.filter((g) =>
-      g.items.some((it) => {
-        if (it.source !== 'vocab') return false;
-        const id = `v:${it.vocabId}`;
-        return deck === 'due' ? isDueId(id) : mistakeIds.has(id);
-      }),
-    );
-  }, [inLapses, lapsesPairs, deck, pairs, cards, mistakeIds]);
-
   // 모드별 칩 뱃지 카운트 (현재 모드의 source 리스트 기준)
   const deckCounts = useMemo(() => {
     const now = Date.now();
@@ -236,44 +201,22 @@ export default function Quiz({ mode }: Props): JSX.Element {
       }
       return { due, mistakes: mis, all: prompts.length };
     }
-    if (mode === 'mcq') {
-      let due = 0, mis = 0;
-      for (const p of mcqPrompts) {
-        const id = `v:${p.vocab.id}`;
-        if (isDue(id)) due++;
-        if (mistakeIds.has(id)) mis++;
-      }
-      return { due, mistakes: mis, all: mcqPrompts.length };
-    }
     let due = 0, mis = 0;
-    for (const g of pairs) {
-      // pron 항목은 SRS 카드가 없어 due/mistakes 카운트에서 제외
-      const vocabItems = g.items.filter((it) => it.source === 'vocab');
-      if (vocabItems.some((it) => isDue(`v:${it.vocabId}`))) due++;
-      if (vocabItems.some((it) => mistakeIds.has(`v:${it.vocabId}`))) mis++;
+    for (const p of mcqPrompts) {
+      const id = `v:${p.vocab.id}`;
+      if (isDue(id)) due++;
+      if (mistakeIds.has(id)) mis++;
     }
-    return { due, mistakes: mis, all: pairs.length };
-  }, [mode, prompts, mcqPrompts, pairs, cards, mistakeIds]);
+    return { due, mistakes: mis, all: mcqPrompts.length };
+  }, [mode, prompts, mcqPrompts, cards, mistakeIds]);
 
-  const lapsesCount =
-    mode === 'sentence' ? lapsesSentence.length
-    : mode === 'mcq' ? lapsesMcq.length
-    : lapsesPairs.length;
+  const lapsesCount = mode === 'sentence' ? lapsesSentence.length : lapsesMcq.length;
 
   // SRS 카드가 존재하도록 보장 — 게임 시작 직후 grade가 호출되어도 신규 카드로 잡힌다.
   useEffect(() => {
     if (!playing) return;
     if (mode === 'mcq') ensure(filteredMcqPrompts.map((p) => `v:${p.vocab.id}`));
-    else if (mode === 'pairs') {
-      const ids = new Set<string>();
-      for (const g of filteredPairs) {
-        for (const it of g.items) {
-          // pron 항목은 SRS 카드 없음 — ensure 대상 아님 (vocabId가 'pron:...' 형태)
-          if (it.source === 'vocab') ids.add(`v:${it.vocabId}`);
-        }
-      }
-      ensure(Array.from(ids));
-    } else if (mode === 'sentence') {
+    else if (mode === 'sentence') {    } else if (mode === 'sentence') {
       const ids: string[] = [];
       for (const p of filteredSentencePrompts) {
         const id = srsCardIdFromPrompt(p);
@@ -281,7 +224,7 @@ export default function Quiz({ mode }: Props): JSX.Element {
       }
       ensure(ids);
     }
-  }, [playing, mode, filteredMcqPrompts, filteredPairs, filteredSentencePrompts, ensure]);
+  }, [playing, mode, filteredMcqPrompts, filteredSentencePrompts, ensure]);
 
   // 정/오답 → SRS grade 라우팅 + 오답이면 현재 모드 lapses에 누적 (중복 방지)
   // rtMs/signalLen이 주어지면 SM-2에서 4단계(easy/good/hard/again)로 추정한다.
@@ -298,25 +241,6 @@ export default function Quiz({ mode }: Props): JSX.Element {
       );
     }
     // sentence는 onSentenceResult에서 promptId로 직접 처리
-    // pairs는 onPairsResult에서 noEasy 캡과 함께 별도 처리
-  };
-
-  // 대조쌍 전용 — 청해 변별 과제는 의미 회상이 아니므로 'easy' 승격을 막아
-  // SM-2 ease factor 가 청해 정답률만으로 과대 추정되는 것을 차단한다.
-  // pron 항목(vocabId가 'pron:...')은 SRS 카드가 없어 grade 호출은 건너뛰고
-  // 오답 누적(lapses)만 처리 — 같은 세션 내 재투입은 유지된다.
-  const onPairsResult = (vocabId: string, correct: boolean, rtMs?: number, signalLen?: number): void => {
-    const isPron = vocabId.startsWith('pron:');
-    if (!isPron) {
-      const g = estimateGrade({ correct, rtMs, signalLen, algorithm: fcAlgorithm, noEasy: true });
-      grade(`v:${vocabId}`, g, fcAlgorithm);
-    }
-    if (correct || inLapses) return;
-    const hit = pairs.find((p) => p.items.some((it) => it.vocabId === vocabId));
-    if (!hit) return;
-    setLapsesPairs((prev) =>
-      prev.some((p) => p.items.some((it) => it.vocabId === vocabId)) ? prev : [...prev, hit],
-    );
   };
 
   // 다중 소스 grade 라우팅 — example/dialog/scenario는 각각 v:/d:/s: 카드로 그레이딩,
@@ -345,7 +269,6 @@ export default function Quiz({ mode }: Props): JSX.Element {
   useEffect(() => {
     setLapsesSentence([]);
     setLapsesMcq([]);
-    setLapsesPairs([]);
   }, [mode, lessonSel]);
 
   // 오답 재투입 칩 클릭 → 즉시 게임 진입 (1클릭). Flashcards의 startLapses와 동일한 UX.
@@ -359,26 +282,8 @@ export default function Quiz({ mode }: Props): JSX.Element {
     setDeck(d);
   };
 
-  // 대조쌍 모드에서는 권 단위 선택만 의미 있음 (단음절 단어 풀이 좁아 과 단위로 자르면 그룹이 거의 안 나옴).
-  // mode 전환 시 부분 선택된 권을 "권 전체 선택"으로 격상 → 사용자 의도 보존.
-  useEffect(() => {
-    if (mode !== 'pairs') return;
-    if (lessonSel.size === 0) return;
-    const next = new Set(lessonSel);
-    for (const vol of [1, 2, 3] as const) {
-      const list = lessonGroups[vol];
-      if (list.length === 0) continue;
-      const anyOn = list.some((l) => next.has(l.id));
-      if (anyOn) for (const l of list) next.add(l.id);
-    }
-    if (next.size !== lessonSel.size) setLessonSel(next);
-  }, [mode, lessonGroups, lessonSel, setLessonSel]);
-
   // 현재 모드에서 출제 가능한 문제 수 (덱·lapses 반영)
-  const playableCount =
-    mode === 'sentence' ? filteredSentencePrompts.length
-    : mode === 'mcq' ? filteredMcqPrompts.length
-    : filteredPairs.length;
+  const playableCount = mode === 'sentence' ? filteredSentencePrompts.length : filteredMcqPrompts.length;
 
   // 시작 disabled 조건 — mcq는 4지선다라 4개 미만이면 distractor가 부족하지만,
   // 그 컷오프는 같은 풀(mcqPrompts) 전체 크기로 잡아야 함. filteredMcqPrompts가 4 미만이라도
@@ -417,12 +322,12 @@ export default function Quiz({ mode }: Props): JSX.Element {
         />
       </div>
 
-      {/* 레슨 범위 필터 — 문장 조립은 과 단위, 대조쌍은 권 단위 */}
+      {/* 레슨 범위 필터 — 과 단위 */}
       <LessonMultiFilter
         groups={lessonGroups}
         selected={lessonSel}
         onChange={setLessonSel}
-        granularity={mode === 'pairs' ? 'vol' : 'lesson'}
+        granularity="lesson"
       />
 
       {/* 안내 */}
@@ -464,18 +369,6 @@ export default function Quiz({ mode }: Props): JSX.Element {
               </div>
               <p className="text-xs text-muted">
                 출제 가능: {filteredMcqPrompts.length}문제
-                {inLapses ? ' (오답 재투입)' : ` (${deckLabel(deck)})`}
-              </p>
-            </>
-          )}
-          {mode === 'pairs' && (
-            <>
-              <p className="text-fg font-semibold">듣기 테스트</p>
-              <p className="text-sm text-muted">
-                같은 무성조 발음의 단어 중에서 들리는 성조를 변별하는 미니 게임입니다.
-              </p>
-              <p className="text-xs text-muted">
-                출제 가능 그룹: {filteredPairs.length}개
                 {inLapses ? ' (오답 재투입)' : ` (${deckLabel(deck)})`}
               </p>
             </>
@@ -524,16 +417,6 @@ export default function Quiz({ mode }: Props): JSX.Element {
           ttsVoiceURI={ttsVoiceURI}
           onExit={() => setPlaying(false)}
           onResult={onVocabResult}
-        />
-      )}
-      {playing && mode === 'pairs' && (
-        <MinimalPairsGame
-          key={`p:${deck}:${inLapses ? 'lap' : 'norm'}`}
-          pairs={filteredPairs}
-          ttsRate={ttsRate}
-          ttsVoiceURI={ttsVoiceURI}
-          onExit={() => setPlaying(false)}
-          onResult={onPairsResult}
         />
       )}
     </div>
