@@ -1,10 +1,10 @@
 /**
  * 통합 학습 페이지 (/learn).
  *   - 상단: 학습 통계 (collapsible)
- *   - 중단: 모드 탭 (5회 듣기 / 이어듣기 / 문장 조립 / 플래시카드 / 4지선다)
+ *   - 중단: 모드 탭 (단계 듣기 / 이어듣기 / 문장 조립 / 플래시카드 / 4지선다)
  *   - 하단: 선택된 모드의 콘텐츠 (Flashcards 또는 Quiz mode=...)
  *
- * URL ?mode=repeat|marathon|flashcard|sentence|mcq 로 초기 모드 결정 (북마크 호환).
+ * URL ?mode=staged|marathon|flashcard|sentence|mcq 로 초기 모드 결정 (북마크 호환).
  * 모드 전환 시 쿼리도 갱신되어 새로고침/공유에서 상태 보존.
  *
  * 라우팅: /flashcards, /quiz 는 이 페이지로 redirect (App.tsx 참조).
@@ -18,9 +18,9 @@ import Marathon from './Marathon';
 import StatsPanel from '@/components/flashcards/StatsPanel';
 import { cn } from '@/lib/cn';
 
-type LearnMode = 'flashcard' | QuizMode | 'marathon' | 'repeat'; // 'flashcard' | 'sentence' | 'mcq' | 'marathon' | 'repeat'
+type LearnMode = 'flashcard' | QuizMode | 'marathon' | 'staged'; // 'flashcard' | 'sentence' | 'mcq' | 'marathon' | 'staged'
 
-const VALID_MODES: readonly LearnMode[] = ['repeat', 'marathon', 'sentence', 'flashcard', 'mcq'] as const;
+const VALID_MODES: readonly LearnMode[] = ['staged', 'marathon', 'sentence', 'flashcard', 'mcq'] as const;
 const isValidMode = (v: string | null): v is LearnMode =>
   v != null && (VALID_MODES as readonly string[]).includes(v);
 
@@ -29,7 +29,9 @@ export default function Learn(): JSX.Element {
   // 두 effect가 같은 렌더에서 서로 다른 값으로 setState를 호출하며 핑퐁 루프가 생긴다.
   // derived state + setter 한 곳으로 통합해 그 가능성을 차단한다.
   const [params, setParams] = useSearchParams();
-  const q = params.get('mode');
+  // 'repeat'(구 5회 듣기) 북마크는 단계 듣기로 연결
+  const q0 = params.get('mode');
+  const q = q0 === 'repeat' ? 'staged' : q0;
   const mode: LearnMode = isValidMode(q) ? q : 'marathon';
 
   const setMode = useCallback((v: LearnMode): void => {
@@ -41,7 +43,7 @@ export default function Learn(): JSX.Element {
   const tabs = useMemo(
     () =>
       [
-        { v: 'repeat' as const, label: '5회 듣기', icon: <Repeat size={14} aria-hidden /> },
+        { v: 'staged' as const, label: '단계 듣기', icon: <Repeat size={14} aria-hidden /> },
         { v: 'marathon' as const, label: '이어듣기', icon: <Radio size={14} aria-hidden /> },
         { v: 'sentence' as const, label: '문장 조립', icon: <ArrowLeftRight size={14} aria-hidden /> },
         { v: 'flashcard' as const, label: '플래시카드', icon: <Layers size={14} aria-hidden /> },
@@ -93,7 +95,7 @@ export default function Learn(): JSX.Element {
       {/* 모드별 콘텐츠 — key로 모드 전환 시 내부 상태 리셋 */}
       <div role="tabpanel">
         {mode === 'flashcard' && <Flashcards key="flashcard" />}
-        {mode === 'repeat' && <Marathon key="repeat" variant="repeat" />}
+        {mode === 'staged' && <Marathon key="staged" variant="staged" />}
         {mode === 'marathon' && <Marathon key="marathon" />}
         {(mode === 'sentence' || mode === 'mcq') && (
           <Quiz key={mode} mode={mode} />

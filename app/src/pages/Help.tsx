@@ -88,8 +88,8 @@ const GUIDES: Guide[] = [
   {
     id: 'learn-sources',
     title: <><GraduationCap size={18} aria-hidden /> 학습 모드별 자료 매핑</>,
-    subtitle: '플래시카드 · 4지선다 · 문장 조립 · 이어듣기 · 5회 듣기가 어떤 자료를 쓰는지.',
-    keywords: '학습 모드 플래시카드 4지선다 문장 조립 이어듣기 5회 듣기 반복 듣기 마라톤 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 부록',
+    subtitle: '플래시카드 · 4지선다 · 문장 조립 · 이어듣기 · 단계 듣기가 어떤 자료를 쓰는지.',
+    keywords: '학습 모드 플래시카드 4지선다 문장 조립 이어듣기 단계 듣기 반복 듣기 따라 말하기 쉐도잉 마라톤 자료 매핑 본문 단어 예문 구절 회화 시나리오 어법 본문 질문 부록',
     Body: LearnSourcesGuide,
   },
   {
@@ -945,7 +945,7 @@ function LearnSourcesGuide(): JSX.Element {
               <th className="p-2 border-b border-divider whitespace-nowrap">플래시<br/>카드</th>
               <th className="p-2 border-b border-divider whitespace-nowrap">4지<br/>선다</th>
               <th className="p-2 border-b border-divider whitespace-nowrap">문장<br/>조립</th>
-              <th className="p-2 border-b border-divider whitespace-nowrap">이어듣기<br/>5회 듣기</th>
+              <th className="p-2 border-b border-divider whitespace-nowrap">이어듣기<br/>단계 듣기</th>
             </tr>
           </thead>
           <tbody>
@@ -991,7 +991,17 @@ function LearnSourcesGuide(): JSX.Element {
           <li><b className="text-fg">플래시카드</b> — 단어 · 예문 · 구절 · 회화 · 시나리오를 카드 한 장씩 넘기며 외워요.</li>
           <li><b className="text-fg">4지선다</b> — 주요 어휘(단어)만 출제. 4개 보기 중 한국어 뜻을 고르거나 한자/병음을 맞춰요.</li>
           <li><b className="text-fg">문장 조립</b> — 회화체 문장(회화·예문·시나리오·어법 예문·본문 질문)을 토큰으로 흩어 놓고 다시 맞춰요. <i>본문·구절은 문어체라 제외.</i></li>
-          <li><b className="text-fg">5회 듣기</b> — 이어듣기와 같은 범위·영역을 쓰되 한 문장을 5번씩 들려줘요. 1~2회는 전체 표시, 3~4회는 한자만, 5회째는 소리만. 채점 없음.</li>
+          <li>
+            <b className="text-fg">단계 듣기</b> — 이어듣기와 같은 범위·영역을 쓰되, 한 문장을 단계마다 목적을 바꿔 여러 번 들려줘요. 채점 없음.
+            <ul className="list-[circle] pl-5 mt-1 space-y-0.5">
+              <li><b>단어</b> (4단계): 떠올리기 → 확인(느리게) → 따라 말하기 → 글자 없이 + 정답 확인</li>
+              <li><b>예문 · 회화 · 시나리오</b> (7단계): 들어보기 → 이해(느리게) → 성조(느리게) → 따라 말하기 → 한자만 → 글자 없이 → 확인</li>
+              <li><b>성경 구절</b> (5단계): 이해(느리게) → 성조(느리게) → 따라 말하기 → 한자만 → 외워 말하기 + 정답 확인</li>
+              <li><b>본문</b> (4단계): 들어보기 → 이해 → 글자 보며 듣기 → 글자 없이 + 정답 확인</li>
+              <li>따라 말하기 단계는 문장 길이에 맞춰 쉬는 시간이 늘어나요. 4글자 이하 짧은 문장은 단어 방식으로 들려줘요.</li>
+              <li>어려운 문장은 <b>다시 듣기</b>를 눌러 두면 목록이 끝난 뒤 뒤쪽 단계를 한 번 더 들려줘요. <b>나눠 듣기</b>를 켜면 앞 단계와 뒤 단계를 목록 단위로 나눠 두 바퀴 들어요.</li>
+            </ul>
+          </li>
           <li><b className="text-fg">이어듣기</b> — 선택한 영역(본문·단어·예문·구절·회화·시나리오)을 권/과 순서대로 끝까지 재생만 해요. 채점 없음.</li>
         </ul>
       </div>

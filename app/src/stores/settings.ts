@@ -88,6 +88,8 @@ export type SettingsState = {
   marathonAreas: { body: boolean; vocab: boolean; example: boolean; bible: boolean; dialog: boolean; scenario: boolean };
   /** 마라톤 화면에서 한자/병음/한국어 표시 여부. TTS는 항상 zh로 재생. */
   marathonShow: { zh: boolean; pinyin: boolean; ko: boolean };
+  /** 단계 듣기 '나눠 듣기' — 전체 목록을 1~3단계로 한 바퀴, 4~7단계로 다시 한 바퀴. */
+  stagedSplit: boolean;
   // 사용 방식 + 음성 일괄 다운로드
   userMode: UserMode;
   ttsBulkStatus: TTSBulkStatus;
@@ -113,6 +115,7 @@ export type SettingsState = {
   setFcAppendixVocab: (b: boolean) => void;
   setMarathonAreas: (a: SettingsState['marathonAreas']) => void;
   setMarathonShow: (s: SettingsState['marathonShow']) => void;
+  setStagedSplit: (b: boolean) => void;
   setUserMode: (m: UserMode) => void;
   setTTSBulkStatus: (s: TTSBulkStatus) => void;
   setTTSBulkProgress: (p: { done: number; total: number }) => void;
@@ -142,6 +145,7 @@ const DEFAULTS = {
   fcAppendixVocab: true,
   marathonAreas: { body: true, vocab: true, example: true, bible: true, dialog: true, scenario: true },
   marathonShow: { zh: true, pinyin: true, ko: true },
+  stagedSplit: false,
   userMode: null as UserMode,
   ttsBulkStatus: 'idle' as TTSBulkStatus,
   ttsBulkProgress: { done: 0, total: 0 } as { done: number; total: number },
@@ -156,7 +160,7 @@ type Persisted = Omit<
   | 'setFcAlgorithm' | 'setFcGrades' | 'setFcDirection' | 'setFcAutoplay'
   | 'setFcCardTypes'
   | 'setFcPronInPairs' | 'setFcAppendixVocab'
-  | 'setMarathonAreas' | 'setMarathonShow'
+  | 'setMarathonAreas' | 'setMarathonShow' | 'setStagedSplit'
   | 'setUserMode' | 'setTTSBulkStatus' | 'setTTSBulkProgress'
   | 'hydrate'
 >;
@@ -182,6 +186,7 @@ function pickPersisted(s: SettingsState): Persisted {
     fcAppendixVocab: s.fcAppendixVocab,
     marathonAreas: s.marathonAreas,
     marathonShow: s.marathonShow,
+    stagedSplit: s.stagedSplit,
     userMode: s.userMode,
     ttsBulkStatus: s.ttsBulkStatus,
     ttsBulkProgress: s.ttsBulkProgress,
@@ -323,6 +328,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     void persist({ ...get(), marathonAreas: safe });
   },
   setMarathonShow: (s2) => { set({ marathonShow: s2 }); void persist({ ...get(), marathonShow: s2 }); },
+  setStagedSplit: (b) => { set({ stagedSplit: b }); void persist({ ...get(), stagedSplit: b }); },
   setUserMode: (m) => {
     // 모드 전환 시 진행 중인 음성/오디오를 즉시 종료한다.
     //   - 직전 utterance가 살아남아 새 모드와 다른 경로에서 끝나면

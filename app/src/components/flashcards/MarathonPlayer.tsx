@@ -33,17 +33,11 @@ type Props = {
   onExit: () => void;
   /** 표시 토글 — 모두 false면 진행 정보만 표시 (TTS는 zh로 항상 재생). 기본값: 모두 true. */
   show?: { zh: boolean; pinyin: boolean; ko: boolean };
-  /** 카드별 반복 횟수 고정 (5회 듣기). 지정하면 반복 +/- 조절을 숨긴다. */
-  repeatTimes?: number;
-  /** 회차별 글자 줄이기 — 1~2회 show 그대로, 3~4회 한자만, 마지막 회차 소리만. */
-  stagedReveal?: boolean;
-  /** 상단 제목 (기본 '이어듣기') */
-  title?: string;
 };
 
 type CardTexts = { zh: string; pinyin: string; ko: string };
 
-function cardTextsOf(s: CardSource): CardTexts {
+export function cardTextsOf(s: CardSource): CardTexts {
   if (s.kind === 'vocab') return { zh: s.vocab.word, pinyin: s.vocab.pinyin, ko: s.vocab.meaning };
   if (s.kind === 'example' && s.vocab.example) return { ...s.vocab.example };
   if (s.kind === 'verse') return { ...s.verse.text };
@@ -54,7 +48,6 @@ function cardTextsOf(s: CardSource): CardTexts {
 export default function MarathonPlayer({
   cards, ttsRate, ttsVoiceURI, onExit,
   show = { zh: true, pinyin: true, ko: true },
-  repeatTimes, stagedReveal = false, title = '이어듣기',
 }: Props): JSX.Element {
   const { rubyPinyin, chunkLevel } = useSettings();
   useChunkData(chunkLevel);
@@ -65,7 +58,7 @@ export default function MarathonPlayer({
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [pauseBetweenMs, setPauseBetweenMs] = useState(1200);
-  const [repeatCount, setRepeatCount] = useState(repeatTimes ?? 1);
+  const [repeatCount, setRepeatCount] = useState(1);
   const [repeatCurrent, setRepeatCurrent] = useState(0); // display-only
   const timerRef = useRef<number | null>(null);
   const playingRef = useRef(playing);
@@ -163,11 +156,11 @@ export default function MarathonPlayer({
     if (!card) return;
     const t = cardTextsOf(card);
     setMediaMetadata({
-      title: t.zh || t.ko || title,
+      title: t.zh || t.ko || '이어듣기',
       artist: card.lessonTitleKo,
-      album: `SMCB ${title}`,
+      album: 'SMCB 이어듣기',
     });
-  }, [idx, cards, userMode, title]);
+  }, [idx, cards, userMode]);
 
   // 재생 완료 — 끝에 도달하면 세션 종료해 잠금화면 컨트롤도 정리.
   useEffect(() => {
@@ -236,20 +229,12 @@ export default function MarathonPlayer({
   const done = idx >= cards.length;
   const progress = cards.length === 0 ? 0 : Math.round((idx / cards.length) * 100);
   const repeatLabel = repeatCount > 1 ? ` (${repeatCurrent + 1}/${repeatCount}회)` : '';
-  // 회차별 표시 — stagedReveal이면 회차가 갈수록 글자를 줄인다.
-  const lastRound = repeatCurrent >= repeatCount - 1;
-  const shown = !stagedReveal || repeatCurrent < 2
-    ? show
-    : lastRound
-      ? { zh: false, pinyin: false, ko: false }
-      : { zh: true, pinyin: false, ko: false };
-  const audioOnly = !shown.zh && !shown.pinyin && !shown.ko;
 
   return (
     <div className="rounded-2xl border border-primary bg-primary-soft p-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-primary inline-flex items-center gap-2">
-          🎧 {title}{repeatLabel}
+          🎧 이어듣기{repeatLabel}
         </p>
         <button
           type="button"
@@ -270,7 +255,7 @@ export default function MarathonPlayer({
         ) : current ? (
           (() => {
             const t = cardTextsOf(current);
-            const useRuby = shown.zh && shown.pinyin && rubyPinyin && t.pinyin;
+            const useRuby = show.zh && show.pinyin && rubyPinyin && t.pinyin;
             const alignedTokens = useRuby ? alignRuby(t.zh, t.pinyin) : null;
             const rubyTokens = alignedTokens ? markChunksTokens(alignedTokens, chunkLevel) : alignedTokens;
             const marked = markChunksText(t.zh, t.pinyin, chunkLevel);
@@ -283,19 +268,16 @@ export default function MarathonPlayer({
                   <HanziRuby tokens={rubyTokens} className="justify-center mt-1" />
                 ) : (
                   <>
-                    {shown.zh && (
+                    {show.zh && (
                       <p className="text-2xl sm:text-3xl font-bold text-fg mt-1">{zhShown}</p>
                     )}
-                    {shown.pinyin && t.pinyin && (
+                    {show.pinyin && t.pinyin && (
                       <p className="text-pinyin font-pinyin text-sm mt-1">{pinyinShown}</p>
                     )}
                   </>
                 )}
-                {shown.ko && t.ko && (
+                {show.ko && t.ko && (
                   <p className="text-fg text-base mt-1">{t.ko}</p>
-                )}
-                {stagedReveal && audioOnly && (
-                  <p className="text-muted text-sm mt-2">글자 없이 듣고 따라 말해 보세요</p>
                 )}
               </div>
             );
@@ -338,7 +320,6 @@ export default function MarathonPlayer({
         />
         <span className="tabular-nums w-8">{(pauseBetweenMs / 1000).toFixed(1)}s</span>
       </div>
-      {repeatTimes == null && (
       <div className="flex items-center justify-center gap-2 text-xs text-muted flex-wrap">
         <label className="whitespace-nowrap">반복</label>
         <button
@@ -362,7 +343,6 @@ export default function MarathonPlayer({
         </button>
         <span className="text-muted">회</span>
       </div>
-      )}
     </div>
   );
 }
