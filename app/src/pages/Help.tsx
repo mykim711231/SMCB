@@ -1608,6 +1608,11 @@ function AndroidInstallSteps(): JSX.Element {
           버튼이 비활성화된 경우: 오른쪽 위 <b>⋮ 메뉴</b> → <b>"앱 설치"</b> 또는 <b>"홈 화면에 추가"</b>
         </li>
       </ol>
+      <p className="text-xs text-muted mt-2">
+        <AlertTriangle size={12} className="inline -mt-0.5" aria-hidden /> <b>Android 9 이하</b>의 오래된 기기는
+        <b> "앱 설치"</b>로 설치한 앱이 열렸다가 바로 닫힐 수 있어요. 이때는 앱을 지우고
+        <b> ⋮ 메뉴 → "홈 화면에 추가"</b>로 바로가기를 만들어 쓰세요.
+      </p>
     </>
   );
 }
@@ -1855,6 +1860,28 @@ function MacUninstallSteps(): JSX.Element {
 type Trouble = { q: ReactNode; a: JSX.Element; keywords?: string };
 
 const TROUBLE_ITEMS: Trouble[] = [
+      {
+        q: <><AlertTriangle size={14} aria-hidden /> 설치한 앱 아이콘을 누르면 잠깐 열렸다가 바로 닫혀요. (오래된 Android)</>,
+        keywords: '설치 앱 닫힘 꺼짐 종료 실행 안됨 안드로이드 8 9 오래된 기기 태블릿 크롬 지원 종료 바로가기 홈 화면에 추가',
+        a: (
+          <>
+            <p className="mb-2">
+              <b>Android 9 이하</b>의 오래된 기기는 최신 Chrome 지원이 끝나서, <b>"앱 설치"</b>로 새로 설치한 앱이
+              실행되지 않을 수 있어요. SMCB 문제가 아니라 기기와 Chrome의 설치 기능 문제라 다른 웹앱도 똑같이 닫힙니다.
+              예전에 설치해 둔 앱은 계속 쓸 수 있지만, 지우고 다시 설치하면 이 증상이 생길 수 있어요.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1 text-fg/90">
+              <li>닫히는 SMCB 앱 아이콘을 <b>길게 눌러 제거</b>합니다.</li>
+              <li><b>Chrome</b>으로 이 페이지를 엽니다. Chrome에서 바로 열면 정상 동작합니다.</li>
+              <li>오른쪽 위 <b>⋮ 메뉴 → "홈 화면에 추가"</b>를 눌러 바로가기를 만듭니다. <b>"앱 설치"</b>는 누르지 마세요.</li>
+              <li>홈 화면의 바로가기로 실행하면 됩니다. 화면 회전은 기기 자동 회전 설정을 따릅니다.</li>
+            </ol>
+            <p className="text-xs text-muted mt-2">
+              기기 Android 버전 확인: <b>설정 → 휴대전화(태블릿) 정보 → 소프트웨어 정보</b>.
+            </p>
+          </>
+        ),
+      },
       {
         q: <><RotateCw size={14} aria-hidden /> 흰 화면 / 검은 화면만 보이고 앱이 안 열려요.</>,
         a: (
